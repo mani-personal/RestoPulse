@@ -1,10 +1,9 @@
 'use client'
-import { createClient } from '@/lib/supabase'
+import { browserDb as supabase } from '@/lib/supabase'
 import { useRouter } from 'next/navigation'
 import { Button } from '@/components/ui/button'
 
 export function ProfileHeader() {
-  const supabase = createClient()
   const router = useRouter()
 
   const handleSignOut = async () => {

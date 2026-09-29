@@ -1,24 +1,12 @@
-'use client'
-import { createClient } from '@/lib/supabase'
-import { useRouter } from 'next/navigation'
-import { Button } from '@/components/ui/button'
+import { ProfileHeader } from '@/components/ProfileHeader'
 
-export function ProfileHeader() {
-  const supabase = createClient()
-  const router = useRouter()
-
-  const handleSignOut = async () => {
-    await supabase.auth.signOut()
-    router.push('/')
-    router.refresh()
-  }
-
+export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <div className="flex items-center justify-between p-4 border-b bg-white">
-      <span className="font-bold text-lg">RestoPulse Dashboard</span>
-      <Button variant="outline" onClick={handleSignOut}>
-        Sign Off / Logout
-      </Button>
-    </div>
+    <html lang="en">
+      <body>
+        <ProfileHeader />
+        {children}
+      </body>
+    </html>
   )
 }

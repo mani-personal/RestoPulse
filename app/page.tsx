@@ -39,6 +39,7 @@ import {
   Save,
   QrCode,
   Upload,
+  AlertTriangle,
 } from "lucide-react";
 import {
   AreaChart,
@@ -107,6 +108,16 @@ type CartLine = {
   qty: number;
   discount: number;
   override?: number;
+};
+
+// Professional Inventory Item definition
+type InventoryItem = {
+  id: string | number;
+  name: string;
+  category: string;
+  onHand: number;
+  unit: string;
+  reorderLevel: number;
 };
 
 const initialDishes: Dish[] = [
@@ -188,11 +199,6 @@ type Wage = {
   amount: number;
   status: "Paid" | "Unpaid";
   note: string;
-};
-
-type InventoryRecord = {
-  onHand: number | null;
-  reorderLevel: number;
 };
 
 type ExtensionRequest = {
@@ -379,12 +385,22 @@ export default function Home() {
   const [sound, setSound] = useState(false);
   const [receipt, setReceipt] = useState<Bill | null>(null);
   const [orders, setOrders] = useState<Sale[]>(initialSales);
-  const [modal, setModal] = useState<"plan" | "dish" | "expense" | "restaurant" | "extend" | "employee" | "supplier" | "payment" | null>(null);
+  const [modal, setModal] = useState<"plan" | "dish" | "expense" | "restaurant" | "extend" | "employee" | "supplier" | "payment" | "inventory" | null>(null);
   const [editing, setEditing] = useState<number | string | null>(null);
   const [form, setForm] = useState<Record<string, string>>({});
   const [selectedStaff, setSelectedStaff] = useState<Staff | null>(null);
   const [dateRange, setDateRange] = useState("This week");
-  const [inventory, setInventory] = useState<Record<string, InventoryRecord>>({});
+  
+  // Inventory Manager State
+  const [inventoryList, setInventoryList] = useState<InventoryItem[]>([
+    { id: 1, name: "Basmati Rice", category: "Grains", onHand: 12, unit: "bags", reorderLevel: 5 },
+    { id: 2, name: "Refined Cooking Oil", category: "Oils", onHand: 3, unit: "tins", reorderLevel: 6 },
+    { id: 3, name: "Whole Wheat Flour", category: "Grains", onHand: 18, unit: "bags", reorderLevel: 10 },
+    { id: 4, name: "Fresh Paneer", category: "Dairy", onHand: 0, unit: "kg", reorderLevel: 4 },
+  ]);
+  const [invForm, setInvForm] = useState({ name: "", category: "Grains", onHand: "", unit: "bags", reorderLevel: "5" });
+  const [editingInvId, setEditingInvId] = useState<string | number | null>(null);
+
   const [adminUpiId, setAdminUpiId] = useState("");
   const [adminUpiBusy, setAdminUpiBusy] = useState(false);
   const [subscriptionUpiId, setSubscriptionUpiId] = useState("");
@@ -407,9 +423,7 @@ export default function Home() {
         setAuthLoading(false);
       }
     });
-    const {
-      data: { subscription },
-    } = db.auth.onAuthStateChange((_event: string, session: any) => {
+    const { data: { subscription } } = db.auth.onAuthStateChange((_event: string, session: any) => {
       setAuthUser(session?.user.id || null);
       setAuthLoading(false);
     });
@@ -488,136 +502,82 @@ export default function Home() {
   }, [isAdmin, tenantId, db]);
 
   useEffect(() => {
-    if (!tenantId) {
-      setInventory({});
-      return;
-    }
+    if (!tenantId) return;
     try {
-      const raw = localStorage.getItem(`rp-inventory:${tenantId}`);
-      setInventory(raw ? JSON.parse(raw) : {});
-    } catch {
-      setInventory({});
-    }
+      const raw = localStorage.getItem(`rp-inventory-list:${tenantId}`);
+      if (raw) setInventoryList(JSON.parse(raw));
+    } catch {}
   }, [tenantId]);
 
-  useEffect(() => {
-    if (!db || !tenantId) return;
-    let live = true;
-    (async () => {
-      const [r, menu, people, wage, exp, pay, sup, sales] = await Promise.all([
-        db.from("restaurants").select("name,logo_url,address,business_phone,gstin,receipt_footer").eq("id", tenantId).single(),
-        db.from("menu_items").select("*").eq("restaurant_id", tenantId).order("created_at"),
-        db.from("employees").select("*").eq("restaurant_id", tenantId).eq("active", true).order("created_at"),
-        db.from("daily_wages").select("*").eq("restaurant_id", tenantId).order("wage_date", { ascending: false }),
-        db.from("expenses").select("*").eq("restaurant_id", tenantId).order("incurred_on", { ascending: false }),
-        db.from("supplier_payments").select("*").eq("restaurant_id", tenantId).order("paid_on", { ascending: false }),
-        db.from("suppliers").select("*").eq("restaurant_id", tenantId).order("name"),
-        db.from("sales").select("*").eq("restaurant_id", tenantId).order("placed_at", { ascending: false }).limit(100),
-      ]);
-      if (!live) return;
-      if (r.data) {
-        setTenantInfo(r.data);
-        setStoreForm({
-          name: r.data.name,
-          phone: r.data.business_phone,
-          address: r.data.address,
-          gstin: r.data.gstin,
-          footer: r.data.receipt_footer,
-        });
-      }
-      setDishes(
-        (menu.data || []).map((x: any) => ({
-          id: x.id,
-          name: x.name,
-          category: x.category,
-          price: Number(x.price),
-          cost: Number(x.cost),
-          stock: x.available,
-          emoji: x.emoji,
-          diet: x.diet,
-          time: x.prep_minutes,
-          imageUrl: x.image_url,
-        }))
-      );
-      setStaff(
-        (people.data || []).map((x: any) => ({
-          id: x.id,
-          name: x.name,
-          role: x.role,
-          initial: x.name.split(/\s+/).map((z: string) => z[0]).join("").slice(0, 2).toUpperCase(),
-          shift: x.shift,
-          dailyRate: Number(x.daily_rate),
-          email: x.email,
-          phone: x.phone,
-        }))
-      );
-      setWages(
-        (wage.data || []).map((x: any) => ({
-          id: x.id,
-          staffId: x.employee_id,
-          date: x.wage_date,
-          amount: Number(x.amount),
-          status: x.status,
-          note: x.note,
-        }))
-      );
-      setExpenses(
-        (exp.data || []).map((x: any) => ({
-          id: x.id,
-          name: x.name,
-          category: x.category,
-          vendor: x.vendor,
-          amount: Number(x.amount),
-          date: x.incurred_on,
-          supplierId: x.supplier_id,
-        }))
-      );
-      setSupplierPayments(
-        (pay.data || []).map((x: any) => ({
-          id: x.id,
-          supplierId: x.supplier_id,
-          amount: Number(x.amount),
-          date: x.paid_on,
-          method: x.method,
-          note: x.note,
-        }))
-      );
-      setSuppliers(
-        (sup.data || []).map((x: any) => ({
-          id: x.id,
-          name: x.name,
-          contact: x.contact_name,
-          phone: x.phone,
-          email: x.email,
-        }))
-      );
-      setOrders(
-        (sales.data || []).map((x: any) => ({
-          id: x.bill_no,
-          time: new Date(x.placed_at).toLocaleTimeString("en-IN", { hour: "numeric", minute: "2-digit" }),
-          placedAt: x.placed_at,
-          amount: Number(x.amount),
-          type: x.order_type,
-          status: x.status,
-          bill: x.receipt as Bill,
-        }))
-      );
-    })();
-    return () => {
-      live = false;
-    };
-  }, [db, tenantId]);
+  const saveInventoryToStorage = (updated: InventoryItem[]) => {
+    setInventoryList(updated);
+    if (tenantId) {
+      localStorage.setItem(`rp-inventory-list:${tenantId}`, JSON.stringify(updated));
+    }
+  };
 
-  const login = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!db) return;
-    setLoginBusy(true);
-    const { error } = await db.auth.signInWithPassword({
-      email: loginEmail,
-      password: loginPassword,
-    });
-    setLoginBusy(false);
-    if (error) toast.error(error.message);
+  const handleAddOrEditInventory = () => {
+    if (!invForm.name.trim()) {
+      toast.error("Please enter an item name");
+      return;
+    }
+    const qty = Number(invForm.onHand);
+    const reorder = Number(invForm.reorderLevel);
+    if (isNaN(qty) || qty < 0) {
+      toast.error("Enter a valid quantity on hand");
+      return;
+    }
+
+    if (editingInvId !== null) {
+      // Edit existing
+      const updated = inventoryList.map((item) =>
+        item.id === editingInvId
+          ? { ...item, name: invForm.name.trim(), category: invForm.category, onHand: qty, unit: invForm.unit, reorderLevel: isNaN(reorder) ? 5 : reorder }
+          : item
+      );
+      saveInventoryToStorage(updated);
+      toast.success("Inventory item updated successfully!");
+    } else {
+      // Add new
+      const newItem: InventoryItem = {
+        id: Date.now(),
+        name: invForm.name.trim(),
+        category: invForm.category,
+        onHand: qty,
+        unit: invForm.unit,
+        reorderLevel: isNaN(reorder) ? 5 : reorder,
+      };
+      saveInventoryToStorage([...inventoryList, newItem]);
+      toast.success("Inventory item added successfully!");
+    }
+
+    setModal(null);
+    setEditingInvId(null);
+    setInvForm({ name: "", category: "Grains", onHand: "", unit: "bags", reorderLevel: "5" });
+  };
+
+  const handleDeleteInventory = (id: string | number) => {
+    if (!confirm("Are you sure you want to delete this inventory item?")) return;
+    const updated = inventoryList.filter((item) => item.id !== id);
+    saveInventoryToStorage(updated);
+    toast.success("Inventory item deleted");
+  };
+
+  const openInventoryModal = (item?: InventoryItem) => {
+    if (item) {
+      setEditingInvId(item.id);
+      setInvForm({
+        name: item.name,
+        category: item.category,
+        onHand: String(item.onHand),
+        unit: item.unit,
+        reorderLevel: String(item.reorderLevel),
+      });
+    } else {
+      setEditingInvId(null);
+      setInvForm({ name: "", category: "Grains", onHand: "", unit: "bags", reorderLevel: "5" });
+    }
+    setModal("inventory");
   };
 
   const uploadImage = async (file: File, kind: "dish" | "logo" | "screenshot") => {
@@ -648,12 +608,6 @@ export default function Home() {
   const currentPlan = currentRestaurant
     ? plans.find((p) => p.name === currentRestaurant.plan) || initialPlans.find((p) => p.name === currentRestaurant.plan)
     : undefined;
-  const inventoryValue = (id: number | string) => inventory[String(id)] || { onHand: null, reorderLevel: 5 };
-  const saveInventoryRecord = (id: number | string, next: InventoryRecord) => {
-    const all = { ...inventory, [String(id)]: next };
-    setInventory(all);
-    if (tenantId) localStorage.setItem(`rp-inventory:${tenantId}`, JSON.stringify(all));
-  };
 
   const subtotal = cart.reduce((sum, l) => {
     const d = dishes.find((x) => x.id === l.id);
@@ -1393,7 +1347,7 @@ export default function Home() {
             </button>
           </div>
 
-          {/* Profile Popover with Sign Out correctly positioned after Manage Employees */}
+          {/* Profile Popover with Sign Out placed after Manage employees */}
           {profileMenu && (
             <div className="profile-popover">
               <div className="profile-popover-head">
@@ -2217,132 +2171,106 @@ export default function Home() {
                 </>
               )}
 
-              {view === "inventory" && tenantId && (
+              {/* PROFESSIONAL INVENTORY MANAGER CONSOLE (ADD, EDIT, SAVE, DELETE + LOW/OUT OF STOCK ALERTS) */}
+              {view === "inventory" && (
                 <>
-                  <div className="page-head">
+                  <div className="page-head flex justify-between items-center">
                     <div>
-                      <div className="eyebrow">STOCK VISIBILITY</div>
-                      <h1>Inventory</h1>
-                      <p>See menu availability and track the number of units you have on hand.</p>
+                      <div className="eyebrow">WAREHOUSE & STOCK CONTROL</div>
+                      <h1>Inventory Manager</h1>
+                      <p>Add, edit, and track inventory stock items. Real-time alerts flag low or out-of-stock items for reordering.</p>
                     </div>
-                    <button
-                      className="quiet-btn"
-                      onClick={() => {
-                        try {
-                          localStorage.setItem(`rp-inventory:${tenantId}`, JSON.stringify(inventory));
-                          toast.success("Inventory saved locally on this device");
-                        } catch {
-                          toast.error("Could not save inventory");
-                        }
-                      }}
-                    >
-                      <Save size={16} /> Save inventory
+                    <button className="primary-btn flex items-center gap-2" onClick={() => openInventoryModal()}>
+                      <Plus size={17} /> Add Stock Item
                     </button>
                   </div>
-                  <div className="platform-stats">
-                    <div>
-                      <strong>{dishes.length}</strong>
-                      <span>Menu items</span>
+
+                  {/* Quick KPI stats for inventory manager */}
+                  <div className="platform-stats grid grid-cols-4 gap-4 my-6">
+                    <div className="p-4 bg-card rounded-xl border">
+                      <strong>{inventoryList.length}</strong>
+                      <span>Total Stock Items</span>
                     </div>
-                    <div>
-                      <strong>{dishes.filter((x) => x.stock).length}</strong>
-                      <span>Available for sale</span>
+                    <div className="p-4 bg-card rounded-xl border">
+                      <strong>{inventoryList.filter(x => x.onHand > x.reorderLevel).length}</strong>
+                      <span>In Stock</span>
                     </div>
-                    <div>
-                      <strong>{dishes.filter((x) => !x.stock).length}</strong>
-                      <span>Out of stock</span>
+                    <div className="p-4 bg-card rounded-xl border border-amber-300 bg-amber-50/20">
+                      <strong className="text-amber-600">{inventoryList.filter(x => x.onHand > 0 && x.onHand <= x.reorderLevel).length}</strong>
+                      <span>Low Stock Items ⚠️</span>
                     </div>
-                    <div>
-                      <strong>{Object.values(inventory).reduce((sum, x) => sum + (x.onHand ?? 0), 0)}</strong>
-                      <span>Tracked units</span>
+                    <div className="p-4 bg-card rounded-xl border border-red-300 bg-red-50/20">
+                      <strong className="text-red-600">{inventoryList.filter(x => x.onHand === 0).length}</strong>
+                      <span>Out of Stock 🚨</span>
                     </div>
                   </div>
-                  <div className="panel management-panel">
-                    <div className="panel-header">
-                      <div>
-                        <h2>Inventory levels</h2>
-                        <p>Quantity tracking is kept in this browser so the existing database schema remains unchanged.</p>
-                      </div>
-                    </div>
-                    <div className="table-scroll">
-                      <table>
+
+                  <div className="panel management-panel bg-card border rounded-xl p-6">
+                    <div className="table-scroll overflow-x-auto">
+                      <table className="w-full text-left border-collapse">
                         <thead>
-                          <tr>
-                            <th>ITEM</th>
-                            <th>MENU STATUS</th>
-                            <th>ON HAND</th>
-                            <th>REORDER LEVEL</th>
-                            <th>STOCK STATUS</th>
+                          <tr className="border-b text-sm text-muted-foreground">
+                            <th className="p-3">ITEM NAME</th>
+                            <th className="p-3">CATEGORY</th>
+                            <th className="p-3">ON HAND</th>
+                            <th className="p-3">REORDER LEVEL</th>
+                            <th className="p-3">STATUS ALERT</th>
+                            <th className="p-3 text-right">ACTIONS</th>
                           </tr>
                         </thead>
                         <tbody>
-                          {dishes.map((d) => {
-                            const record = inventoryValue(d.id);
-                            const status =
-                              record.onHand === null
-                                ? "Not tracked"
-                                : record.onHand === 0
-                                ? "Out of stock"
-                                : record.onHand <= record.reorderLevel
-                                ? "Low stock"
-                                : "In stock";
+                          {inventoryList.map((item) => {
+                            const isOut = item.onHand === 0;
+                            const isLow = item.onHand > 0 && item.onHand <= item.reorderLevel;
                             return (
-                              <tr key={d.id}>
-                                <td>
-                                  <span className="table-dish">
-                                    <span className="mini-emoji">{d.emoji}</span>
-                                    <b>{d.name}</b>
-                                  </span>
+                              <tr key={item.id} className="border-b hover:bg-muted/50">
+                                <td className="p-3 font-semibold">{item.name}</td>
+                                <td className="p-3 text-sm text-muted-foreground">{item.category}</td>
+                                <td className="p-3 font-mono font-bold">{item.onHand} {item.unit}</td>
+                                <td className="p-3 font-mono text-muted-foreground">{item.reorderLevel} {item.unit}</td>
+                                <td className="p-3">
+                                  {isOut ? (
+                                    <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-bold bg-red-100 text-red-800 border border-red-200">
+                                      <AlertTriangle size={12} /> Out of Stock (Reorder Now)
+                                    </span>
+                                  ) : isLow ? (
+                                    <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-bold bg-amber-100 text-amber-800 border border-amber-200">
+                                      <AlertTriangle size={12} /> Low Stock Warning
+                                    </span>
+                                  ) : (
+                                    <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold bg-green-100 text-green-800 border border-green-200">
+                                      In Stock
+                                    </span>
+                                  )}
                                 </td>
-                                <td>
-                                  <span className={"status " + (d.stock ? "paid" : "paused")}>
-                                    {d.stock ? "Available" : "86’d out"}
-                                  </span>
-                                </td>
-                                <td>
-                                  <input
-                                    aria-label={"Units on hand for " + d.name}
-                                    type="number"
-                                    min="0"
-                                    step="1"
-                                    value={record.onHand ?? ""}
-                                    placeholder="Enter qty"
-                                    onChange={(e) =>
-                                      saveInventoryRecord(d.id, {
-                                        ...record,
-                                        onHand: e.target.value === "" ? null : Math.max(0, Math.floor(Number(e.target.value))),
-                                      })
-                                    }
-                                  />
-                                </td>
-                                <td>
-                                  <input
-                                    aria-label={"Reorder level for " + d.name}
-                                    type="number"
-                                    min="0"
-                                    step="1"
-                                    value={record.reorderLevel}
-                                    onChange={(e) =>
-                                      saveInventoryRecord(d.id, {
-                                        ...record,
-                                        reorderLevel: Math.max(0, Math.floor(Number(e.target.value) || 0)),
-                                      })
-                                    }
-                                  />
-                                </td>
-                                <td>
-                                  <span
-                                    className={
-                                      "status " +
-                                      (status === "In stock" ? "paid" : status === "Low stock" ? "trial" : "paused")
-                                    }
-                                  >
-                                    {status}
-                                  </span>
+                                <td className="p-3 text-right">
+                                  <div className="inline-flex gap-2">
+                                    <button
+                                      className="p-1.5 border rounded hover:bg-muted"
+                                      onClick={() => openInventoryModal(item)}
+                                      title="Edit Item"
+                                    >
+                                      <Pencil size={15} />
+                                    </button>
+                                    <button
+                                      className="p-1.5 border rounded hover:bg-red-50 text-red-600"
+                                      onClick={() => handleDeleteInventory(item.id)}
+                                      title="Delete Item"
+                                    >
+                                      <Trash2 size={15} />
+                                    </button>
+                                  </div>
                                 </td>
                               </tr>
                             );
                           })}
+                          {!inventoryList.length && (
+                            <tr>
+                              <td colSpan={6} className="text-center py-12 text-muted-foreground">
+                                No inventory items added yet. Click "Add Stock Item" above.
+                              </td>
+                            </tr>
+                          )}
                         </tbody>
                       </table>
                     </div>
@@ -2424,7 +2352,7 @@ export default function Home() {
                       </div>
                     </section>
                     <section className="panel settings-panel">
-                      <h2>Request validity extension</h2>
+                      <h2>Request validity extension & upload proof</h2>
                       <p>After paying, upload your payment screenshot so the admin can verify and approve your extension.</p>
                       
                       <label className="block space-y-1">
@@ -3100,7 +3028,82 @@ export default function Home() {
 
       {mobileNav && <button className="nav-backdrop" aria-label="Close navigation" onClick={() => setMobileNav(false)} />}
 
-      <Dialog open={!!modal} onOpenChange={(v) => !v && setModal(null)}>
+      {/* Inventory Add/Edit Modal */}
+      <Dialog open={modal === "inventory"} onOpenChange={(v) => !v && setModal(null)}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>{editingInvId !== null ? "Edit Stock Item" : "Add New Stock Item"}</DialogTitle>
+            <DialogDescription>Enter item details, quantity, and reorder threshold for stock tracking.</DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-2">
+            <label className="block space-y-1">
+              <span className="text-sm font-medium">Item Name</span>
+              <input
+                type="text"
+                value={invForm.name}
+                onChange={(e) => setInvForm({ ...invForm, name: e.target.value })}
+                placeholder="e.g. Basmati Rice, Refined Oil"
+                className="w-full p-2 border rounded-md text-sm bg-transparent"
+              />
+            </label>
+            <label className="block space-y-1">
+              <span className="text-sm font-medium">Category</span>
+              <select
+                value={invForm.category}
+                onChange={(e) => setInvForm({ ...invForm, category: e.target.value })}
+                className="w-full p-2 border rounded-md text-sm bg-transparent"
+              >
+                <option value="Grains">Grains</option>
+                <option value="Oils">Oils & Fats</option>
+                <option value="Dairy">Dairy</option>
+                <option value="Produce">Produce / Vegetables</option>
+                <option value="Spices">Spices & Condiments</option>
+                <option value="Beverages">Beverages</option>
+              </select>
+            </label>
+            <div className="grid grid-cols-2 gap-3">
+              <label className="block space-y-1">
+                <span className="text-sm font-medium">Quantity On Hand</span>
+                <input
+                  type="number"
+                  min="0"
+                  value={invForm.onHand}
+                  onChange={(e) => setInvForm({ ...invForm, onHand: e.target.value })}
+                  placeholder="10"
+                  className="w-full p-2 border rounded-md text-sm bg-transparent"
+                />
+              </label>
+              <label className="block space-y-1">
+                <span className="text-sm font-medium">Unit</span>
+                <input
+                  type="text"
+                  value={invForm.unit}
+                  onChange={(e) => setInvForm({ ...invForm, unit: e.target.value })}
+                  placeholder="bags, kg, tins"
+                  className="w-full p-2 border rounded-md text-sm bg-transparent"
+                />
+              </label>
+            </div>
+            <label className="block space-y-1">
+              <span className="text-sm font-medium">Reorder Threshold (Low Stock Warning Level)</span>
+              <input
+                type="number"
+                min="0"
+                value={invForm.reorderLevel}
+                onChange={(e) => setInvForm({ ...invForm, reorderLevel: e.target.value })}
+                placeholder="5"
+                className="w-full p-2 border rounded-md text-sm bg-transparent"
+              />
+            </label>
+          </div>
+          <DialogFooter>
+            <button className="quiet-btn" onClick={() => setModal(null)}>Cancel</button>
+            <button className="primary-btn" onClick={handleAddOrEditInventory}>Save Item</button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={!!modal && modal !== "inventory"} onOpenChange={(v) => !v && setModal(null)}>
         <DialogContent className="modal-content">
           <DialogHeader>
             <DialogTitle>

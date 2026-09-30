@@ -110,7 +110,6 @@ type CartLine = {
   override?: number;
 };
 
-// Professional Inventory Item definition
 type InventoryItem = {
   id: string | number;
   name: string;
@@ -390,7 +389,7 @@ export default function Home() {
   const [form, setForm] = useState<Record<string, string>>({});
   const [selectedStaff, setSelectedStaff] = useState<Staff | null>(null);
   const [dateRange, setDateRange] = useState("This week");
-  
+
   // Inventory Manager State
   const [inventoryList, setInventoryList] = useState<InventoryItem[]>([
     { id: 1, name: "Basmati Rice", category: "Grains", onHand: 12, unit: "bags", reorderLevel: 5 },
@@ -529,7 +528,6 @@ export default function Home() {
     }
 
     if (editingInvId !== null) {
-      // Edit existing
       const updated = inventoryList.map((item) =>
         item.id === editingInvId
           ? { ...item, name: invForm.name.trim(), category: invForm.category, onHand: qty, unit: invForm.unit, reorderLevel: isNaN(reorder) ? 5 : reorder }
@@ -538,7 +536,6 @@ export default function Home() {
       saveInventoryToStorage(updated);
       toast.success("Inventory item updated successfully!");
     } else {
-      // Add new
       const newItem: InventoryItem = {
         id: Date.now(),
         name: invForm.name.trim(),
@@ -2185,7 +2182,6 @@ export default function Home() {
                     </button>
                   </div>
 
-                  {/* Quick KPI stats for inventory manager */}
                   <div className="platform-stats grid grid-cols-4 gap-4 my-6">
                     <div className="p-4 bg-card rounded-xl border">
                       <strong>{inventoryList.length}</strong>
@@ -2352,7 +2348,7 @@ export default function Home() {
                       </div>
                     </section>
                     <section className="panel settings-panel">
-                      <h2>Request validity extension & upload proof</h2>
+                      <h2>Request validity extension</h2>
                       <p>After paying, upload your payment screenshot so the admin can verify and approve your extension.</p>
                       
                       <label className="block space-y-1">

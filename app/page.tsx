@@ -408,6 +408,7 @@ export default function Home() {
   const [extensionFile, setExtensionFile] = useState<File | null>(null);
   const [extensionBusy, setExtensionBusy] = useState(false);
   const [showQrModal, setShowQrModal] = useState(false);
+  const [selectedPlanForPayment, setSelectedPlanForPayment] = useState<Plan | null>(null);
   const [subscriptionRequests, setSubscriptionRequests] = useState<Array<any>>([]);
 
   useEffect(() => {
@@ -602,9 +603,6 @@ export default function Home() {
     (d) => (category === "All items" || d.category === category) && d.name.toLowerCase().includes(query.toLowerCase())
   );
   const currentRestaurant = restaurants.find((r) => String(r.id) === String(tenantId));
-  const currentPlan = currentRestaurant
-    ? plans.find((p) => p.name === currentRestaurant.plan) || initialPlans.find((p) => p.name === currentRestaurant.plan)
-    : undefined;
 
   const subtotal = cart.reduce((sum, l) => {
     const d = dishes.find((x) => x.id === l.id);
@@ -1062,12 +1060,18 @@ export default function Home() {
     }
   };
 
-  const paySubscription = () => {
+  const handleChoosePlan = (plan: Plan) => {
     if (!subscriptionUpiId) {
       toast.error("Admin payment UPI ID is not configured");
       return;
     }
-    const link = `upi://pay?pa=${encodeURIComponent(subscriptionUpiId)}&pn=RestoPulse&cu=INR`;
+    setSelectedPlanForPayment(plan);
+    setShowQrModal(true);
+  };
+
+  const paySelectedPlan = () => {
+    if (!selectedPlanForPayment) return;
+    const link = `upi://pay?pa=${encodeURIComponent(subscriptionUpiId)}&pn=RestoPulse&am=${encodeURIComponent(selectedPlanForPayment.price.toFixed(2))}&cu=INR&tn=${encodeURIComponent(`${currentRestaurant?.name || 'Restaurant'} ${selectedPlanForPayment.name} subscription`)}`;
     window.location.href = link;
   };
 
@@ -1080,7 +1084,6 @@ export default function Home() {
         screenshotUrl = await uploadImage(extensionFile, "screenshot");
       }
 
-      const currentRestaurant = restaurants.find((r) => String(r.id) === String(tenantId));
       const response = await fetch("/api/subscription", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -1089,10 +1092,10 @@ export default function Home() {
           restaurant_name: tenantInfo?.name || "Restaurant",
           owner_name: currentRestaurant?.owner || "Owner",
           owner_email: currentRestaurant?.email || "owner@example.com",
-          plan: "Starter",
+          plan: selectedPlanForPayment?.name || "Starter Plan",
           upi_id: subscriptionUpiId,
           screenshot_url: screenshotUrl,
-          message: extensionMessage.trim() || "Payment proof submitted",
+          message: extensionMessage.trim() || `Payment proof submitted for ${selectedPlanForPayment?.name || 'plan'}`,
         }),
       });
 
@@ -1104,6 +1107,7 @@ export default function Home() {
       toast.success("Validity extension request and payment proof sent to admin!");
       setExtensionMessage("");
       setExtensionFile(null);
+      setShowQrModal(false);
     } finally {
       setExtensionBusy(false);
     }
@@ -1135,7 +1139,6 @@ export default function Home() {
     }
   };
 
-  // Explicit login function definition to satisfy form onSubmit
   const login = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!db) return;
@@ -2210,7 +2213,7 @@ export default function Home() {
                     </div>
                     <div className="p-4 bg-card rounded-xl border border-amber-300 bg-amber-50/20">
                       <strong className="text-amber-600">{inventoryList.filter(x => x.onHand > 0 && x.onHand <= x.reorderLevel).length}</strong>
-                      <span>Low Stock Items ⚠️</span>
+                      <span>Low Stock Items ⚠️️</span>
                     </div>
                     <div className="p-4 bg-card rounded-xl border border-red-300 bg-red-50/20">
                       <strong className="text-red-600">{inventoryList.filter(x => x.onHand === 0).length}</strong>
@@ -2291,84 +2294,53 @@ export default function Home() {
                 </>
               )}
 
+              {/* DYNAMIC SUBSCRIPTION PLANS VIEW (SYNCS PRICING PLANS CREATED BY ADMIN & SHOWS 'CHOOSE A PLAN') */}
               {view === "subscription" && tenantId && !isAdmin && (
                 <>
                   <div className="page-head">
                     <div>
-                      <div className="eyebrow">SUBSCRIPTION</div>
-                      <h1>Plan & payments</h1>
-                      <p>View your current plan, pay the subscription, or ask the admin to extend the validity.</p>
+                      <div className="eyebrow">SUBSCRIPTION & PLANS</div>
+                      <h1>Available Pricing Plans</h1>
+                      <p>Choose a plan configured by the administrator to renew or upgrade your subscription.</p>
                     </div>
                   </div>
-                  <div className="pricing-grid">
-                    <div className="plan-card featured">
-                      <div className="plan-top">
-                        <span className="plan-icon pi1">
-                          <CreditCard size={20} />
-                        </span>
-                        <span
-                          className={
-                            "status " +
-                            (currentRestaurant?.status === "Active"
-                              ? "paid"
-                              : currentRestaurant?.status === "Trial"
-                              ? "trial"
-                              : "paused")
-                          }
-                        >
-                          {currentRestaurant?.status || "—"}
-                        </span>
-                      </div>
-                      <h2>{currentPlan?.name || currentRestaurant?.plan || "Plan not set"}</h2>
-                      <div className="plan-price">
-                        {currentPlan ? money(currentPlan.price) : "—"}{" "}
-                        <span>{currentPlan ? `/ ${currentPlan.period}` : ""}</span>
-                      </div>
-                      <p>{currentPlan?.features || "Plan details are not available."}</p>
-                      <div className="plan-divider" />
-                      <div className="plan-actions">
-                        <span>
-                          Renewal: <b>{currentRestaurant?.renewal || "—"}</b>
-                        </span>
-                      </div>
-                    </div>
-                  </div>
-                  <div className="settings-grid">
-                    <section className="panel settings-panel">
-                      <h2>Pay subscription</h2>
-                      <p>Payments go directly to the platform UPI ID configured by the administrator.</p>
-                      <div className="setting-toggle">
-                        <span>
-                          <b>UPI ID</b>
-                          <small>{subscriptionUpiId || "Not configured by admin"}</small>
-                        </span>
-                        <div className="flex gap-2">
-                          <button className="quiet-btn" onClick={() => setShowQrModal(true)}>
-                            <QrCode size={16} /> Show QR
-                          </button>
-                          <button className="quiet-btn" onClick={copyUpi} disabled={!subscriptionUpiId}>
-                            <Copy size={16} /> Copy
+
+                  <div className="pricing-grid grid md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+                    {plans.map((p, i) => (
+                      <div className={"plan-card bg-card border rounded-xl p-6 flex flex-col justify-between shadow-sm relative " + (p.name === "Growth" || p.name === "Starter" ? "border-indigo-500 ring-1 ring-indigo-500" : "")} key={p.id}>
+                        <div>
+                          <div className="flex justify-between items-center mb-4">
+                            <span className="p-2 rounded-lg bg-indigo-50 text-indigo-600">
+                              <CreditCard size={20} />
+                            </span>
+                            <span className="px-2.5 py-1 text-xs font-semibold rounded-full bg-green-100 text-green-800">
+                              Active
+                            </span>
+                          </div>
+                          <h2 className="text-xl font-bold">{p.name}</h2>
+                          <div className="text-2xl font-black my-2">
+                            {money(p.price)} <span className="text-sm font-normal text-muted-foreground">/ {p.period}</span>
+                          </div>
+                          <p className="text-sm text-muted-foreground mt-2">{p.features}</p>
+                        </div>
+                        <div className="mt-6 pt-4 border-t">
+                          <button
+                            className="primary-btn w-full flex items-center justify-center gap-2"
+                            onClick={() => handleChoosePlan(p)}
+                          >
+                            Choose Plan <ArrowUpRight size={16} />
                           </button>
                         </div>
                       </div>
-                      <div className="head-actions">
-                        <button
-                          className="primary-btn"
-                          onClick={paySubscription}
-                          disabled={!subscriptionUpiId || !currentPlan || currentPlan.price <= 0}
-                        >
-                          <ExternalLink size={16} /> Pay via UPI
-                        </button>
-                        <span className="credential-note">
-                          UPI payment opens your installed UPI app; enter the plan amount shown above.
-                        </span>
-                      </div>
-                    </section>
+                    ))}
+                  </div>
+
+                  <div className="settings-grid">
                     <section className="panel settings-panel">
-                      <h2>Request validity extension</h2>
-                      <p>After paying, upload your payment screenshot so the admin can verify and approve your extension.</p>
+                      <h2>Request validity extension & upload payment proof</h2>
+                      <p>After choosing a plan and paying via the QR code, upload your receipt screenshot below.</p>
                       
-                      <label className="block space-y-1">
+                      <label className="block space-y-1 mt-3">
                         <span className="text-sm font-medium">Payment Screenshot / Receipt</span>
                         <input
                           type="file"
@@ -2378,24 +2350,24 @@ export default function Home() {
                         />
                       </label>
 
-                      <label className="block space-y-1 pt-2">
-                        <span className="text-sm font-medium">Message / Transaction Reference</span>
+                      <label className="block space-y-1 pt-3">
+                        <span className="text-sm font-medium">Transaction Note / Reference Number</span>
                         <textarea
                           value={extensionMessage}
                           onChange={(e) => setExtensionMessage(e.target.value)}
                           maxLength={500}
-                          placeholder="UTR / Transaction reference number..."
+                          placeholder="UTR / Transaction reference..."
                           className="w-full p-2 border rounded-md text-sm bg-transparent"
                         />
                       </label>
 
                       <button
-                        className="primary-btn mt-3"
+                        className="primary-btn mt-4"
                         onClick={requestExtension}
                         disabled={extensionBusy}
                       >
                         <Upload size={16} />
-                        {extensionBusy ? "Uploading Proof…" : "Submit Request to Admin"}
+                        {extensionBusy ? "Uploading Proof…" : "Submit Proof to Admin"}
                       </button>
                     </section>
                   </div>
@@ -3826,12 +3798,12 @@ export default function Home() {
         </DialogContent>
       </Dialog>
 
-      {/* QR CODE MODAL FOR UPI PAYMENT */}
+      {/* DYNAMIC QR CODE MODAL FOR CHOSEN SUBSCRIPTION PLAN */}
       <Dialog open={showQrModal} onOpenChange={setShowQrModal}>
         <DialogContent className="max-w-sm text-center">
           <DialogHeader>
-            <DialogTitle>Scan to Pay via UPI</DialogTitle>
-            <DialogDescription>Scan this QR code using any UPI app (GPay, PhonePe, Paytm)</DialogDescription>
+            <DialogTitle>Pay for {selectedPlanForPayment?.name || 'Subscription'}</DialogTitle>
+            <DialogDescription>Amount Due: {money(selectedPlanForPayment?.price || 0)}</DialogDescription>
           </DialogHeader>
           <div className="flex flex-col items-center justify-center p-4 bg-white rounded-xl border space-y-3">
             <div className="w-48 h-48 bg-gray-100 flex flex-col items-center justify-center border-2 border-dashed border-gray-300 rounded-lg p-2">
@@ -3840,8 +3812,11 @@ export default function Home() {
             </div>
             <p className="text-xs font-semibold text-indigo-600">{subscriptionUpiId}</p>
           </div>
+          <div className="space-y-2 pt-2">
+            <button className="primary-btn w-full" onClick={paySelectedPlan}>Pay via Installed UPI App</button>
+          </div>
           <DialogFooter>
-            <button className="primary-btn w-full" onClick={() => setShowQrModal(false)}>Close</button>
+            <button className="quiet-btn w-full" onClick={() => setShowQrModal(false)}>Close</button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

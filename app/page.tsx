@@ -2168,7 +2168,7 @@ export default function Home() {
                 </>
               )}
 
-              {/* PROFESSIONAL INVENTORY MANAGER CONSOLE (ADD, EDIT, SAVE, DELETE + LOW/OUT OF STOCK ALERTS) */}
+              {/* PROFESSIONAL INVENTORY MANAGER CONSOLE */}
               {view === "inventory" && (
                 <>
                   <div className="page-head flex justify-between items-center">

@@ -1135,6 +1135,23 @@ export default function Home() {
     }
   };
 
+  // Explicit login function definition to satisfy form onSubmit
+  const login = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!db) return;
+    setLoginBusy(true);
+    const { error } = await db.auth.signInWithPassword({
+      email: loginEmail,
+      password: loginPassword,
+    });
+    setLoginBusy(false);
+    if (error) {
+      toast.error(error.message);
+    } else {
+      toast.success("Signed in successfully!");
+    }
+  };
+
   const handleSignOut = async () => {
     await db.auth.signOut();
     setTenantId(null);

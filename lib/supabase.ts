@@ -1,7 +1,12 @@
-import { createClient, type SupabaseClient } from '@supabase/supabase-js';
-let browser: SupabaseClient | null = null;
-export function browserDb(){
-  if (!process.env.NEXT_PUBLIC_SUPABASE_URL || !process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY) return null;
-  if (!browser) browser=createClient(process.env.NEXT_PUBLIC_SUPABASE_URL,process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY,{auth:{persistSession:true,autoRefreshToken:true,detectSessionInUrl:true}});
-  return browser;
+import { createClient as createSupabaseClient, SupabaseClient } from '@supabase/supabase-js'
+
+const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || 'https://placeholder.supabase.co'
+const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || 'placeholder-key'
+
+// Factory function properly typed to return a SupabaseClient instance
+export const createClient = (): SupabaseClient => {
+  return createSupabaseClient(supabaseUrl, supabaseAnonKey)
 }
+
+// Singleton browser client instance
+export const browserDb: SupabaseClient = createClient()

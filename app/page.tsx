@@ -37,6 +37,8 @@ import {
   ExternalLink,
   Send,
   Save,
+  QrCode,
+  Upload,
 } from "lucide-react";
 import {
   AreaChart,
@@ -329,7 +331,6 @@ const navPlatform: { id: View; label: string; icon: typeof Building2 }[] = [
 ];
 
 export default function Home() {
-  // Use initialized browserDb singleton directly
   const db = browserDb;
   const [authLoading, setAuthLoading] = useState(true);
   const [authUser, setAuthUser] = useState<string | null>(null);
@@ -389,20 +390,10 @@ export default function Home() {
   const [subscriptionUpiId, setSubscriptionUpiId] = useState("");
   const [extensionRequest, setExtensionRequest] = useState<ExtensionRequest | null>(null);
   const [extensionMessage, setExtensionMessage] = useState("");
+  const [extensionFile, setExtensionFile] = useState<File | null>(null);
   const [extensionBusy, setExtensionBusy] = useState(false);
-  const [subscriptionRequests, setSubscriptionRequests] = useState<
-    Array<{
-      user_id: string;
-      restaurant_id: string;
-      restaurant_name: string;
-      owner_name: string;
-      owner_email: string;
-      plan: string;
-      renewal_on: string | null;
-      requested_at: string;
-      message: string;
-    }>
-  >([]);
+  const [showQrModal, setShowQrModal] = useState(false);
+  const [subscriptionRequests, setSubscriptionRequests] = useState<Array<any>>([]);
 
   useEffect(() => {
     if (!db) {
@@ -467,44 +458,31 @@ export default function Home() {
   }, [db, authUser]);
 
   useEffect(() => {
-    if (!db || !authUser || !isAdmin) return;
     let live = true;
     (async () => {
-      const session = (await db.auth.getSession()).data.session;
-      if (!session) return;
-      const [upiResponse, requestResponse] = await Promise.all([
-        fetch("/api/admin/settings", { headers: { Authorization: `Bearer ${session.access_token}` } }),
-        fetch("/api/admin/subscriptions", { headers: { Authorization: `Bearer ${session.access_token}` } }),
-      ]);
-      if (!live) return;
-      const upi = await upiResponse.json().catch(() => ({ value: "" }));
-      const requests = await requestResponse.json().catch(() => ({ requests: [] }));
-      if (upiResponse.ok) setAdminUpiId(upi.value || "");
-      if (requestResponse.ok) setSubscriptionRequests(requests.requests || []);
-    })();
-    return () => {
-      live = false;
-    };
-  }, [db, authUser, isAdmin]);
+      try {
+        const res = await fetch("/api/subscription");
+        const data = await res.json();
+        if (live && data.upi_id) {
+          setSubscriptionUpiId(data.upi_id);
+          setAdminUpiId(data.upi_id);
+        }
+      } catch {}
 
-  useEffect(() => {
-    if (!db || !authUser || !tenantId || isAdmin) return;
-    let live = true;
-    (async () => {
-      const session = (await db.auth.getSession()).data.session;
-      if (!session) return;
-      const response = await fetch("/api/subscription", { headers: { Authorization: `Bearer ${session.access_token}` } });
-      const data = await response.json().catch(() => ({}));
-      if (!live) return;
-      if (response.ok) {
-        setSubscriptionUpiId(data.upi_id || "");
-        setExtensionRequest(data.extension_request || null);
+      if (isAdmin) {
+        try {
+          const reqRes = await fetch("/api/admin/subscriptions");
+          const reqData = await reqRes.json();
+          if (live && reqData.requests) {
+            setSubscriptionRequests(reqData.requests);
+          }
+        } catch {}
       }
     })();
     return () => {
       live = false;
     };
-  }, [db, authUser, tenantId, isAdmin]);
+  }, [isAdmin, tenantId]);
 
   useEffect(() => {
     if (!tenantId) {
@@ -639,11 +617,11 @@ export default function Home() {
     if (error) toast.error(error.message);
   };
 
-  const uploadImage = async (file: File, kind: "dish" | "logo") => {
-    if (!db || !tenantId) throw new Error("Select a restaurant first");
+  const uploadImage = async (file: File, kind: "dish" | "logo" | "screenshot") => {
+    if (!db) throw new Error("Database client not available");
     if (!["image/jpeg", "image/png", "image/webp"].includes(file.type) || file.size > 5 * 1024 * 1024)
       throw new Error("Upload a JPG, PNG, or WebP under 5 MB");
-    const path = `${tenantId}/${kind}/${crypto.randomUUID()}.${
+    const path = `${tenantId || "admin"}/${kind}/${crypto.randomUUID()}.${
       file.type === "image/png" ? "png" : file.type === "image/webp" ? "webp" : "jpg"
     }`;
     const { error } = await db.storage.from("restaurant-media").upload(path, file, { contentType: file.type, upsert: false });
@@ -1105,23 +1083,16 @@ export default function Home() {
     if (!db || !isAdmin) return;
     setAdminUpiBusy(true);
     try {
-      const session = (await db.auth.getSession()).data.session;
-      if (!session) {
-        toast.error("Sign in required");
+      const { error } = await db.from("settings").upsert(
+        { key: "admin_upi", upi_id: adminUpiId.trim(), value: adminUpiId.trim(), updated_at: new Date().toISOString() },
+        { onConflict: "key" }
+      );
+      if (error) {
+        toast.error(error.message);
         return;
       }
-      const response = await fetch("/api/admin/settings", {
-        method: "POST",
-        headers: { "Content-Type": "application/json", Authorization: `Bearer ${session.access_token}` },
-        body: JSON.stringify({ upi_id: adminUpiId.trim() }),
-      });
-      const data = await response.json().catch(() => ({}));
-      if (!response.ok) {
-        toast.error(data.error || "Could not save UPI ID");
-        return;
-      }
-      setAdminUpiId(data.value || "");
-      toast.success("Restaurant payment UPI ID saved");
+      setSubscriptionUpiId(adminUpiId.trim());
+      toast.success("Admin payment UPI ID saved successfully!");
     } finally {
       setAdminUpiBusy(false);
     }
@@ -1142,15 +1113,7 @@ export default function Home() {
       toast.error("Admin payment UPI ID is not configured");
       return;
     }
-    if (!currentPlan || currentPlan.price <= 0) {
-      toast.info("There is no payment due for the current plan");
-      return;
-    }
-    const link = `upi://pay?pa=${encodeURIComponent(subscriptionUpiId)}&pn=${encodeURIComponent(
-      "RestoPulse"
-    )}&am=${encodeURIComponent(currentPlan.price.toFixed(2))}&cu=INR&tn=${encodeURIComponent(
-      `${currentRestaurant?.name || "Restaurant"} ${currentPlan.name} subscription`
-    )}`;
+    const link = `upi://pay?pa=${encodeURIComponent(subscriptionUpiId)}&pn=RestoPulse&cu=INR`;
     window.location.href = link;
   };
 
@@ -1158,45 +1121,71 @@ export default function Home() {
     if (!db || !tenantId) return;
     setExtensionBusy(true);
     try {
-      const session = (await db.auth.getSession()).data.session;
-      if (!session) {
-        toast.error("Sign in required");
-        return;
+      let screenshotUrl = "";
+      if (extensionFile) {
+        screenshotUrl = await uploadImage(extensionFile, "screenshot");
       }
+
+      const currentRestaurant = restaurants.find((r) => String(r.id) === String(tenantId));
       const response = await fetch("/api/subscription", {
         method: "POST",
-        headers: { "Content-Type": "application/json", Authorization: `Bearer ${session.access_token}` },
-        body: JSON.stringify({ action: "request-extension", message: extensionMessage.trim() }),
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          restaurant_id: tenantId,
+          restaurant_name: tenantInfo?.name || "Restaurant",
+          owner_name: currentRestaurant?.owner || "Owner",
+          owner_email: currentRestaurant?.email || "owner@example.com",
+          plan: "Starter",
+          upi_id: subscriptionUpiId,
+          screenshot_url: screenshotUrl,
+          message: extensionMessage.trim() || "Payment proof submitted",
+        }),
       });
-      const data = await response.json().catch(() => ({}));
+
       if (!response.ok) {
-        toast.error(data.error || "Could not send request");
+        toast.error("Could not send request");
         return;
       }
-      setExtensionRequest(data.request || null);
+
+      toast.success("Validity extension request and payment proof sent to admin!");
       setExtensionMessage("");
-      toast.success("Validity extension request sent to the admin");
+      setExtensionFile(null);
     } finally {
       setExtensionBusy(false);
     }
   };
 
-  const reviewExtensionRequest = async (userId: string) => {
+  const reviewExtensionRequest = async (requestId: string, restId: string) => {
     if (!db || !isAdmin) return;
-    const session = (await db.auth.getSession()).data.session;
-    if (!session) return;
-    const response = await fetch("/api/admin/subscriptions", {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json", Authorization: `Bearer ${session.access_token}` },
-      body: JSON.stringify({ user_id: userId }),
-    });
-    const data = await response.json().catch(() => ({}));
-    if (!response.ok) {
-      toast.error(data.error || "Could not update request");
-      return;
+    try {
+      const response = await fetch("/api/admin/subscriptions", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ request_id: requestId }),
+      });
+      if (!response.ok) {
+        toast.error("Could not approve request");
+        return;
+      }
+
+      const newDate = new Date();
+      newDate.setDate(newDate.getDate() + 30);
+      const renewalStr = newDate.toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" });
+      
+      await db.from("restaurants").update({ renewal_on: renewalStr, status: "Active" }).eq("id", restId);
+
+      setSubscriptionRequests((old) => old.filter((x) => x.id !== requestId));
+      toast.success("Subscription approved and extended by 30 days!");
+    } catch (err: any) {
+      toast.error(err.message);
     }
-    setSubscriptionRequests((old) => old.filter((x) => x.user_id !== userId));
-    toast.success("Extension request marked as reviewed");
+  };
+
+  // Sign out handler function
+  const handleSignOut = async () => {
+    await db.auth.signOut();
+    setTenantId(null);
+    setAuthUser(null);
   };
 
   const nav = (v: View) => {
@@ -1401,6 +1390,8 @@ export default function Home() {
               MR
             </button>
           </div>
+
+          {/* PROFILE POPOVER WITH SIGN OUT ADDED AFTER MANAGE EMPLOYEES */}
           {profileMenu && (
             <div className="profile-popover">
               <div className="profile-popover-head">
@@ -1413,11 +1404,15 @@ export default function Home() {
               <button onClick={() => nav("staff")}>
                 <Users size={17} /> Manage employees
               </button>
+              <button onClick={handleSignOut} className="text-red-600 hover:text-red-700">
+                <LogOut size={17} /> Sign out
+              </button>
               <div className="profile-role">
                 <span>Account role: {accountRole === "admin" ? "Platform admin" : "Restaurant owner"}</span>
               </div>
             </div>
           )}
+
           {notifications && (
             <div className="notification-popover">
               <div className="popover-title">

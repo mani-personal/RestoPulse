@@ -183,8 +183,16 @@ export default function Home() {
   const [receipt, setReceipt] = useState<any | null>(null);
   const [orders, setOrders] = useState<any[]>([]);
   const [dateRange, setDateRange] = useState("This week");
-  
-  // Inventory State
+
+  // Admin & Restaurant Subscription State
+  const [adminUpiId, setAdminUpiId] = useState("admin-restopulse@upi");
+  const [adminUpiBusy, setAdminUpiBusy] = useState(false);
+  const [subscriptionUpiId, setSubscriptionUpiId] = useState("admin-restopulse@upi");
+  const [showQrModal, setShowQrModal] = useState(false);
+  const [extensionMessage, setExtensionMessage] = useState("");
+  const [extensionFile, setExtensionFile] = useState<File | null>(null);
+  const [extensionBusy, setExtensionBusy] = useState(false);
+  const [subscriptionRequests, setSubscriptionRequests] = useState<Array<any>>([]);
   const [inventory, setInventory] = useState<Record<string, InventoryRecord>>({});
 
   useEffect(() => {
@@ -246,7 +254,33 @@ export default function Home() {
     };
   }, [db, authUser]);
 
-  // Load Inventory for Restaurant
+  useEffect(() => {
+    let live = true;
+    (async () => {
+      try {
+        const res = await fetch("/api/subscription");
+        const data = await res.json();
+        if (live && data.upi_id) {
+          setSubscriptionUpiId(data.upi_id);
+          setAdminUpiId(data.upi_id);
+        }
+      } catch {}
+
+      if (isAdmin) {
+        try {
+          const reqRes = await fetch("/api/admin/subscriptions");
+          const reqData = await reqRes.json();
+          if (live && reqData.requests) {
+            setSubscriptionRequests(reqData.requests);
+          }
+        } catch {}
+      }
+    })();
+    return () => {
+      live = false;
+    };
+  }, [isAdmin, tenantId]);
+
   useEffect(() => {
     if (!tenantId) {
       setInventory({});
@@ -265,6 +299,116 @@ export default function Home() {
     const all = { ...inventory, [String(id)]: next };
     setInventory(all);
     if (tenantId) localStorage.setItem(`rp-inventory:${tenantId}`, JSON.stringify(all));
+  };
+
+  const uploadImage = async (file: File, kind: "screenshot") => {
+    if (!db) throw new Error("Database client not available");
+    const path = `${tenantId || 'admin'}/${kind}/${crypto.randomUUID()}.jpg`;
+    const { error } = await db.storage.from("restaurant-media").upload(path, file, { contentType: file.type, upsert: false });
+    if (error) throw error;
+    return db.storage.from("restaurant-media").getPublicUrl(path).data.publicUrl;
+  };
+
+  const saveAdminUpi = async () => {
+    if (!db || !isAdmin) return;
+    setAdminUpiBusy(true);
+    try {
+      const { error } = await db.from("settings").upsert(
+        { key: "admin_upi", upi_id: adminUpiId.trim(), value: adminUpiId.trim(), updated_at: new Date().toISOString() },
+        { onConflict: "key" }
+      );
+      if (error) {
+        toast.error(error.message);
+        return;
+      }
+      setSubscriptionUpiId(adminUpiId.trim());
+      toast.success("Admin payment UPI ID saved successfully!");
+    } finally {
+      setAdminUpiBusy(false);
+    }
+  };
+
+  const copyUpi = async () => {
+    if (!subscriptionUpiId) return;
+    try {
+      await navigator.clipboard.writeText(subscriptionUpiId);
+      toast.success("UPI ID copied");
+    } catch {
+      toast.info(subscriptionUpiId);
+    }
+  };
+
+  const paySubscription = () => {
+    if (!subscriptionUpiId) {
+      toast.error("Admin payment UPI ID is not configured");
+      return;
+    }
+    const link = `upi://pay?pa=${encodeURIComponent(subscriptionUpiId)}&pn=RestoPulse&cu=INR`;
+    window.location.href = link;
+  };
+
+  const requestExtension = async () => {
+    if (!db || !tenantId) return;
+    setExtensionBusy(true);
+    try {
+      let screenshotUrl = "";
+      if (extensionFile) {
+        screenshotUrl = await uploadImage(extensionFile, "screenshot");
+      }
+
+      const currentRestaurant = restaurants.find((r) => String(r.id) === String(tenantId));
+      const response = await fetch("/api/subscription", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          restaurant_id: tenantId,
+          restaurant_name: tenantInfo?.name || "Restaurant",
+          owner_name: currentRestaurant?.owner || "Owner",
+          owner_email: currentRestaurant?.email || "owner@example.com",
+          plan: "Starter",
+          upi_id: subscriptionUpiId,
+          screenshot_url: screenshotUrl,
+          message: extensionMessage.trim() || "Payment proof submitted",
+        }),
+      });
+
+      if (!response.ok) {
+        toast.error("Could not send request");
+        return;
+      }
+
+      toast.success("Validity extension request and payment proof sent to admin!");
+      setExtensionMessage("");
+      setExtensionFile(null);
+    } finally {
+      setExtensionBusy(false);
+    }
+  };
+
+  const reviewExtensionRequest = async (requestId: string, restId: string) => {
+    if (!db || !isAdmin) return;
+    try {
+      const response = await fetch("/api/admin/subscriptions", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ request_id: requestId }),
+      });
+      if (!response.ok) {
+        toast.error("Could not approve request");
+        return;
+      }
+
+      const newDate = new Date();
+      newDate.setDate(newDate.getDate() + 30);
+      const renewalStr = newDate.toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" });
+      
+      await db.from("restaurants").update({ renewal_on: renewalStr, status: "Active" }).eq("id", restId);
+
+      setSubscriptionRequests((old) => old.filter((x) => x.id !== requestId));
+      toast.success("Subscription approved and extended by 30 days!");
+    } catch (err: any) {
+      toast.error(err.message);
+    }
   };
 
   const nav = (v: View) => {
@@ -304,6 +448,7 @@ export default function Home() {
         <div className="brand">
           <strong>RestoPulse</strong>
         </div>
+        <div className="nav-heading">RESTAURANT</div>
         <nav aria-label="Restaurant navigation">
           {navTenant.map((item) => (
             <button
@@ -316,18 +461,49 @@ export default function Home() {
             </button>
           ))}
         </nav>
+        {isAdmin && (
+          <>
+            <div className="nav-heading admin-heading">PLATFORM ADMIN</div>
+            <nav aria-label="Platform navigation">
+              {navPlatform.map((item) => (
+                <button
+                  key={item.id}
+                  className={"nav-link " + (view === item.id ? "active" : "")}
+                  onClick={() => nav(item.id)}
+                >
+                  <item.icon size={18} />
+                  {item.label}
+                </button>
+              ))}
+            </nav>
+          </>
+        )}
       </aside>
 
       <main className="content">
         {view === "dashboard" && (
           <div className="page-head">
-            <h1>Restaurant Dashboard</h1>
-            <p>Welcome back! Select Inventory Management to check or update stocks.</p>
+            <h1>Overview Dashboard</h1>
+            <p>Welcome to RestoPulse management portal.</p>
+          </div>
+        )}
+
+        {view === "pos" && (
+          <div className="page-head">
+            <h1>POS Terminal</h1>
+            <p>Fast checkout and order placement.</p>
+          </div>
+        )}
+
+        {view === "menu" && (
+          <div className="page-head">
+            <h1>Menu & Dishes</h1>
+            <p>Manage your restaurant offerings.</p>
           </div>
         )}
 
         {/* INVENTORY MANAGEMENT SECTION */}
-        {view === "inventory" && tenantId && (
+        {view === "inventory" && (
           <>
             <div className="page-head flex justify-between items-center">
               <div>
@@ -350,30 +526,7 @@ export default function Home() {
               </button>
             </div>
 
-            <div className="platform-stats grid grid-cols-4 gap-4 my-6">
-              <div className="p-4 bg-card rounded-lg border">
-                <strong>{dishes.length}</strong>
-                <span>Total Catalog Items</span>
-              </div>
-              <div className="p-4 bg-card rounded-lg border">
-                <strong>{dishes.filter((x) => x.stock).length}</strong>
-                <span>Available for Sale</span>
-              </div>
-              <div className="p-4 bg-card rounded-lg border">
-                <strong>{Object.values(inventory).filter(x => x.onHand !== null && x.onHand <= x.reorderLevel).length}</strong>
-                <span>Low Stock Alerts</span>
-              </div>
-              <div className="p-4 bg-card rounded-lg border">
-                <strong>{Object.values(inventory).reduce((sum, x) => sum + (x.onHand ?? 0), 0)}</strong>
-                <span>Total Units Tracked</span>
-              </div>
-            </div>
-
-            <div className="panel management-panel bg-card border rounded-xl p-6">
-              <div className="panel-header mb-4">
-                <h2>Stock Levels & Reorder Thresholds</h2>
-                <p className="text-sm text-muted-foreground">Adjust quantities below to instantly update stock availability across your restaurant console.</p>
-              </div>
+            <div className="panel management-panel bg-card border rounded-xl p-6 mt-4">
               <div className="table-scroll overflow-x-auto">
                 <table className="w-full text-left border-collapse">
                   <thead>
@@ -434,17 +587,7 @@ export default function Home() {
                             />
                           </td>
                           <td className="p-3">
-                            <span
-                              className={`px-2.5 py-1 rounded-full text-xs font-semibold ${
-                                status === "In stock"
-                                  ? "bg-green-100 text-green-800"
-                                  : status === "Low stock"
-                                  ? "bg-amber-100 text-amber-800"
-                                  : status === "Out of stock"
-                                  ? "bg-red-100 text-red-800"
-                                  : "bg-gray-100 text-gray-800"
-                              }`}
-                            >
+                            <span className="px-2.5 py-1 rounded-full text-xs font-semibold bg-secondary text-secondary-foreground">
                               {status}
                             </span>
                           </td>
@@ -457,7 +600,178 @@ export default function Home() {
             </div>
           </>
         )}
+
+        {view === "staff" && (
+          <div className="page-head">
+            <h1>Team & Payroll</h1>
+          </div>
+        )}
+
+        {view === "expenses" && (
+          <div className="page-head">
+            <h1>Expenses Ledger</h1>
+          </div>
+        )}
+
+        {view === "suppliers" && (
+          <div className="page-head">
+            <h1>Suppliers Directory</h1>
+          </div>
+        )}
+
+        {/* SUBSCRIPTION VIEW */}
+        {view === "subscription" && (
+          <>
+            <div className="page-head">
+              <h1>Subscription & Payments</h1>
+              <p>Pay via Admin UPI, view QR, and request validity extensions.</p>
+            </div>
+            <div className="settings-grid">
+              <section className="panel settings-panel">
+                <h2>Pay via Admin UPI</h2>
+                <div className="setting-toggle">
+                  <span>
+                    <b>Active Admin UPI ID</b>
+                    <small className="text-indigo-600 font-semibold">{subscriptionUpiId}</small>
+                  </span>
+                  <div className="flex gap-2">
+                    <button className="quiet-btn" onClick={() => setShowQrModal(true)}>
+                      <QrCode size={16} /> Show QR
+                    </button>
+                    <button className="quiet-btn" onClick={copyUpi}>
+                      <Copy size={16} /> Copy
+                    </button>
+                  </div>
+                </div>
+                <button className="primary-btn mt-4" onClick={paySubscription}>
+                  <ExternalLink size={16} /> Pay via UPI App
+                </button>
+              </section>
+
+              <section className="panel settings-panel">
+                <h2>Request Validity Extension & Upload Proof</h2>
+                <label className="block space-y-1">
+                  <span className="text-sm font-medium">Payment Screenshot</span>
+                  <input
+                    type="file"
+                    accept="image/jpeg,image/png,image/webp"
+                    onChange={(e) => setExtensionFile(e.target.files?.[0] || null)}
+                    className="block w-full text-sm"
+                  />
+                </label>
+                <label className="block space-y-1 pt-2">
+                  <span className="text-sm font-medium">Transaction Reference</span>
+                  <textarea
+                    value={extensionMessage}
+                    onChange={(e) => setExtensionMessage(e.target.value)}
+                    placeholder="UTR / Reference ID..."
+                    className="w-full p-2 border rounded-md text-sm bg-transparent"
+                  />
+                </label>
+                <button className="primary-btn mt-3" onClick={requestExtension} disabled={extensionBusy}>
+                  <Upload size={16} /> Submit Proof to Admin
+                </button>
+              </section>
+            </div>
+          </>
+        )}
+
+        {view === "settings" && (
+          <div className="page-head">
+            <h1>Workspace Settings</h1>
+          </div>
+        )}
+
+        {view === "restaurants" && (
+          <>
+            <div className="page-head">
+              <h1>Restaurants & Subscription Approvals</h1>
+            </div>
+            {subscriptionRequests.length > 0 && (
+              <section className="panel management-panel mb-6">
+                <div className="panel-header">
+                  <h2>Pending Subscription Requests ({subscriptionRequests.length})</h2>
+                </div>
+                <div className="table-scroll">
+                  <table>
+                    <thead>
+                      <tr>
+                        <th>RESTAURANT</th>
+                        <th>OWNER</th>
+                        <th>PROOF</th>
+                        <th>ACTION</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {subscriptionRequests.map((req: any) => (
+                        <tr key={req.id}>
+                          <td>{req.restaurant_name}</td>
+                          <td>{req.owner_name}</td>
+                          <td>
+                            {req.screenshot_url ? (
+                              <a href={req.screenshot_url} target="_blank" rel="noreferrer" className="text-indigo-600 underline text-xs">
+                                View Proof
+                              </a>
+                            ) : "No proof"}
+                          </td>
+                          <td>
+                            <button className="primary-btn text-xs py-1 px-3" onClick={() => reviewExtensionRequest(req.id, req.restaurant_id)}>
+                              Approve Renewal
+                            </button>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </section>
+            )}
+          </>
+        )}
+
+        {view === "approvals" && (
+          <div className="page-head">
+            <h1>Platform Approvals</h1>
+          </div>
+        )}
+
+        {view === "pricing" && (
+          <>
+            <div className="page-head">
+              <h1>Pricing & Admin UPI Configuration</h1>
+            </div>
+            <section className="panel settings-panel">
+              <label>
+                Admin UPI ID
+                <input value={adminUpiId} onChange={(e) => setAdminUpiId(e.target.value)} placeholder="merchant@upi" />
+              </label>
+              <button className="primary-btn mt-3" onClick={saveAdminUpi} disabled={adminUpiBusy}>
+                <Save size={16} /> Save Admin UPI ID
+              </button>
+            </section>
+          </>
+        )}
       </main>
+
+      {/* QR CODE MODAL */}
+      <Dialog open={showQrModal} onOpenChange={setShowQrModal}>
+        <DialogContent className="max-w-sm text-center">
+          <DialogHeader>
+            <DialogTitle>Scan to Pay via UPI</DialogTitle>
+            <DialogDescription>Scan this QR code using any UPI app</DialogDescription>
+          </DialogHeader>
+          <div className="flex flex-col items-center justify-center p-4 bg-white rounded-xl border space-y-3">
+            <div className="w-48 h-48 bg-gray-100 flex flex-col items-center justify-center border-2 border-dashed border-gray-300 rounded-lg p-2">
+              <QrCode size={96} className="text-gray-800" />
+              <span className="text-[11px] font-mono text-gray-600 mt-2 break-all">{subscriptionUpiId}</span>
+            </div>
+            <p className="text-xs font-semibold text-indigo-600">{subscriptionUpiId}</p>
+          </div>
+          <DialogFooter>
+            <button className="primary-btn w-full" onClick={() => setShowQrModal(false)}>Close</button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

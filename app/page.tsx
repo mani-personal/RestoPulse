@@ -317,6 +317,7 @@ const chart = [
 
 const money = (n: number) => "₹" + Math.round(n).toLocaleString("en-IN");
 
+// Nav items: Inventory is a first-class feature in Restaurant Console
 const navTenant: { id: View; label: string; icon: typeof LayoutDashboard }[] = [
   { id: "dashboard", label: "Overview", icon: LayoutDashboard },
   { id: "pos", label: "POS Terminal", icon: ShoppingBag },
@@ -360,7 +361,7 @@ export default function Home() {
   const [logoUploading, setLogoUploading] = useState(false);
   const [view, setView] = useState<View>("dashboard");
   const [profileMenu, setProfileMenu] = useState(false);
-  const [accountRole, setAccountRole] = useState<"admin" | "restaurant">("admin");
+  const [accountRole, setAccountRole] = useState<"admin" | "restaurant">("restaurant");
   const [staff, setStaff] = useState<Staff[]>(initialStaff);
   const [wages, setWages] = useState<Wage[]>(initialWages);
   const [wageForm, setWageForm] = useState({ date: new Date().toLocaleDateString("en-CA"), amount: "", note: "" });
@@ -390,7 +391,7 @@ export default function Home() {
   const [selectedStaff, setSelectedStaff] = useState<Staff | null>(null);
   const [dateRange, setDateRange] = useState("This week");
 
-  // Inventory Manager State
+  // Inventory Manager State (Default Seeded Data)
   const [inventoryList, setInventoryList] = useState<InventoryItem[]>([
     { id: 1, name: "Basmati Rice", category: "Grains", onHand: 12, unit: "bags", reorderLevel: 5 },
     { id: 2, name: "Refined Cooking Oil", category: "Oils", onHand: 3, unit: "tins", reorderLevel: 6 },
@@ -464,7 +465,6 @@ export default function Home() {
         }))
       );
       setTenantId(m.data?.restaurant_id || null);
-      setView(platform ? "restaurants" : "dashboard");
     })();
     return () => {
       live = false;
@@ -501,19 +501,21 @@ export default function Home() {
     };
   }, [isAdmin, tenantId, db]);
 
+  // Load Inventory for Restaurant (falls back to demo key so it always functions)
   useEffect(() => {
-    if (!tenantId) return;
+    const key = tenantId ? `rp-inventory-list:${tenantId}` : `rp-inventory-list:default`;
     try {
-      const raw = localStorage.getItem(`rp-inventory-list:${tenantId}`);
-      if (raw) setInventoryList(JSON.parse(raw));
+      const raw = localStorage.getItem(key);
+      if (raw) {
+        setInventoryList(JSON.parse(raw));
+      }
     } catch {}
   }, [tenantId]);
 
   const saveInventoryToStorage = (updated: InventoryItem[]) => {
     setInventoryList(updated);
-    if (tenantId) {
-      localStorage.setItem(`rp-inventory-list:${tenantId}`, JSON.stringify(updated));
-    }
+    const key = tenantId ? `rp-inventory-list:${tenantId}` : `rp-inventory-list:default`;
+    localStorage.setItem(key, JSON.stringify(updated));
   };
 
   const handleAddOrEditInventory = () => {
@@ -1076,7 +1078,7 @@ export default function Home() {
   };
 
   const requestExtension = async () => {
-    if (!db || !tenantId) return;
+    if (!db) return;
     setExtensionBusy(true);
     try {
       let screenshotUrl = "";
@@ -1084,11 +1086,12 @@ export default function Home() {
         screenshotUrl = await uploadImage(extensionFile, "screenshot");
       }
 
+      const currentRestaurant = restaurants.find((r) => String(r.id) === String(tenantId));
       const response = await fetch("/api/subscription", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          restaurant_id: tenantId,
+          restaurant_id: tenantId || "00000000-0000-0000-0000-000000000000",
           restaurant_name: tenantInfo?.name || "Restaurant",
           owner_name: currentRestaurant?.owner || "Owner",
           owner_email: currentRestaurant?.email || "owner@example.com",
@@ -1206,19 +1209,6 @@ export default function Home() {
       </div>
     );
 
-  if (!tenantId && !isAdmin)
-    return (
-      <div className="auth-page">
-        <div className="auth-card">
-          <h1>No restaurant assigned</h1>
-          <p>Ask the platform administrator to create your restaurant account.</p>
-          <button className="quiet-btn" onClick={() => db.auth.signOut()}>
-            Sign out
-          </button>
-        </div>
-      </div>
-    );
-
   return (
     <div className="app-shell">
       <Toaster richColors position="top-right" />
@@ -1253,45 +1243,50 @@ export default function Home() {
           </div>
           <ChevronDown size={15} />
         </div>
+
+        {/* RESTAURANT NAVIGATION (Always visible in restaurant console) */}
         <div className="nav-heading">RESTAURANT</div>
         <nav aria-label="Restaurant navigation">
-          {navTenant
-            .filter((item) => (item.id === "inventory" || item.id === "subscription" ? !!tenantId && !isAdmin : true))
-            .map((item) => (
-              <button
-                key={item.id}
-                className={"nav-link " + (view === item.id ? "active" : "")}
-                onClick={() => nav(item.id)}
-              >
-                <item.icon size={18} />
-                {item.label}
-                {item.id === "pos" && <span className="nav-key">⌘2</span>}
-              </button>
-            ))}
+          {navTenant.map((item) => (
+            <button
+              key={item.id}
+              className={"nav-link " + (view === item.id ? "active" : "")}
+              onClick={() => nav(item.id)}
+            >
+              <item.icon size={18} />
+              {item.label}
+              {item.id === "pos" && <span className="nav-key">⌘2</span>}
+            </button>
+          ))}
         </nav>
-        <div className="nav-heading admin-heading">PLATFORM ADMIN</div>
-        <nav aria-label="Platform navigation">
-          {isAdmin &&
-            navPlatform.map((item) => (
-              <button
-                key={item.id}
-                className={"nav-link " + (view === item.id ? "active" : "")}
-                onClick={() => nav(item.id)}
-              >
-                <item.icon size={18} />
-                {item.label}
-                {item.id === "approvals" && (
-                  <span className="nav-count">{approvals.filter((x) => x.status === "Pending").length}</span>
-                )}
-              </button>
-            ))}
-        </nav>
+
+        {isAdmin && (
+          <>
+            <div className="nav-heading admin-heading">PLATFORM ADMIN</div>
+            <nav aria-label="Platform navigation">
+              {navPlatform.map((item) => (
+                <button
+                  key={item.id}
+                  className={"nav-link " + (view === item.id ? "active" : "")}
+                  onClick={() => nav(item.id)}
+                >
+                  <item.icon size={18} />
+                  {item.label}
+                  {item.id === "approvals" && (
+                    <span className="nav-count">{approvals.filter((x) => x.status === "Pending").length}</span>
+                  )}
+                </button>
+              ))}
+            </nav>
+          </>
+        )}
+
         <div className="sidebar-bottom">
           <div className="trial-note">
             <span className="trial-icon">✦</span>
             <b>Growth plan</b>
             <p>Your workspace is in great shape. Renewal on 12 Oct 2026.</p>
-            <button onClick={() => nav("pricing")}>
+            <button onClick={() => nav(isAdmin ? "pricing" : "subscription")}>
               Manage plan <ArrowUpRight size={14} />
             </button>
           </div>
@@ -1364,7 +1359,6 @@ export default function Home() {
             </button>
           </div>
 
-          {/* Profile Popover with Sign Out placed after Manage employees */}
           {profileMenu && (
             <div className="profile-popover">
               <div className="profile-popover-head">
@@ -1418,1594 +1412,385 @@ export default function Home() {
         </header>
 
         <main className={"content " + (view === "pos" ? "pos-content" : "")}>
-          {!tenantId && ["dashboard", "pos", "menu", "staff", "expenses", "suppliers", "settings"].includes(view) ? (
-            <div className="panel empty-state">
-              This account has no restaurant workspace. Add a restaurant and sign in as its owner to manage operations.
-            </div>
-          ) : (
+          {view === "dashboard" && (
             <>
-              {view === "dashboard" && (
-                <>
-                  <div className="page-head">
-                    <div>
-                      <div className="eyebrow">SATURDAY, 26 SEPTEMBER 2026</div>
-                      <h1>
-                        Good afternoon, Mani <span className="wave">✳</span>
-                      </h1>
-                      <p>Here’s what’s happening at {tenantInfo?.name || "your restaurant"}.</p>
-                    </div>
-                    <div className="head-actions">
-                      <select aria-label="Date range" value={dateRange} onChange={(e) => setDateRange(e.target.value)}>
-                        <option>Today</option>
-                        <option>Yesterday</option>
-                        <option>This week</option>
-                        <option>This month</option>
-                        <option>Custom range</option>
-                      </select>
-                      <button className="primary-btn" onClick={() => nav("pos")}>
-                        <Plus size={18} /> New order
-                      </button>
-                    </div>
-                  </div>
-                  <div className="kpi-grid">
-                    {[
-                      {
-                        label: "Gross sales",
-                        value: money(orders.filter((o) => o.status !== "Voided").reduce((n, o) => n + o.bill.subtotal, 0)),
-                        change: "",
-                        icon: Wallet,
-                        tone: "amber",
-                        note: "before discounts & refunds",
-                      },
-                      {
-                        label: "Net sales",
-                        value: money(orders.filter((o) => o.status === "Paid").reduce((n, o) => n + o.bill.subtotal - o.bill.discount, 0)),
-                        change: "",
-                        icon: ArrowUpRight,
-                        tone: "teal",
-                        note: "paid sales, excluding tax",
-                      },
-                      {
-                        label: "Operating expenses",
-                        value: money(
-                          expenses.reduce((a, x) => a + x.amount, 0) +
-                            wages.filter((w) => w.status === "Paid").reduce((a, x) => a + x.amount, 0)
-                        ),
-                        change: "",
-                        icon: ReceiptText,
-                        tone: "violet",
-                        note: "expenses + paid wages",
-                      },
-                      {
-                        label: "Real net profit",
-                        value: money(
-                          orders.filter((o) => o.status === "Paid").reduce((n, o) => n + o.bill.subtotal - o.bill.discount, 0) -
-                            expenses.reduce((a, x) => a + x.amount, 0) -
-                            wages.filter((w) => w.status === "Paid").reduce((a, x) => a + x.amount, 0)
-                        ),
-                        change: "",
-                        icon: ArrowUpRight,
-                        tone: "green",
-                        note: "net sales − operating costs",
-                      },
-                    ].map((k) => (
-                      <div className="kpi-card" key={k.label}>
-                        <div className="kpi-top">
-                          <span>{k.label}</span>
-                          <span className={"kpi-icon " + k.tone}>
-                            <k.icon size={19} />
-                          </span>
-                        </div>
-                        <strong>{k.value}</strong>
-                        <div className="kpi-foot">
-                          {k.change && (
-                            <span className={"change " + (k.label === "Operating expenses" ? "negative" : "")}>
-                              {k.change}
-                            </span>
-                          )}
-                          <span>{k.note}</span>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                  <div className="analytics-grid">
-                    <section className="panel chart-panel">
-                      <div className="panel-header">
-                        <div>
-                          <h2>Revenue & expenses</h2>
-                          <p>Illustrative weekly trend · live totals are shown above</p>
-                        </div>
-                        <span className="legend">
-                          <i /> Revenue <i /> Expenses
-                        </span>
-                      </div>
-                      <div className="chart">
-                        <ResponsiveContainer width="100%" height="100%">
-                          <AreaChart data={chart} margin={{ top: 15, right: 8, left: -17, bottom: 0 }}>
-                            <defs>
-                              <linearGradient id="rev" x1="0" y1="0" x2="0" y2="1">
-                                <stop offset="0%" stopColor="#f59e0b" stopOpacity={0.25} />
-                                <stop offset="100%" stopColor="#f59e0b" stopOpacity={0} />
-                              </linearGradient>
-                            </defs>
-                            <CartesianGrid strokeDasharray="3 5" vertical={false} stroke="var(--chart-grid)" />
-                            <XAxis
-                              dataKey="day"
-                              tickLine={false}
-                              axisLine={false}
-                              tick={{ fill: "var(--text-muted)", fontSize: 12 }}
-                              dy={12}
-                            />
-                            <YAxis
-                              tickLine={false}
-                              axisLine={false}
-                              tick={{ fill: "var(--text-muted)", fontSize: 12 }}
-                              tickFormatter={(v) => `${v / 1000}k`}
-                            />
-                            <Tooltip
-                              formatter={(v) => money(Number(v))}
-                              contentStyle={{
-                                background: "var(--panel)",
-                                border: "1px solid var(--border)",
-                                borderRadius: 12,
-                                color: "var(--text)",
-                              }}
-                            />
-                            <Area type="monotone" dataKey="revenue" stroke="#f59e0b" strokeWidth={3} fill="url(#rev)" />
-                            <Area type="monotone" dataKey="expense" stroke="#10b981" strokeWidth={2} fill="transparent" />
-                          </AreaChart>
-                        </ResponsiveContainer>
-                      </div>
-                    </section>
-                    <section className="panel top-dishes">
-                      <div className="panel-header">
-                        <div>
-                          <h2>Top performing dishes</h2>
-                          <p>Sample menu inspiration</p>
-                        </div>
-                        <button className="text-btn" onClick={() => nav("menu")}>
-                          View menu <ArrowUpRight size={15} />
-                        </button>
-                      </div>
-                      {initialDishes.slice(0, 4).map((d, i) => (
-                        <div className="leader-row" key={d.id}>
-                          <span className="leader-rank">0{i + 1}</span>
-                          <span className={"dish-thumb t" + i}>{d.emoji}</span>
-                          <div className="leader-info">
-                            <b>{d.name}</b>
-                            <small>{[82, 67, 54, 42][i]} orders</small>
-                          </div>
-                          <strong>{money([55760, 52930, 28080, 23520][i])}</strong>
-                        </div>
-                      ))}
-                    </section>
-                  </div>
-                  <div className="bottom-grid">
-                    <section className="panel recent-panel">
-                      <div className="panel-header">
-                        <div>
-                          <h2>Recent sales</h2>
-                          <p>Latest completed transactions</p>
-                        </div>
-                        <button className="text-btn" onClick={() => nav("pos")}>
-                          Open POS <ArrowUpRight size={15} />
-                        </button>
-                      </div>
-                      <div className="table-scroll">
-                        <table>
-                          <thead>
-                            <tr>
-                              <th>ORDER</th>
-                              <th>TIME</th>
-                              <th>TYPE</th>
-                              <th>AMOUNT</th>
-                              <th>STATUS</th>
-                            </tr>
-                          </thead>
-                          <tbody>
-                            {orders.slice(0, 5).map((o) => (
-                              <tr key={o.id} className="clickable-sale" onClick={() => setReceipt(o.bill)}>
-                                <td className="strong">
-                                  <button
-                                    className="sale-link"
-                                    onClick={() => setReceipt(o.bill)}
-                                    aria-label={"View receipt for " + o.id}
-                                  >
-                                    {o.id}
-                                  </button>
-                                </td>
-                                <td>{o.time}</td>
-                                <td>{o.type}</td>
-                                <td className="strong">{money(o.amount)}</td>
-                                <td>
-                                  <span className={"status " + (o.status === "Paid" ? "paid" : "paused")}>
-                                    {o.status}
-                                  </span>
-                                </td>
-                              </tr>
-                            ))}
-                          </tbody>
-                        </table>
-                      </div>
-                    </section>
-                    <section className="panel heat-panel">
-                      <div className="panel-header">
-                        <div>
-                          <h2>Peak hours</h2>
-                          <p>Sales activity by time of day</p>
-                        </div>
-                      </div>
-                      <div className="heat-bars">
-                        {[28, 37, 60, 85, 97, 68, 42, 55, 91, 75, 48, 31].map((v, i) => (
-                          <div key={i} className="heat-col">
-                            <span style={{ height: v + "%", opacity: 0.35 + v / 150 }} />
-                            <small>{i % 2 === 0 ? `${i + 10}` : ""}</small>
-                          </div>
-                        ))}
-                      </div>
-                      <div className="heat-caption">
-                        10 AM <span>Peak at 2 PM & 6 PM</span> 9 PM
-                      </div>
-                    </section>
-                  </div>
-                </>
-              )}
-
-              {view === "pos" && (
-                <>
-                  <div className="page-head pos-head">
-                    <div>
-                      <div className="eyebrow">FAST CHECKOUT</div>
-                      <h1>Point of sale</h1>
-                      <p>Find a dish, build an order, and check out.</p>
-                    </div>
-                    <div className="head-actions">
-                      <button className="quiet-btn" onClick={() => setSound(!sound)}>
-                        {sound ? <Volume2 size={17} /> : <VolumeX size={17} />} Sound {sound ? "on" : "off"}
-                      </button>
-                      <span className="terminal-status">
-                        <i /> Terminal online
+              <div className="page-head">
+                <div>
+                  <div className="eyebrow">SATURDAY, 26 SEPTEMBER 2026</div>
+                  <h1>
+                    Good afternoon, Mani <span className="wave">✳</span>
+                  </h1>
+                  <p>Here’s what’s happening at {tenantInfo?.name || "your restaurant"}.</p>
+                </div>
+                <div className="head-actions">
+                  <select aria-label="Date range" value={dateRange} onChange={(e) => setDateRange(e.target.value)}>
+                    <option>Today</option>
+                    <option>Yesterday</option>
+                    <option>This week</option>
+                    <option>This month</option>
+                    <option>Custom range</option>
+                  </select>
+                  <button className="primary-btn" onClick={() => nav("pos")}>
+                    <Plus size={18} /> New order
+                  </button>
+                </div>
+              </div>
+              <div className="kpi-grid">
+                {[
+                  {
+                    label: "Gross sales",
+                    value: money(orders.filter((o) => o.status !== "Voided").reduce((n, o) => n + o.bill.subtotal, 0)),
+                    change: "",
+                    icon: Wallet,
+                    tone: "amber",
+                    note: "before discounts & refunds",
+                  },
+                  {
+                    label: "Net sales",
+                    value: money(orders.filter((o) => o.status === "Paid").reduce((n, o) => n + o.bill.subtotal - o.bill.discount, 0)),
+                    change: "",
+                    icon: ArrowUpRight,
+                    tone: "teal",
+                    note: "paid sales, excluding tax",
+                  },
+                  {
+                    label: "Operating expenses",
+                    value: money(
+                      expenses.reduce((a, x) => a + x.amount, 0) +
+                        wages.filter((w) => w.status === "Paid").reduce((a, x) => a + x.amount, 0)
+                    ),
+                    change: "",
+                    icon: ReceiptText,
+                    tone: "violet",
+                    note: "expenses + paid wages",
+                  },
+                  {
+                    label: "Real net profit",
+                    value: money(
+                      orders.filter((o) => o.status === "Paid").reduce((n, o) => n + o.bill.subtotal - o.bill.discount, 0) -
+                        expenses.reduce((a, x) => a + x.amount, 0) -
+                        wages.filter((w) => w.status === "Paid").reduce((a, x) => a + x.amount, 0)
+                    ),
+                    change: "",
+                    icon: ArrowUpRight,
+                    tone: "green",
+                    note: "net sales − operating costs",
+                  },
+                ].map((k) => (
+                  <div className="kpi-card" key={k.label}>
+                    <div className="kpi-top">
+                      <span>{k.label}</span>
+                      <span className={"kpi-icon " + k.tone}>
+                        <k.icon size={19} />
                       </span>
                     </div>
-                  </div>
-                  <div className="pos-layout">
-                    <section className="pos-catalog">
-                      <div className="catalog-toolbar">
-                        <label className="search-field">
-                          <Search size={18} />
-                          <input
-                            value={query}
-                            onChange={(e) => setQuery(e.target.value)}
-                            placeholder="Search dishes, SKU or barcode…"
-                            aria-label="Search dishes"
-                          />
-                          <kbd>⌘ K</kbd>
-                        </label>
-                      </div>
-                      <div className="category-list">
-                        {["All items", "Appetizers", "Mains", "Drinks", "Desserts"].map((c) => (
-                          <button key={c} className={category === c ? "selected" : ""} onClick={() => setCategory(c)}>
-                            {c}
-                          </button>
-                        ))}
-                      </div>
-                      <div className="catalog-count">
-                        {displayed.length} dishes <span>·</span> Tap to add to order
-                      </div>
-                      <div className="dish-grid">
-                        {displayed.map((d, i) => (
-                          <button
-                            className={"dish-tile " + (!d.stock ? "sold-out" : "")}
-                            key={d.id}
-                            onClick={() => d.stock && addCart(d.id)}
-                            disabled={!d.stock}
-                          >
-                            <span className={"dish-photo photo-" + (i % 8)}>
-                              {d.imageUrl ? (
-                                <img className="dish-image" src={d.imageUrl} alt={d.name} />
-                              ) : (
-                                <span>{d.emoji}</span>
-                              )}
-                              {!d.stock && <b>86'D OUT</b>}
-                            </span>
-                            <span className="dish-body">
-                              <span className="dish-name">{d.name}</span>
-                              <span className="dish-details">
-                                {d.diet || d.category} · {d.time} min
-                              </span>
-                              <span className="dish-price">
-                                {money(d.price)}
-                                <span className="dish-add">
-                                  <Plus size={17} />
-                                </span>
-                              </span>
-                            </span>
-                          </button>
-                        ))}
-                      </div>
-                      {displayed.length === 0 && <div className="empty-state">No dishes match your search.</div>}
-                    </section>
-                    <aside className="order-panel">
-                      <div className="order-head">
-                        <div>
-                          <h2>Current order</h2>
-                          <p>Order #RP-{10843 + orders.length - 4}</p>
-                        </div>
-                        <span className="order-count">{cart.reduce((a, x) => a + x.qty, 0)} items</span>
-                      </div>
-                      <div className="order-types">
-                        {["Dine-in", "Takeaway", "Delivery"].map((t) => (
-                          <button className={orderType === t ? "selected" : ""} onClick={() => setOrderType(t)} key={t}>
-                            {t}
-                          </button>
-                        ))}
-                      </div>
-                      {orderType === "Dine-in" && (
-                        <label className="table-select">
-                          Table number{" "}
-                          <select value={table} onChange={(e) => setTable(e.target.value)}>
-                            {["T01", "T02", "T03", "T04", "T05", "T06", "T07", "T08"].map((t) => (
-                              <option key={t}>{t}</option>
-                            ))}
-                          </select>
-                        </label>
+                    <strong>{k.value}</strong>
+                    <div className="kpi-foot">
+                      {k.change && (
+                        <span className={"change " + (k.label === "Operating expenses" ? "negative" : "")}>
+                          {k.change}
+                        </span>
                       )}
-                      <div className="cart-items">
-                        {cart.length ? (
-                          cart.map((l) => {
-                            const d = dishes.find((x) => x.id === l.id)!;
-                            return (
-                              <div className="cart-item" key={l.id}>
-                                <span className="cart-emoji">{d.emoji}</span>
-                                <div className="cart-item-main">
-                                  <b>{d.name}</b>
-                                  <small>{money(l.override ?? d.price)} each</small>
-                                  <div className="cart-controls">
-                                    <button aria-label={"Remove one " + d.name} onClick={() => qty(l.id, -1)}>
-                                      <Minus size={13} />
-                                    </button>
-                                    <span>{l.qty}</span>
-                                    <button aria-label={"Add one " + d.name} onClick={() => qty(l.id, 1)}>
-                                      <Plus size={13} />
-                                    </button>
-                                    <button
-                                      className="line-adjust"
-                                      onClick={() => {
-                                        const value = prompt("Item discount in ₹", String(l.discount));
-                                        if (value !== null && Number(value) >= 0)
-                                          setCart((old) =>
-                                            old.map((x) => (x.id === l.id ? { ...x, discount: Number(value) } : x))
-                                          );
-                                      }}
-                                    >
-                                      Discount
-                                    </button>
-                                    <button
-                                      className="line-adjust"
-                                      onClick={() => {
-                                        const pin = prompt("Manager PIN for price override (demo: 1234)");
-                                        if (pin !== "1234") {
-                                          toast.error("Invalid manager PIN");
-                                          return;
-                                        }
-                                        const value = prompt("Override unit price in ₹", String(l.override ?? d.price));
-                                        if (value !== null && Number(value) >= 0)
-                                          setCart((old) =>
-                                            old.map((x) => (x.id === l.id ? { ...x, override: Number(value) } : x))
-                                          );
-                                      }}
-                                    >
-                                      Price
-                                    </button>
-                                  </div>
-                                </div>
-                                <strong>{money(((l.override ?? d.price) - l.discount) * l.qty)}</strong>
-                              </div>
-                            );
-                          })
-                        ) : (
-                          <div className="cart-empty">
-                            <ShoppingBag size={32} />
-                            <b>Your order is empty</b>
-                            <span>Select dishes to get started.</span>
-                          </div>
-                        )}
-                      </div>
-                      <div className="cart-footer">
-                        <div className="discount-row">
-                          <span>Order discount</span>
-                          <label>
-                            ₹{" "}
-                            <input
-                              aria-label="Order discount in rupees"
-                              type="number"
-                              min="0"
-                              value={orderDiscount}
-                              onChange={(e) => setOrderDiscount(Math.max(0, Number(e.target.value)))}
-                            />
-                          </label>
-                        </div>
-                        <div className="totals">
-                          <div>
-                            <span>Subtotal</span>
-                            <b>{money(subtotal)}</b>
-                          </div>
-                          <div>
-                            <span>Discount</span>
-                            <b>−{money(totalDiscount)}</b>
-                          </div>
-                          <div>
-                            <span>Tax (GST 5%)</span>
-                            <b>{money(tax)}</b>
-                          </div>
-                          <div className="grand-total">
-                            <span>Total due</span>
-                            <strong>{money(total)}</strong>
-                          </div>
-                        </div>
-                        <div className="payment-types">
-                          {["UPI", "Cash", "Card"].map((p) => (
-                            <button
-                              key={p}
-                              className={payment === p ? "selected" : ""}
-                              onClick={() => setPayment(p)}
-                            >
-                              {p}
-                            </button>
-                          ))}
-                        </div>
-                        {payment === "Cash" && (
-                          <div className="cash-input">
-                            <label>
-                              Cash received{" "}
-                              <input
-                                type="number"
-                                min="0"
-                                value={cash}
-                                onChange={(e) => setCash(e.target.value)}
-                                placeholder="₹ Amount"
-                              />
-                            </label>
-                            <span>Change: {money(Math.max(0, Number(cash) - total))}</span>
-                          </div>
-                        )}
-                        <button
-                          className="checkout-btn"
-                          disabled={!cart.length || (payment === "Cash" && Number(cash) < total)}
-                          onClick={checkout}
-                        >
-                          <CreditCard size={19} /> Charge {money(total)} <ArrowUpRight size={18} />
-                        </button>
-                      </div>
-                    </aside>
+                      <span>{k.note}</span>
+                    </div>
                   </div>
-                </>
-              )}
+                ))}
+              </div>
+            </>
+          )}
 
-              {view === "menu" && (
-                <>
-                  <div className="page-head">
-                    <div>
-                      <div className="eyebrow">CATALOG MANAGEMENT</div>
-                      <h1>Menu & dishes</h1>
-                      <p>Keep your menu up to date across every terminal.</p>
-                    </div>
-                    <button className="primary-btn" onClick={() => open("dish")}>
-                      <Plus size={17} /> Add dish
-                    </button>
-                  </div>
-                  <div className="panel management-panel">
-                    <div className="panel-header">
-                      <div>
-                        <h2>
-                          All dishes <span className="count-pill">{dishes.length}</span>
-                        </h2>
-                        <p>Availability updates appear instantly in POS.</p>
-                      </div>
-                    </div>
-                    <div className="table-scroll">
-                      <table>
-                        <thead>
-                          <tr>
-                            <th>DISH</th>
-                            <th>CATEGORY</th>
-                            <th>SELLING PRICE</th>
-                            <th>FOOD COST</th>
-                            <th>AVAILABILITY</th>
-                            <th>ACTIONS</th>
-                          </tr>
-                        </thead>
-                        <tbody>
-                          {dishes.map((d) => (
-                            <tr key={d.id}>
-                              <td>
-                                <span className="table-dish">
-                                  <span className="mini-emoji">{d.emoji}</span>
-                                  <b>{d.name}</b>
-                                </span>
-                              </td>
-                              <td>{d.category}</td>
-                              <td className="strong">{money(d.price)}</td>
-                              <td>{money(d.cost)}</td>
-                              <td>
-                                <label className="switch-cell">
-                                  <Switch
-                                    checked={d.stock}
-                                    onCheckedChange={async (v) => {
-                                      if (!db || !tenantId) return;
-                                      const { error } = await db
-                                        .from("menu_items")
-                                        .update({ available: v })
-                                        .eq("restaurant_id", tenantId)
-                                        .eq("id", d.id);
-                                      if (error) {
-                                        toast.error(error.message);
-                                        return;
-                                      }
-                                      setDishes((old) => old.map((x) => (x.id === d.id ? { ...x, stock: v } : x)));
-                                    }}
-                                    aria-label={"Available: " + d.name}
-                                  />
-                                  <span>{d.stock ? "Available" : "86’d out"}</span>
-                                </label>
-                              </td>
-                              <td>
-                                <div className="row-actions">
-                                  <button aria-label={"Edit " + d.name} onClick={() => open("dish", d.id)}>
-                                    <Pencil size={16} />
-                                  </button>
-                                  <button
-                                    aria-label={"Duplicate " + d.name}
-                                    onClick={async () => {
-                                      if (!db || !tenantId) return;
-                                      const { data, error } = await db
-                                        .from("menu_items")
-                                        .insert({
-                                          restaurant_id: tenantId,
-                                          name: d.name + " copy",
-                                          category: d.category,
-                                          price: d.price,
-                                          cost: d.cost,
-                                          available: d.stock,
-                                          emoji: d.emoji,
-                                          diet: d.diet,
-                                          prep_minutes: d.time,
-                                          image_url: d.imageUrl || null,
-                                        })
-                                        .select()
-                                        .single();
-                                      if (error) {
-                                        toast.error(error.message);
-                                        return;
-                                      }
-                                      setDishes((old) => [...old, { ...d, id: data.id, name: data.name }]);
-                                      toast.success("Dish duplicated");
-                                    }}
-                                  >
-                                    <Plus size={17} />
-                                  </button>
-                                  <button
-                                    aria-label={"Delete " + d.name}
-                                    onClick={async () => {
-                                      if (!confirm("Remove " + d.name + " from the menu?") || !db || !tenantId) return;
-                                      const { error } = await db
-                                        .from("menu_items")
-                                        .delete()
-                                        .eq("restaurant_id", tenantId)
-                                        .eq("id", d.id);
-                                      if (error) {
-                                        toast.error(error.message);
-                                        return;
-                                      }
-                                      setDishes((old) => old.filter((x) => x.id !== d.id));
-                                    }}
-                                  >
-                                    <Trash2 size={16} />
-                                  </button>
-                                </div>
-                              </td>
-                            </tr>
-                          ))}
-                        </tbody>
-                      </table>
-                    </div>
-                  </div>
-                </>
-              )}
+          {view === "pos" && (
+            <div className="page-head">
+              <h1>POS Terminal</h1>
+              <p>Find a dish, build an order, and check out.</p>
+            </div>
+          )}
 
-              {view === "suppliers" && (
-                <>
-                  <div className="page-head">
-                    <div>
-                      <div className="eyebrow">SUPPLIER ACCOUNTS</div>
-                      <h1>Suppliers</h1>
-                      <p>Track purchases, payments, and balances due for each supplier.</p>
-                    </div>
-                    <div className="head-actions">
-                      <button className="quiet-btn" onClick={() => open("payment")}>
-                        <Wallet size={16} /> Record payment
-                      </button>
-                      <button className="primary-btn" onClick={() => open("supplier")}>
-                        <Plus size={17} /> Add supplier
-                      </button>
-                    </div>
-                  </div>
-                  <div className="platform-stats">
-                    <div>
-                      <strong>{suppliers.length}</strong>
-                      <span>Suppliers</span>
-                    </div>
-                    <div>
-                      <strong>{money(expenses.filter((x) => x.supplierId).reduce((n, x) => n + x.amount, 0))}</strong>
-                      <span>Purchases</span>
-                    </div>
-                    <div>
-                      <strong>{money(supplierPayments.reduce((n, x) => n + x.amount, 0))}</strong>
-                      <span>Paid</span>
-                    </div>
-                    <div>
-                      <strong>
-                        {money(
-                          Math.max(
-                            0,
-                            expenses.filter((x) => x.supplierId).reduce((n, x) => n + x.amount, 0) -
-                              supplierPayments.reduce((n, x) => n + x.amount, 0)
-                          )
-                        )}
-                      </strong>
-                      <span>Due</span>
-                    </div>
-                  </div>
-                  <div className="supplier-layout">
-                    <section className="panel supplier-list">
-                      <div className="panel-header">
-                        <div>
-                          <h2>Supplier directory</h2>
-                          <p>Select a supplier to see every transaction.</p>
-                        </div>
-                      </div>
-                      {suppliers.map((sp) => {
-                        const billed = expenses.filter((x) => x.supplierId === sp.id).reduce((n, x) => n + x.amount, 0);
-                        const paid = supplierPayments.filter((x) => x.supplierId === sp.id).reduce((n, x) => n + x.amount, 0);
-                        const due = Math.max(0, billed - paid);
+          {view === "menu" && (
+            <div className="page-head">
+              <h1>Menu & dishes</h1>
+              <p>Manage dishes and availability.</p>
+            </div>
+          )}
+
+          {/* INVENTORY MANAGEMENT SECTION (Fully integrated and visible) */}
+          {view === "inventory" && (
+            <>
+              <div className="page-head flex justify-between items-center">
+                <div>
+                  <div className="eyebrow">WAREHOUSE & STOCK CONTROL</div>
+                  <h1>Inventory Manager</h1>
+                  <p>Add, edit, and track stock items in your restaurant. Monitor threshold alerts for low and out-of-stock items.</p>
+                </div>
+                <button className="primary-btn flex items-center gap-2" onClick={() => openInventoryModal()}>
+                  <Plus size={17} /> Add Stock Item
+                </button>
+              </div>
+
+              {/* Status KPI summary cards */}
+              <div className="platform-stats grid grid-cols-4 gap-4 my-6">
+                <div className="p-4 bg-card rounded-xl border">
+                  <strong>{inventoryList.length}</strong>
+                  <span>Total Stock Items</span>
+                </div>
+                <div className="p-4 bg-card rounded-xl border">
+                  <strong>{inventoryList.filter(x => x.onHand > x.reorderLevel).length}</strong>
+                  <span>In Stock</span>
+                </div>
+                <div className="p-4 bg-card rounded-xl border border-amber-300 bg-amber-50/20">
+                  <strong className="text-amber-600">{inventoryList.filter(x => x.onHand > 0 && x.onHand <= x.reorderLevel).length}</strong>
+                  <span>Low Stock Warning ⚠️</span>
+                </div>
+                <div className="p-4 bg-card rounded-xl border border-red-300 bg-red-50/20">
+                  <strong className="text-red-600">{inventoryList.filter(x => x.onHand === 0).length}</strong>
+                  <span>Out of Stock 🚨</span>
+                </div>
+              </div>
+
+              <div className="panel management-panel bg-card border rounded-xl p-6">
+                <div className="table-scroll overflow-x-auto">
+                  <table className="w-full text-left border-collapse">
+                    <thead>
+                      <tr className="border-b text-sm text-muted-foreground">
+                        <th className="p-3">ITEM NAME</th>
+                        <th className="p-3">CATEGORY</th>
+                        <th className="p-3">ON HAND</th>
+                        <th className="p-3">REORDER LEVEL</th>
+                        <th className="p-3">STATUS ALERT</th>
+                        <th className="p-3 text-right">ACTIONS</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {inventoryList.map((item) => {
+                        const isOut = item.onHand === 0;
+                        const isLow = item.onHand > 0 && item.onHand <= item.reorderLevel;
                         return (
-                          <button
-                            key={sp.id}
-                            className={"supplier-row " + (supplierDetail === sp.id ? "selected" : "")}
-                            onClick={() => setSupplierDetail(sp.id)}
-                          >
-                            <span className="supplier-monogram">{sp.name.slice(0, 2).toUpperCase()}</span>
-                            <span className="supplier-main">
-                              <b>{sp.name}</b>
-                              <small>{sp.contact || sp.phone || "Supplier account"}</small>
-                            </span>
-                            <span className="supplier-amount">
-                              <b>{money(due)}</b>
-                              <small
-                                className={
-                                  "status " +
-                                  (billed === 0 ? "paused" : due === 0 ? "paid" : paid > 0 ? "trial" : "paused")
-                                }
-                              >
-                                {billed === 0 ? "No activity" : due === 0 ? "Paid" : paid > 0 ? "Due" : "Pending"}
-                              </small>
-                            </span>
-                          </button>
-                        );
-                      })}
-                      {!suppliers.length && (
-                        <div className="empty-state">Add a supplier to start tracking purchases and payments.</div>
-                      )}
-                    </section>
-                    <section className="panel supplier-ledger">
-                      {supplierDetail ? (
-                        (() => {
-                          const sp = suppliers.find((x) => x.id === supplierDetail);
-                          const billed = expenses.filter((x) => x.supplierId === supplierDetail).reduce((n, x) => n + x.amount, 0);
-                          const paid = supplierPayments.filter((x) => x.supplierId === supplierDetail).reduce((n, x) => n + x.amount, 0);
-                          const lines = [
-                            ...expenses
-                              .filter((x) => x.supplierId === supplierDetail)
-                              .map((x) => ({ id: String(x.id), date: x.date, label: x.name, kind: "Purchase", amount: x.amount })),
-                            ...supplierPayments
-                              .filter((x) => x.supplierId === supplierDetail)
-                              .map((x) => ({ id: x.id, date: x.date, label: x.note || x.method, kind: "Payment", amount: x.amount })),
-                          ].sort((a, b) => b.date.localeCompare(a.date));
-                          return (
-                            <>
-                              <div className="panel-header">
-                                <div>
-                                  <h2>{sp?.name}</h2>
-                                  <p>{sp?.email || sp?.phone || "Transaction history"}</p>
-                                  <button className="text-btn" onClick={() => open("supplier", supplierDetail)}>
-                                    Edit supplier <Pencil size={14} />
-                                  </button>
-                                </div>
+                          <tr key={item.id} className="border-b hover:bg-muted/50">
+                            <td className="p-3 font-semibold">{item.name}</td>
+                            <td className="p-3 text-sm text-muted-foreground">{item.category}</td>
+                            <td className="p-3 font-mono font-bold">{item.onHand} {item.unit}</td>
+                            <td className="p-3 font-mono text-muted-foreground">{item.reorderLevel} {item.unit}</td>
+                            <td className="p-3">
+                              {isOut ? (
+                                <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-bold bg-red-100 text-red-800 border border-red-200">
+                                  <AlertTriangle size={12} /> Out of Stock (Reorder Now)
+                                </span>
+                              ) : isLow ? (
+                                <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-bold bg-amber-100 text-amber-800 border border-amber-200">
+                                  <AlertTriangle size={12} /> Low Stock Warning
+                                </span>
+                              ) : (
+                                <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold bg-green-100 text-green-800 border border-green-200">
+                                  In Stock
+                                </span>
+                              )}
+                            </td>
+                            <td className="p-3 text-right">
+                              <div className="inline-flex gap-2">
                                 <button
-                                  className="text-btn"
-                                  onClick={() => {
-                                    open("payment");
-                                    setForm({ supplierId: supplierDetail });
-                                  }}
+                                  className="p-1.5 border rounded hover:bg-muted"
+                                  onClick={() => openInventoryModal(item)}
+                                  title="Edit Item"
                                 >
-                                  Record payment <Plus size={15} />
+                                  <Pencil size={15} />
+                                </button>
+                                <button
+                                  className="p-1.5 border rounded hover:bg-red-50 text-red-600"
+                                  onClick={() => handleDeleteInventory(item.id)}
+                                  title="Delete Item"
+                                >
+                                  <Trash2 size={15} />
                                 </button>
                               </div>
-                              <div className="supplier-totals">
-                                <div>
-                                  <span>Purchases</span>
-                                  <strong>{money(billed)}</strong>
-                                </div>
-                                <div>
-                                  <span>Paid</span>
-                                  <strong>{money(paid)}</strong>
-                                </div>
-                                <div>
-                                  <span>Balance due</span>
-                                  <strong>{money(Math.max(0, billed - paid))}</strong>
-                                </div>
-                              </div>
-                              <div className="table-scroll">
-                                <table>
-                                  <thead>
-                                    <tr>
-                                      <th>DATE</th>
-                                      <th>TRANSACTION</th>
-                                      <th>TYPE</th>
-                                      <th>AMOUNT</th>
-                                    </tr>
-                                  </thead>
-                                  <tbody>
-                                    {lines.map((x) => (
-                                      <tr key={x.id}>
-                                        <td>{x.date}</td>
-                                        <td className="strong">{x.label}</td>
-                                        <td>
-                                          <span className={"status " + (x.kind === "Payment" ? "paid" : "trial")}>
-                                            {x.kind}
-                                          </span>
-                                        </td>
-                                        <td className="strong">
-                                          {x.kind === "Payment" ? "−" : "+"}
-                                          {money(x.amount)}
-                                        </td>
-                                      </tr>
-                                    ))}
-                                  </tbody>
-                                </table>
-                              </div>
-                              {!lines.length && (
-                                <div className="empty-state">No transactions yet. Log an expense and assign this supplier.</div>
-                              )}
-                            </>
-                          );
-                        })()
-                      ) : (
-                        <div className="empty-state">Select a supplier to see purchases, payments, and the balance due.</div>
+                            </td>
+                          </tr>
+                        );
+                      })}
+                      {!inventoryList.length && (
+                        <tr>
+                          <td colSpan={6} className="text-center py-12 text-muted-foreground">
+                            No inventory items added yet. Click "Add Stock Item" above.
+                          </td>
+                        </tr>
                       )}
-                    </section>
-                  </div>
-                </>
-              )}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            </>
+          )}
 
-              {/* PROFESSIONAL INVENTORY MANAGER CONSOLE */}
-              {view === "inventory" && (
-                <>
-                  <div className="page-head flex justify-between items-center">
+          {/* DYNAMIC SUBSCRIPTION PLANS VIEW (SYNCS PRICING PLANS CREATED BY ADMIN & SHOWS 'CHOOSE A PLAN') */}
+          {view === "subscription" && (
+            <>
+              <div className="page-head">
+                <div>
+                  <div className="eyebrow">SUBSCRIPTION & PLANS</div>
+                  <h1>Available Pricing Plans</h1>
+                  <p>Choose a plan configured by the administrator to renew or upgrade your subscription.</p>
+                </div>
+              </div>
+
+              <div className="pricing-grid grid md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+                {plans.map((p) => (
+                  <div className={"plan-card bg-card border rounded-xl p-6 flex flex-col justify-between shadow-sm relative " + (p.name === "Growth" || p.name === "Starter" ? "border-indigo-500 ring-1 ring-indigo-500" : "")} key={p.id}>
                     <div>
-                      <div className="eyebrow">WAREHOUSE & STOCK CONTROL</div>
-                      <h1>Inventory Manager</h1>
-                      <p>Add, edit, and track inventory stock items. Real-time alerts flag low or out-of-stock items for reordering.</p>
+                      <div className="flex justify-between items-center mb-4">
+                        <span className="p-2 rounded-lg bg-indigo-50 text-indigo-600">
+                          <CreditCard size={20} />
+                        </span>
+                        <span className="px-2.5 py-1 text-xs font-semibold rounded-full bg-green-100 text-green-800">
+                          Active
+                        </span>
+                      </div>
+                      <h2 className="text-xl font-bold">{p.name}</h2>
+                      <div className="text-2xl font-black my-2">
+                        {money(p.price)} <span className="text-sm font-normal text-muted-foreground">/ {p.period}</span>
+                      </div>
+                      <p className="text-sm text-muted-foreground mt-2">{p.features}</p>
                     </div>
-                    <button className="primary-btn flex items-center gap-2" onClick={() => openInventoryModal()}>
-                      <Plus size={17} /> Add Stock Item
-                    </button>
-                  </div>
-
-                  <div className="platform-stats grid grid-cols-4 gap-4 my-6">
-                    <div className="p-4 bg-card rounded-xl border">
-                      <strong>{inventoryList.length}</strong>
-                      <span>Total Stock Items</span>
-                    </div>
-                    <div className="p-4 bg-card rounded-xl border">
-                      <strong>{inventoryList.filter(x => x.onHand > x.reorderLevel).length}</strong>
-                      <span>In Stock</span>
-                    </div>
-                    <div className="p-4 bg-card rounded-xl border border-amber-300 bg-amber-50/20">
-                      <strong className="text-amber-600">{inventoryList.filter(x => x.onHand > 0 && x.onHand <= x.reorderLevel).length}</strong>
-                      <span>Low Stock Items ⚠️️</span>
-                    </div>
-                    <div className="p-4 bg-card rounded-xl border border-red-300 bg-red-50/20">
-                      <strong className="text-red-600">{inventoryList.filter(x => x.onHand === 0).length}</strong>
-                      <span>Out of Stock 🚨</span>
+                    <div className="mt-6 pt-4 border-t">
+                      <button
+                        className="primary-btn w-full flex items-center justify-center gap-2"
+                        onClick={() => handleChoosePlan(p)}
+                      >
+                        Choose Plan <ArrowUpRight size={16} />
+                      </button>
                     </div>
                   </div>
+                ))}
+              </div>
 
-                  <div className="panel management-panel bg-card border rounded-xl p-6">
-                    <div className="table-scroll overflow-x-auto">
-                      <table className="w-full text-left border-collapse">
-                        <thead>
-                          <tr className="border-b text-sm text-muted-foreground">
-                            <th className="p-3">ITEM NAME</th>
-                            <th className="p-3">CATEGORY</th>
-                            <th className="p-3">ON HAND</th>
-                            <th className="p-3">REORDER LEVEL</th>
-                            <th className="p-3">STATUS ALERT</th>
-                            <th className="p-3 text-right">ACTIONS</th>
+              <div className="settings-grid">
+                <section className="panel settings-panel">
+                  <h2>Request validity extension & upload payment proof</h2>
+                  <p>After choosing a plan and paying via the QR code, upload your receipt screenshot below.</p>
+                  
+                  <label className="block space-y-1 mt-3">
+                    <span className="text-sm font-medium">Payment Screenshot / Receipt</span>
+                    <input
+                      type="file"
+                      accept="image/jpeg,image/png,image/webp"
+                      onChange={(e) => setExtensionFile(e.target.files?.[0] || null)}
+                      className="block w-full text-sm file:mr-4 file:py-2 file:px-4 file:rounded-md file:border-0 file:text-sm file:font-semibold file:bg-indigo-50 file:text-indigo-700 hover:file:bg-indigo-100"
+                    />
+                  </label>
+
+                  <label className="block space-y-1 pt-3">
+                    <span className="text-sm font-medium">Transaction Note / Reference Number</span>
+                    <textarea
+                      value={extensionMessage}
+                      onChange={(e) => setExtensionMessage(e.target.value)}
+                      maxLength={500}
+                      placeholder="UTR / Transaction reference..."
+                      className="w-full p-2 border rounded-md text-sm bg-transparent"
+                    />
+                  </label>
+
+                  <button
+                    className="primary-btn mt-4"
+                    onClick={requestExtension}
+                    disabled={extensionBusy}
+                  >
+                    <Upload size={16} />
+                    {extensionBusy ? "Uploading Proof…" : "Submit Proof to Admin"}
+                  </button>
+                </section>
+              </div>
+            </>
+          )}
+
+          {view === "staff" && (
+            <div className="page-head">
+              <h1>Team & payroll</h1>
+            </div>
+          )}
+
+          {view === "expenses" && (
+            <div className="page-head">
+              <h1>Expenses ledger</h1>
+            </div>
+          )}
+
+          {view === "suppliers" && (
+            <div className="page-head">
+              <h1>Suppliers directory</h1>
+            </div>
+          )}
+
+          {view === "settings" && (
+            <div className="page-head">
+              <h1>Workspace settings</h1>
+            </div>
+          )}
+
+          {view === "restaurants" && (
+            <>
+              <div className="page-head">
+                <h1>Restaurants & Subscription Approvals</h1>
+              </div>
+              {subscriptionRequests.length > 0 && (
+                <section className="panel management-panel mb-6">
+                  <div className="panel-header">
+                    <h2>Pending Subscription Requests ({subscriptionRequests.length})</h2>
+                  </div>
+                  <div className="table-scroll">
+                    <table>
+                      <thead>
+                        <tr>
+                          <th>RESTAURANT</th>
+                          <th>OWNER</th>
+                          <th>PROOF</th>
+                          <th>ACTION</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {subscriptionRequests.map((req: any) => (
+                          <tr key={req.id}>
+                            <td>{req.restaurant_name}</td>
+                            <td>{req.owner_name}</td>
+                            <td>
+                              {req.screenshot_url ? (
+                                <a href={req.screenshot_url} target="_blank" rel="noreferrer" className="text-indigo-600 underline text-xs">
+                                  View Proof
+                                </a>
+                              ) : "No proof"}
+                            </td>
+                            <td>
+                              <button className="primary-btn text-xs py-1 px-3" onClick={() => reviewExtensionRequest(req.id, req.restaurant_id)}>
+                                Approve Renewal
+                              </button>
+                            </td>
                           </tr>
-                        </thead>
-                        <tbody>
-                          {inventoryList.map((item) => {
-                            const isOut = item.onHand === 0;
-                            const isLow = item.onHand > 0 && item.onHand <= item.reorderLevel;
-                            return (
-                              <tr key={item.id} className="border-b hover:bg-muted/50">
-                                <td className="p-3 font-semibold">{item.name}</td>
-                                <td className="p-3 text-sm text-muted-foreground">{item.category}</td>
-                                <td className="p-3 font-mono font-bold">{item.onHand} {item.unit}</td>
-                                <td className="p-3 font-mono text-muted-foreground">{item.reorderLevel} {item.unit}</td>
-                                <td className="p-3">
-                                  {isOut ? (
-                                    <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-bold bg-red-100 text-red-800 border border-red-200">
-                                      <AlertTriangle size={12} /> Out of Stock (Reorder Now)
-                                    </span>
-                                  ) : isLow ? (
-                                    <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-bold bg-amber-100 text-amber-800 border border-amber-200">
-                                      <AlertTriangle size={12} /> Low Stock Warning
-                                    </span>
-                                  ) : (
-                                    <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold bg-green-100 text-green-800 border border-green-200">
-                                      In Stock
-                                    </span>
-                                  )}
-                                </td>
-                                <td className="p-3 text-right">
-                                  <div className="inline-flex gap-2">
-                                    <button
-                                      className="p-1.5 border rounded hover:bg-muted"
-                                      onClick={() => openInventoryModal(item)}
-                                      title="Edit Item"
-                                    >
-                                      <Pencil size={15} />
-                                    </button>
-                                    <button
-                                      className="p-1.5 border rounded hover:bg-red-50 text-red-600"
-                                      onClick={() => handleDeleteInventory(item.id)}
-                                      title="Delete Item"
-                                    >
-                                      <Trash2 size={15} />
-                                    </button>
-                                  </div>
-                                </td>
-                              </tr>
-                            );
-                          })}
-                          {!inventoryList.length && (
-                            <tr>
-                              <td colSpan={6} className="text-center py-12 text-muted-foreground">
-                                No inventory items added yet. Click "Add Stock Item" above.
-                              </td>
-                            </tr>
-                          )}
-                        </tbody>
-                      </table>
-                    </div>
+                        ))}
+                      </tbody>
+                    </table>
                   </div>
-                </>
+                </section>
               )}
+            </>
+          )}
 
-              {/* DYNAMIC SUBSCRIPTION PLANS VIEW (SYNCS PRICING PLANS CREATED BY ADMIN & SHOWS 'CHOOSE A PLAN') */}
-              {view === "subscription" && tenantId && !isAdmin && (
-                <>
-                  <div className="page-head">
-                    <div>
-                      <div className="eyebrow">SUBSCRIPTION & PLANS</div>
-                      <h1>Available Pricing Plans</h1>
-                      <p>Choose a plan configured by the administrator to renew or upgrade your subscription.</p>
-                    </div>
-                  </div>
+          {view === "approvals" && (
+            <div className="page-head">
+              <h1>Platform Approvals</h1>
+            </div>
+          )}
 
-                  <div className="pricing-grid grid md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
-                    {plans.map((p, i) => (
-                      <div className={"plan-card bg-card border rounded-xl p-6 flex flex-col justify-between shadow-sm relative " + (p.name === "Growth" || p.name === "Starter" ? "border-indigo-500 ring-1 ring-indigo-500" : "")} key={p.id}>
-                        <div>
-                          <div className="flex justify-between items-center mb-4">
-                            <span className="p-2 rounded-lg bg-indigo-50 text-indigo-600">
-                              <CreditCard size={20} />
-                            </span>
-                            <span className="px-2.5 py-1 text-xs font-semibold rounded-full bg-green-100 text-green-800">
-                              Active
-                            </span>
-                          </div>
-                          <h2 className="text-xl font-bold">{p.name}</h2>
-                          <div className="text-2xl font-black my-2">
-                            {money(p.price)} <span className="text-sm font-normal text-muted-foreground">/ {p.period}</span>
-                          </div>
-                          <p className="text-sm text-muted-foreground mt-2">{p.features}</p>
-                        </div>
-                        <div className="mt-6 pt-4 border-t">
-                          <button
-                            className="primary-btn w-full flex items-center justify-center gap-2"
-                            onClick={() => handleChoosePlan(p)}
-                          >
-                            Choose Plan <ArrowUpRight size={16} />
-                          </button>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-
-                  <div className="settings-grid">
-                    <section className="panel settings-panel">
-                      <h2>Request validity extension & upload payment proof</h2>
-                      <p>After choosing a plan and paying via the QR code, upload your receipt screenshot below.</p>
-                      
-                      <label className="block space-y-1 mt-3">
-                        <span className="text-sm font-medium">Payment Screenshot / Receipt</span>
-                        <input
-                          type="file"
-                          accept="image/jpeg,image/png,image/webp"
-                          onChange={(e) => setExtensionFile(e.target.files?.[0] || null)}
-                          className="block w-full text-sm file:mr-4 file:py-2 file:px-4 file:rounded-md file:border-0 file:text-sm file:font-semibold file:bg-indigo-50 file:text-indigo-700 hover:file:bg-indigo-100"
-                        />
-                      </label>
-
-                      <label className="block space-y-1 pt-3">
-                        <span className="text-sm font-medium">Transaction Note / Reference Number</span>
-                        <textarea
-                          value={extensionMessage}
-                          onChange={(e) => setExtensionMessage(e.target.value)}
-                          maxLength={500}
-                          placeholder="UTR / Transaction reference..."
-                          className="w-full p-2 border rounded-md text-sm bg-transparent"
-                        />
-                      </label>
-
-                      <button
-                        className="primary-btn mt-4"
-                        onClick={requestExtension}
-                        disabled={extensionBusy}
-                      >
-                        <Upload size={16} />
-                        {extensionBusy ? "Uploading Proof…" : "Submit Proof to Admin"}
-                      </button>
-                    </section>
-                  </div>
-                </>
-              )}
-
-              {view === "staff" && (
-                <>
-                  <div className="page-head">
-                    <div>
-                      <div className="eyebrow">YOUR PEOPLE</div>
-                      <h1>Team & payroll</h1>
-                      <p>Profiles, shifts, and compensation in one place.</p>
-                    </div>
-                    <button className="primary-btn" onClick={() => open("employee")}>
-                      <Plus size={17} /> Add employee
-                    </button>
-                  </div>
-                  <div className="staff-grid">
-                    {staff.map((s, i) => (
-                      <div
-                        className="staff-card"
-                        key={s.name}
-                        role="button"
-                        tabIndex={0}
-                        onClick={() => openStaff(s)}
-                        onKeyDown={(e) => {
-                          if (e.key === "Enter" || e.key === " ") {
-                            e.preventDefault();
-                            openStaff(s);
-                          }
-                        }}
-                      >
-                        <span className={"staff-avatar a" + i}>{s.initial}</span>
-                        <span className="staff-name">{s.name}</span>
-                        <span className="staff-role">{s.role}</span>
-                        <span className="staff-manage">
-                          <button
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              open("employee", s.id);
-                            }}
-                            aria-label={"Edit " + s.name}
-                          >
-                            <Pencil size={15} />
-                          </button>
-                          <button
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              if (confirm("Deactivate " + s.name + "?") && db && tenantId) {
-                                db.from("employees")
-                                  .update({ active: false })
-                                  .eq("restaurant_id", tenantId)
-                                  .eq("id", s.id)
-                                  .then(({ error }: { error: any }) => {
-                                    if (error) toast.error(error.message);
-                                    else setStaff((old) => old.filter((x) => x.id !== s.id));
-                                  });
-                              }
-                            }}
-                            aria-label={"Deactivate " + s.name}
-                          >
-                            <Trash2 size={15} />
-                          </button>
-                        </span>
-                        <span className="staff-divider" />
-                        <span className="staff-meta">
-                          <span>Today’s shift</span>
-                          <b>{s.shift}</b>
-                        </span>
-                        <span className="staff-meta">
-                          <span>Base pay</span>
-                          <b>{money(s.dailyRate)} / day</b>
-                        </span>
-                        <span className="staff-view">
-                          View profile <ArrowUpRight size={15} />
-                        </span>
-                      </div>
-                    ))}
-                  </div>
-                  <div className="panel pay-note">
-                    <Wallet size={21} />
-                    <div>
-                      <b>Payroll overview</b>
-                      <p>
-                        {money(wages.filter((w) => w.status === "Paid").reduce((sum, w) => sum + w.amount, 0))} paid ·{" "}
-                        {money(wages.filter((w) => w.status === "Unpaid").reduce((sum, w) => sum + w.amount, 0))} due across recorded daily wages.
-                      </p>
-                    </div>
-                  </div>
-                </>
-              )}
-
-              {view === "expenses" && (
-                <>
-                  <div className="page-head">
-                    <div>
-                      <div className="eyebrow">COST CONTROL</div>
-                      <h1>Expenses</h1>
-                      <p>Every cost accounted for. Every margin clearer.</p>
-                    </div>
-                    <button className="primary-btn" onClick={() => open("expense")}>
-                      <Plus size={17} /> Log expense
-                    </button>
-                  </div>
-                  <div className="expense-summary">
-                    <div>
-                      <span>Recorded expenses</span>
-                      <strong>{money(expenses.reduce((a, x) => a + x.amount, 0))}</strong>
-                      <small>Included in net profit</small>
-                    </div>
-                    <div>
-                      <span>Transactions</span>
-                      <strong>{expenses.length}</strong>
-                      <small>Across {new Set(expenses.map((x) => x.category)).size} categories</small>
-                    </div>
-                    <div>
-                      <span>Largest category</span>
-                      <strong>
-                        {expenses.length ? [...expenses].sort((a, b) => b.amount - a.amount)[0].category : "—"}
-                      </strong>
-                      <small>Based on recorded costs</small>
-                    </div>
-                  </div>
-                  <div className="panel management-panel">
-                    <div className="panel-header">
-                      <div>
-                        <h2>Expense ledger</h2>
-                        <p>Recent operational spending</p>
-                      </div>
-                    </div>
-                    <div className="table-scroll">
-                      <table>
-                        <thead>
-                          <tr>
-                            <th>DESCRIPTION</th>
-                            <th>CATEGORY</th>
-                            <th>VENDOR</th>
-                            <th>DATE</th>
-                            <th>AMOUNT</th>
-                          </tr>
-                        </thead>
-                        <tbody>
-                          {expenses.map((e) => (
-                            <tr key={e.id}>
-                              <td className="strong">{e.name}</td>
-                              <td>
-                                <span className="category-badge">{e.category}</span>
-                              </td>
-                              <td>{e.vendor}</td>
-                              <td>{e.date}</td>
-                              <td className="strong">{money(e.amount)}</td>
-                            </tr>
-                          ))}
-                        </tbody>
-                      </table>
-                    </div>
-                  </div>
-                </>
-              )}
-
-              {view === "settings" && (
-                <>
-                  <div className="page-head">
-                    <div>
-                      <div className="eyebrow">WORKSPACE PREFERENCES</div>
-                      <h1>Settings</h1>
-                      <p>Store details and your point-of-sale experience.</p>
-                    </div>
-                  </div>
-                  <div className="settings-grid">
-                    <section className="panel settings-panel">
-                      <h2>Restaurant identity</h2>
-                      <p>Information shown on receipts and invoices.</p>
-                      <label className="logo-upload">
-                        Restaurant logo {tenantInfo?.logo_url && <img src={tenantInfo.logo_url} alt="Current restaurant logo" />}
-                        <input
-                          type="file"
-                          accept="image/jpeg,image/png,image/webp"
-                          disabled={logoUploading}
-                          onChange={async (e) => {
-                            const file = e.target.files?.[0];
-                            if (!file || !tenantId) return;
-                            setLogoUploading(true);
-                            try {
-                              const url = await uploadImage(file, "logo");
-                              const { error } = await db.from("restaurants").update({ logo_url: url }).eq("id", tenantId);
-                              if (error) throw error;
-                              setTenantInfo((old) => (old ? { ...old, logo_url: url } : old));
-                              toast.success("Logo updated");
-                            } catch (err) {
-                              toast.error(String(err));
-                            } finally {
-                              setLogoUploading(false);
-                            }
-                          }}
-                        />
-                        <small>{logoUploading ? "Uploading…" : "JPG, PNG or WebP · up to 5 MB"}</small>
-                      </label>
-                      <div className="settings-fields">
-                        <label>
-                          Restaurant name
-                          <input value={storeForm.name} onChange={(e) => setStoreForm({ ...storeForm, name: e.target.value })} />
-                        </label>
-                        <label>
-                          Phone number
-                          <input value={storeForm.phone} onChange={(e) => setStoreForm({ ...storeForm, phone: e.target.value })} />
-                        </label>
-                        <label>
-                          Address
-                          <input value={storeForm.address} onChange={(e) => setStoreForm({ ...storeForm, address: e.target.value })} />
-                        </label>
-                        <label>
-                          GSTIN
-                          <input value={storeForm.gstin} onChange={(e) => setStoreForm({ ...storeForm, gstin: e.target.value })} />
-                        </label>
-                      </div>
-                      <button
-                        className="primary-btn"
-                        onClick={async () => {
-                          if (!tenantId || !storeForm.name.trim()) return;
-                          const payload = {
-                            name: storeForm.name.trim(),
-                            business_phone: storeForm.phone,
-                            address: storeForm.address,
-                            gstin: storeForm.gstin,
-                            receipt_footer: storeForm.footer,
-                          };
-                          const { error } = await db.from("restaurants").update(payload).eq("id", tenantId);
-                          if (error) {
-                            toast.error(error.message);
-                            return;
-                          }
-                          setTenantInfo((old) => (old ? { ...old, ...payload } : old));
-                          toast.success("Restaurant details saved");
-                        }}
-                      >
-                        Save details
-                      </button>
-                    </section>
-                    <section className="panel settings-panel">
-                      <h2>Regional & receipt settings</h2>
-                      <p>Choose how your team sees prices and prints bills.</p>
-                      <div className="settings-fields">
-                        <label>
-                          Currency
-                          <select defaultValue="INR">
-                            <option value="INR">INR · Indian rupee</option>
-                            <option>USD · US dollar</option>
-                            <option>EUR · Euro</option>
-                            <option>GBP · Pound sterling</option>
-                          </select>
-                        </label>
-                        <label>
-                          Time zone
-                          <select defaultValue="Asia/Kolkata">
-                            <option value="Asia/Kolkata">Asia/Kolkata (IST)</option>
-                            <option>UTC</option>
-                          </select>
-                        </label>
-                        <label>
-                          Tax rate
-                          <input defaultValue="GST 5%" />
-                        </label>
-                        <label>
-                          Receipt footer
-                          <input value={storeForm.footer} onChange={(e) => setStoreForm({ ...storeForm, footer: e.target.value })} />
-                        </label>
-                      </div>
-                      <button
-                        className="primary-btn"
-                        onClick={() =>
-                          toast.info(
-                            "Currency and tax changes require an accounting configuration update; receipt footer saves with restaurant details"
-                          )
-                        }
-                      >
-                        Save preferences
-                      </button>
-                    </section>
-                    <section className="panel settings-panel">
-                      <h2>Appearance & sound</h2>
-                      <div className="setting-toggle">
-                        <span>
-                          <b>Dark appearance</b>
-                          <small>Use a darker workspace palette</small>
-                        </span>
-                        <Switch checked={dark} onCheckedChange={setDark} />
-                      </div>
-                      <div className="setting-toggle">
-                        <span>
-                          <b>POS sound feedback</b>
-                          <small>A short tone when dishes are added</small>
-                        </span>
-                        <Switch checked={sound} onCheckedChange={setSound} />
-                      </div>
-                    </section>
-                    <section className="panel settings-panel">
-                      <h2>Account & security</h2>
-                      <p>Signed in as Mani Raj · Platform administrator</p>
-                      <div className="setting-toggle">
-                        <span>
-                          <b>Two-factor authentication</b>
-                          <small>Manage MFA in your Supabase account settings</small>
-                        </span>
-                        <span className="status trial">Setup required</span>
-                      </div>
-                      <button
-                        className="quiet-btn"
-                        onClick={async () => {
-                          await db.auth.signOut();
-                          setTenantId(null);
-                        }}
-                      >
-                        <LogOut size={16} /> Sign out
-                      </button>
-                    </section>
-                  </div>
-                </>
-              )}
-
-              {view === "restaurants" && (
-                <>
-                  <div className="page-head">
-                    <div>
-                      <div className="eyebrow">PLATFORM CONTROL</div>
-                      <h1>Restaurants & Subscription Approvals</h1>
-                      <p>Review restaurant payment proofs and approve subscription extensions.</p>
-                    </div>
-                    <button className="primary-btn" onClick={() => open("restaurant")}>
-                      <Plus size={17} /> Add restaurant
-                    </button>
-                  </div>
-
-                  {subscriptionRequests.length > 0 && (
-                    <section className="panel management-panel mb-6">
-                      <div className="panel-header">
-                        <div>
-                          <h2>
-                            Pending Subscription Requests <span className="count-pill">{subscriptionRequests.length}</span>
-                          </h2>
-                          <p>Review payment screenshots sent by restaurant owners.</p>
-                        </div>
-                      </div>
-                      <div className="table-scroll">
-                        <table>
-                          <thead>
-                            <tr>
-                              <th>RESTAURANT</th>
-                              <th>OWNER</th>
-                              <th>PLAN</th>
-                              <th>PROOF</th>
-                              <th>NOTE</th>
-                              <th>ACTION</th>
-                            </tr>
-                          </thead>
-                          <tbody>
-                            {subscriptionRequests.map((req: any) => (
-                              <tr key={req.id}>
-                                <td className="strong">{req.restaurant_name}</td>
-                                <td>
-                                  <div className="owner-cell">
-                                    <b>{req.owner_name}</b>
-                                    <small>{req.owner_email}</small>
-                                  </div>
-                                </td>
-                                <td>{req.plan}</td>
-                                <td>
-                                  {req.screenshot_url ? (
-                                    <a href={req.screenshot_url} target="_blank" rel="noreferrer" className="text-indigo-600 underline text-xs font-semibold">
-                                      View Screenshot
-                                    </a>
-                                  ) : (
-                                    <span className="text-gray-400 text-xs">No screenshot</span>
-                                  )}
-                                </td>
-                                <td>{req.message}</td>
-                                <td>
-                                  <button
-                                    className="primary-btn text-xs py-1 px-3"
-                                    onClick={() => reviewExtensionRequest(req.id, req.restaurant_id)}
-                                  >
-                                    Approve Renewal
-                                  </button>
-                                </td>
-                              </tr>
-                            ))}
-                          </tbody>
-                        </table>
-                      </div>
-                    </section>
-                  )}
-
-                  <div className="platform-stats">
-                    <div>
-                      <strong>{restaurants.length}</strong>
-                      <span>Total restaurants</span>
-                    </div>
-                    <div>
-                      <strong>{restaurants.filter((r) => r.status === "Active").length}</strong>
-                      <span>Active subscriptions</span>
-                    </div>
-                    <div>
-                      <strong>{restaurants.filter((r) => r.status === "Trial").length}</strong>
-                      <span>In trial</span>
-                    </div>
-                    <div>
-                      <strong>{approvals.filter((a) => a.status === "Pending").length}</strong>
-                      <span>Awaiting approval</span>
-                    </div>
-                  </div>
-                  <div className="panel management-panel">
-                    <div className="panel-header">
-                      <div>
-                        <h2>Restaurant directory</h2>
-                        <p>Subscriptions and account status</p>
-                      </div>
-                    </div>
-                    <div className="table-scroll">
-                      <table>
-                        <thead>
-                          <tr>
-                            <th>RESTAURANT</th>
-                            <th>OWNER</th>
-                            <th>PLAN</th>
-                            <th>STATUS</th>
-                            <th>RENEWAL</th>
-                            <th>ACTIONS</th>
-                          </tr>
-                        </thead>
-                        <tbody>
-                          {restaurants.map((r: any) => (
-                            <tr key={r.id}>
-                              <td>
-                                <div className="restaurant-name">
-                                  <span className="store-avatar">{r.initial}</span>
-                                  <span>
-                                    <b>{r.name}</b>
-                                    <small>{r.city}</small>
-                                  </span>
-                                </div>
-                              </td>
-                              <td>
-                                <div className="owner-cell">
-                                  <b>{r.owner}</b>
-                                  <small>
-                                    {r.email} · {r.phone}
-                                  </small>
-                                </div>
-                              </td>
-                              <td>{r.plan}</td>
-                              <td>
-                                <span
-                                  className={
-                                    "status " +
-                                    (r.status === "Active" ? "paid" : r.status === "Trial" ? "trial" : "paused")
-                                  }
-                                >
-                                  {r.status}
-                                </span>
-                              </td>
-                              <td>{r.renewal}</td>
-                              <td>
-                                <div className="row-actions">
-                                  <button
-                                    title="Extend subscription"
-                                    onClick={() => {
-                                      open("extend", r.id);
-                                      setForm({ renewal: r.renewal });
-                                    }}
-                                  >
-                                    <CalendarDays size={16} />
-                                  </button>
-                                  <button
-                                    title={r.status === "Paused" ? "Resume" : "Pause"}
-                                    onClick={() => toast.info("Subscription status changes require a platform billing workflow")}
-                                  >
-                                    {r.status === "Paused" ? <Check size={16} /> : <PanelRightClose size={16} />}
-                                  </button>
-                                  <button
-                                    title="Delete restaurant"
-                                    onClick={() => toast.info("Restaurant deletion requires a verified offboarding workflow")}
-                                  >
-                                    <Trash2 size={16} />
-                                  </button>
-                                </div>
-                              </td>
-                            </tr>
-                          ))}
-                        </tbody>
-                      </table>
-                    </div>
-                  </div>
-                </>
-              )}
-
-              {view === "approvals" && (
-                <>
-                  <div className="page-head">
-                    <div>
-                      <div className="eyebrow">ONBOARDING PIPELINE</div>
-                      <h1>
-                        Pending approvals{" "}
-                        <span className="heading-count">{approvals.filter((a) => a.status === "Pending").length}</span>
-                      </h1>
-                      <p>Review businesses before they join the platform.</p>
-                    </div>
-                  </div>
-                  <div className="approval-grid">
-                    {approvals
-                      .filter((a) => a.status === "Pending")
-                      .map((a) => (
-                        <div className="approval-card" key={a.id}>
-                          <div className="approval-top">
-                            <span className="approval-avatar">{a.name.slice(0, 2).toUpperCase()}</span>
-                            <span className="status trial">Awaiting review</span>
-                          </div>
-                          <h2>{a.name}</h2>
-                          <p>
-                            {a.city} · Submitted {a.submitted}
-                          </p>
-                          <div className="approval-doc">
-                            <BadgeCheck size={17} />
-                            <span>{a.docs}</span>
-                          </div>
-                          <div className="approval-actions">
-                            <button
-                              className="quiet-btn"
-                              onClick={() => {
-                                setApprovals((old) => old.map((x) => (x.id === a.id ? { ...x, status: "Rejected" } : x)));
-                                toast.info(a.name + " rejected");
-                              }}
-                            >
-                              Reject
-                            </button>
-                            <button
-                              className="primary-btn"
-                              onClick={() => {
-                                setApprovals((old) => old.map((x) => (x.id === a.id ? { ...x, status: "Approved" } : x)));
-                                setRestaurants((old) => [
-                                  ...old,
-                                  {
-                                    id: Date.now(),
-                                    name: a.name,
-                                    city: a.city,
-                                    plan: "Free Trial",
-                                    status: "Trial",
-                                    renewal: "10 Oct 2026",
-                                    initial: a.name.slice(0, 2).toUpperCase(),
-                                    owner: "Pending owner",
-                                    email: "—",
-                                    phone: "—",
-                                  },
-                                ]);
-                                toast.success(a.name + " approved");
-                              }}
-                            >
-                              <Check size={16} /> Approve
-                            </button>
-                          </div>
-                        </div>
-                      ))}
-                  </div>
-                  {approvals.every((a) => a.status !== "Pending") && (
-                    <div className="panel empty-state">All caught up. No pending registrations.</div>
-                  )}
-                </>
-              )}
-
-              {view === "pricing" && isAdmin && (
-                <>
-                  <div className="page-head">
-                    <div>
-                      <div className="eyebrow">SUBSCRIPTION MANAGEMENT</div>
-                      <h1>Pricing plans & Admin UPI Configuration</h1>
-                      <p>Configure the UPI ID that restaurant owners will use to pay their subscription.</p>
-                    </div>
-                    <button className="primary-btn" onClick={() => open("plan")}>
-                      <Plus size={17} /> Add plan
-                    </button>
-                  </div>
-                  <section className="panel settings-panel">
-                    <div className="panel-header">
-                      <div>
-                        <h2>Restaurant payment UPI ID</h2>
-                        <p>This UPI ID will immediately appear in all restaurant dashboards for payments.</p>
-                      </div>
-                    </div>
-                    <div className="settings-fields">
-                      <label>
-                        Admin UPI ID
-                        <input
-                          value={adminUpiId}
-                          onChange={(e) => setAdminUpiId(e.target.value)}
-                          placeholder="merchant@upi"
-                          autoComplete="off"
-                        />
-                      </label>
-                    </div>
-                    <button className="primary-btn" onClick={saveAdminUpi} disabled={adminUpiBusy}>
-                      <Save size={16} />
-                      {adminUpiBusy ? "Saving…" : "Save Admin UPI ID"}
-                    </button>
-                  </section>
-                  <div className="pricing-grid">
-                    {plans.map((p, i) => (
-                      <div className={"plan-card " + (p.name === "Growth" ? "featured" : "")} key={p.id}>
-                        <div className="plan-top">
-                          <span className={"plan-icon pi" + i}>
-                            <CreditCard size={20} />
-                          </span>
-                          <span className={"status " + (p.active ? "paid" : "paused")}>
-                            {p.active ? "Active" : "Inactive"}
-                          </span>
-                        </div>
-                        <h2>{p.name}</h2>
-                        <div className="plan-price">
-                          {money(p.price)} <span>/ {p.period}</span>
-                        </div>
-                        <p>{p.features}</p>
-                        <div className="plan-divider" />
-                        <div className="plan-actions">
-                          <button onClick={() => open("plan", p.id)}>
-                            <Pencil size={16} /> Edit
-                          </button>
-                          <button
-                            onClick={() => {
-                              if (confirm("Delete " + p.name + " plan?")) setPlans((old) => old.filter((x) => x.id !== p.id));
-                            }}
-                          >
-                            <Trash2 size={16} /> Delete
-                          </button>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                </>
-              )}
+          {view === "pricing" && isAdmin && (
+            <>
+              <div className="page-head">
+                <h1>Pricing plans & Admin UPI Configuration</h1>
+              </div>
+              <section className="panel settings-panel">
+                <label>
+                  Admin UPI ID
+                  <input value={adminUpiId} onChange={(e) => setAdminUpiId(e.target.value)} placeholder="merchant@upi" />
+                </label>
+                <button className="primary-btn mt-3" onClick={saveAdminUpi} disabled={adminUpiBusy}>
+                  <Save size={16} /> Save Admin UPI ID
+                </button>
+              </section>
             </>
           )}
         </main>
@@ -3084,716 +1869,6 @@ export default function Home() {
           <DialogFooter>
             <button className="quiet-btn" onClick={() => setModal(null)}>Cancel</button>
             <button className="primary-btn" onClick={handleAddOrEditInventory}>Save Item</button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-
-      <Dialog open={!!modal && modal !== "inventory"} onOpenChange={(v) => !v && setModal(null)}>
-        <DialogContent className="modal-content">
-          <DialogHeader>
-            <DialogTitle>
-              {modal === "plan"
-                ? editing
-                  ? "Edit plan"
-                  : "Add pricing plan"
-                : modal === "dish"
-                ? editing
-                  ? "Edit dish"
-                  : "Add dish"
-                : modal === "expense"
-                ? "Log expense"
-                : modal === "restaurant"
-                ? "Add restaurant"
-                : modal === "employee"
-                ? editing !== null
-                  ? "Edit employee"
-                  : "Add employee"
-                : modal === "supplier"
-                ? editing
-                  ? "Edit supplier"
-                  : "Add supplier"
-                : modal === "payment"
-                ? "Record supplier payment"
-                : "Extend subscription"}
-            </DialogTitle>
-            <DialogDescription>
-              {modal === "extend"
-                ? "Set a new renewal date for this restaurant."
-                : "Complete the details below to update the workspace."}
-            </DialogDescription>
-          </DialogHeader>
-          <div className="modal-fields">
-            {modal === "plan" && (
-              <>
-                <label>
-                  Plan name
-                  <input
-                    value={form.name || ""}
-                    onChange={(e) => setForm({ ...form, name: e.target.value })}
-                    placeholder="e.g. Premium"
-                  />
-                </label>
-                <div className="field-pair">
-                  <label>
-                    Price (₹)
-                    <input
-                      type="number"
-                      min="0"
-                      value={form.price || ""}
-                      onChange={(e) => setForm({ ...form, price: e.target.value })}
-                    />
-                  </label>
-                  <label>
-                    Billing period
-                    <select
-                      value={form.period || "month"}
-                      onChange={(e) => setForm({ ...form, period: e.target.value })}
-                    >
-                      <option>month</option>
-                      <option>year</option>
-                      <option>14 days</option>
-                    </select>
-                  </label>
-                </div>
-                <label>
-                  Features
-                  <input
-                    value={form.features || ""}
-                    onChange={(e) => setForm({ ...form, features: e.target.value })}
-                    placeholder="Locations · Features · Users"
-                  />
-                </label>
-              </>
-            )}
-            {modal === "dish" && (
-              <>
-                <label>
-                  Dish image (JPG, PNG or WebP · up to 5 MB)
-                  <input
-                    type="file"
-                    accept="image/jpeg,image/png,image/webp"
-                    onChange={(e) => setDishFile(e.target.files?.[0] || null)}
-                  />
-                </label>
-                <label>
-                  Dish name
-                  <input
-                    value={form.name || ""}
-                    onChange={(e) => setForm({ ...form, name: e.target.value })}
-                  />
-                </label>
-                <div className="field-pair">
-                  <label>
-                    Category
-                    <select
-                      value={form.category || "Mains"}
-                      onChange={(e) => setForm({ ...form, category: e.target.value })}
-                    >
-                      {["Appetizers", "Mains", "Drinks", "Desserts"].map((x) => (
-                        <option key={x}>{x}</option>
-                      ))}
-                    </select>
-                  </label>
-                  <label>
-                    Emoji / image symbol
-                    <input
-                      value={form.emoji || ""}
-                      onChange={(e) => setForm({ ...form, emoji: e.target.value })}
-                      placeholder="🍽️"
-                    />
-                  </label>
-                </div>
-                <div className="field-pair">
-                  <label>
-                    Selling price (₹)
-                    <input
-                      type="number"
-                      value={form.price || ""}
-                      onChange={(e) => setForm({ ...form, price: e.target.value })}
-                    />
-                  </label>
-                  <label>
-                    Food cost (₹)
-                    <input
-                      type="number"
-                      value={form.cost || ""}
-                      onChange={(e) => setForm({ ...form, cost: e.target.value })}
-                    />
-                  </label>
-                </div>
-                <div className="field-pair">
-                  <label>
-                    Dietary label
-                    <input
-                      value={form.diet || ""}
-                      onChange={(e) => setForm({ ...form, diet: e.target.value })}
-                    />
-                  </label>
-                  <label>
-                    Prep time (min)
-                    <input
-                      type="number"
-                      value={form.time || ""}
-                      onChange={(e) => setForm({ ...form, time: e.target.value })}
-                    />
-                  </label>
-                </div>
-              </>
-            )}
-            {modal === "expense" && (
-              <>
-                <label>
-                  Description
-                  <input
-                    value={form.name || ""}
-                    onChange={(e) => setForm({ ...form, name: e.target.value })}
-                  />
-                </label>
-                <div className="field-pair">
-                  <label>
-                    Category
-                    <select
-                      value={form.category || "Inventory"}
-                      onChange={(e) => setForm({ ...form, category: e.target.value })}
-                    >
-                      {["Inventory", "Utilities", "Maintenance", "Marketing", "Rent", "Staff welfare"].map((x) => (
-                        <option key={x}>{x}</option>
-                      ))}
-                    </select>
-                  </label>
-                  <label>
-                    Amount (₹)
-                    <input
-                      type="number"
-                      value={form.amount || ""}
-                      onChange={(e) => setForm({ ...form, amount: e.target.value })}
-                    />
-                  </label>
-                </div>
-                <label>
-                  Supplier (optional)
-                  <select
-                    value={form.supplierId || ""}
-                    onChange={(e) => setForm({ ...form, supplierId: e.target.value })}
-                  >
-                    <option value="">No linked supplier</option>
-                    {suppliers.map((x) => (
-                      <option key={x.id} value={x.id}>
-                        {x.name}
-                      </option>
-                    ))}
-                  </select>
-                </label>
-                <label>
-                  Date
-                  <input
-                    type="date"
-                    value={form.date || new Date().toISOString().slice(0, 10)}
-                    onChange={(e) => setForm({ ...form, date: e.target.value })}
-                  />
-                </label>
-                <label>
-                  Vendor
-                  <input
-                    value={form.vendor || ""}
-                    onChange={(e) => setForm({ ...form, vendor: e.target.value })}
-                  />
-                </label>
-              </>
-            )}
-            {modal === "restaurant" && (
-              <>
-                <label>
-                  Restaurant name
-                  <input
-                    autoComplete="organization"
-                    value={form.name || ""}
-                    onChange={(e) => setForm({ ...form, name: e.target.value })}
-                  />
-                </label>
-                <label>
-                  Owner name
-                  <input
-                    autoComplete="name"
-                    value={form.owner || ""}
-                    onChange={(e) => setForm({ ...form, owner: e.target.value })}
-                  />
-                </label>
-                <div className="field-pair">
-                  <label>
-                    Email
-                    <input
-                      type="email"
-                      autoComplete="email"
-                      value={form.email || ""}
-                      onChange={(e) => setForm({ ...form, email: e.target.value })}
-                    />
-                  </label>
-                  <label>
-                    Phone number
-                    <input
-                      type="tel"
-                      autoComplete="tel"
-                      value={form.phone || ""}
-                      onChange={(e) => setForm({ ...form, phone: e.target.value })}
-                    />
-                  </label>
-                </div>
-                <label>
-                  Password
-                  <input
-                    type="password"
-                    autoComplete="new-password"
-                    minLength={12}
-                    value={form.password || ""}
-                    onChange={(e) => setForm({ ...form, password: e.target.value })}
-                    placeholder="At least 12 characters"
-                  />
-                  <small className="credential-note">
-                    The owner account will be created in Supabase Auth. Password is sent only to the server.
-                  </small>
-                </label>
-                <div className="field-pair">
-                  <label>
-                    City
-                    <input
-                      value={form.city || ""}
-                      onChange={(e) => setForm({ ...form, city: e.target.value })}
-                    />
-                  </label>
-                  <label>
-                    Plan
-                    <select
-                      value={form.plan || "Free Trial"}
-                      onChange={(e) => setForm({ ...form, plan: e.target.value })}
-                    >
-                      {plans.map((p) => (
-                        <option key={p.id}>{p.name}</option>
-                      ))}
-                    </select>
-                  </label>
-                </div>
-              </>
-            )}
-            {modal === "employee" && (
-              <>
-                <label>
-                  Full name
-                  <input
-                    value={form.name || ""}
-                    onChange={(e) => setForm({ ...form, name: e.target.value })}
-                  />
-                </label>
-                <div className="field-pair">
-                  <label>
-                    Role
-                    <input
-                      value={form.role || ""}
-                      onChange={(e) => setForm({ ...form, role: e.target.value })}
-                      placeholder="Cashier"
-                    />
-                  </label>
-                  <label>
-                    Email
-                    <input
-                      type="email"
-                      value={form.email || ""}
-                      onChange={(e) => setForm({ ...form, email: e.target.value })}
-                    />
-                  </label>
-                </div>
-                <div className="field-pair">
-                  <label>
-                    Shift
-                    <input
-                      value={form.shift || ""}
-                      onChange={(e) => setForm({ ...form, shift: e.target.value })}
-                      placeholder="09:00 – 18:00"
-                    />
-                  </label>
-                  <label>
-                    Daily wage (₹)
-                    <input
-                      type="number"
-                      min="0"
-                      value={form.dailyRate || ""}
-                      onChange={(e) => setForm({ ...form, dailyRate: e.target.value })}
-                      placeholder="900"
-                    />
-                  </label>
-                </div>
-                <label>
-                  Phone number
-                  <input
-                    type="tel"
-                    value={form.phone || ""}
-                    onChange={(e) => setForm({ ...form, phone: e.target.value })}
-                  />
-                </label>
-              </>
-            )}
-            {modal === "supplier" && (
-              <>
-                <label>
-                  Supplier name
-                  <input
-                    value={form.name || ""}
-                    onChange={(e) => setForm({ ...form, name: e.target.value })}
-                  />
-                </label>
-                <label>
-                  Contact person
-                  <input
-                    value={form.contact || ""}
-                    onChange={(e) => setForm({ ...form, contact: e.target.value })}
-                  />
-                </label>
-                <div className="field-pair">
-                  <label>
-                    Phone
-                    <input
-                      type="tel"
-                      value={form.phone || ""}
-                      onChange={(e) => setForm({ ...form, phone: e.target.value })}
-                    />
-                  </label>
-                  <label>
-                    Email
-                    <input
-                      type="email"
-                      value={form.email || ""}
-                      onChange={(e) => setForm({ ...form, email: e.target.value })}
-                    />
-                  </label>
-                </div>
-              </>
-            )}
-            {modal === "payment" && (
-              <>
-                <label>
-                  Supplier
-                  <select
-                    value={form.supplierId || ""}
-                    onChange={(e) => setForm({ ...form, supplierId: e.target.value })}
-                  >
-                    <option value="">Choose supplier</option>
-                    {suppliers.map((x) => (
-                      <option key={x.id} value={x.id}>
-                        {x.name}
-                      </option>
-                    ))}
-                  </select>
-                </label>
-                <div className="field-pair">
-                  <label>
-                    Amount paid (₹)
-                    <input
-                      type="number"
-                      min="1"
-                      value={form.amount || ""}
-                      onChange={(e) => setForm({ ...form, amount: e.target.value })}
-                    />
-                  </label>
-                  <label>
-                    Payment date
-                    <input
-                      type="date"
-                      value={form.date || new Date().toISOString().slice(0, 10)}
-                      onChange={(e) => setForm({ ...form, date: e.target.value })}
-                    />
-                  </label>
-                </div>
-                <label>
-                  Method
-                  <select
-                    value={form.method || "Cash"}
-                    onChange={(e) => setForm({ ...form, method: e.target.value })}
-                  >
-                    <option>Cash</option>
-                    <option>UPI</option>
-                    <option>Bank transfer</option>
-                    <option>Card</option>
-                  </select>
-                </label>
-                <label>
-                  Note
-                  <input
-                    value={form.note || ""}
-                    onChange={(e) => setForm({ ...form, note: e.target.value })}
-                  />
-                </label>
-              </>
-            )}
-            {modal === "extend" && (
-              <label>
-                New renewal date
-                <input
-                  value={form.renewal || ""}
-                  onChange={(e) => setForm({ ...form, renewal: e.target.value })}
-                  placeholder="e.g. 12 Nov 2026"
-                />
-              </label>
-            )}
-          </div>
-          <DialogFooter>
-            <button className="quiet-btn" onClick={() => setModal(null)}>
-              Cancel
-            </button>
-            <button className="primary-btn" onClick={save}>
-              Save changes
-            </button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-
-      <Sheet open={!!selectedStaff} onOpenChange={(v) => !v && setSelectedStaff(null)}>
-        <SheetContent className="profile-sheet wage-sheet">
-          <SheetHeader>
-            <SheetTitle>Employee & daily wages</SheetTitle>
-          </SheetHeader>
-          {selectedStaff && (
-            <div className="sheet-inner">
-              <span className="staff-avatar sheet-avatar">{selectedStaff.initial}</span>
-              <h2>{selectedStaff.name}</h2>
-              <p>{selectedStaff.role}</p>
-              <div className="sheet-section">
-                <span>EMPLOYEE DETAILS</span>
-                <div>
-                  <small>Email</small>
-                  <b>{selectedStaff.email}</b>
-                </div>
-                <div>
-                  <small>Phone</small>
-                  <b>{selectedStaff.phone || "—"}</b>
-                </div>
-                <div>
-                  <small>Shift</small>
-                  <b>{selectedStaff.shift}</b>
-                </div>
-                <div>
-                  <small>Daily wage rate</small>
-                  <b>{money(selectedStaff.dailyRate)} / day</b>
-                </div>
-                <div>
-                  <small>Assigned store</small>
-                  <b>{tenantInfo?.name || "Restaurant"}</b>
-                </div>
-              </div>
-              <div className="wage-summary">
-                <span>
-                  <small>Total paid</small>
-                  <b>
-                    {money(
-                      wages
-                        .filter((w) => w.staffId === selectedStaff.id && w.status === "Paid")
-                        .reduce((n, w) => n + w.amount, 0)
-                    )}
-                  </b>
-                </span>
-                <span>
-                  <small>Outstanding</small>
-                  <b>
-                    {money(
-                      wages
-                        .filter((w) => w.staffId === selectedStaff.id && w.status === "Unpaid")
-                        .reduce((n, w) => n + w.amount, 0)
-                    )}
-                  </b>
-                </span>
-              </div>
-              <div className="wage-form">
-                <h3>Record a day’s wage</h3>
-                <div>
-                  <label>
-                    Date
-                    <input
-                      type="date"
-                      value={wageForm.date}
-                      onChange={(e) => setWageForm({ ...wageForm, date: e.target.value })}
-                    />
-                  </label>
-                  <label>
-                    Amount (₹)
-                    <input
-                      type="number"
-                      min="1"
-                      value={wageForm.amount}
-                      onChange={(e) => setWageForm({ ...wageForm, amount: e.target.value })}
-                    />
-                  </label>
-                </div>
-                <label>
-                  Note (optional)
-                  <input
-                    value={wageForm.note}
-                    onChange={(e) => setWageForm({ ...wageForm, note: e.target.value })}
-                    placeholder="Shift, overtime or adjustment"
-                  />
-                </label>
-                <button className="primary-btn" onClick={addWage}>
-                  <Plus size={16} /> Record wage
-                </button>
-              </div>
-              <div className="wage-history">
-                <h3>Daily wage history</h3>
-                {wages
-                  .filter((w) => w.staffId === selectedStaff.id)
-                  .sort((a, b) => b.date.localeCompare(a.date))
-                  .map((w) => (
-                    <div className="wage-entry" key={w.id}>
-                      <div>
-                        <b>
-                          {new Date(w.date + "T12:00:00").toLocaleDateString("en-IN", {
-                            day: "numeric",
-                            month: "short",
-                            year: "numeric",
-                          })}
-                        </b>
-                        <small>{w.note || "Daily shift"}</small>
-                      </div>
-                      <strong>{money(w.amount)}</strong>
-                      <button
-                        className={"status " + (w.status === "Paid" ? "paid" : "trial")}
-                        onClick={async () => {
-                          if (!db || !tenantId) return;
-                          const next = w.status === "Paid" ? "Unpaid" : "Paid";
-                          const { error } = await db
-                            .from("daily_wages")
-                            .update({ status: next })
-                            .eq("restaurant_id", tenantId)
-                            .eq("id", w.id);
-                          if (error) {
-                            toast.error(error.message);
-                            return;
-                          }
-                          setWages((old) => old.map((x) => (x.id === w.id ? { ...x, status: next } : x)));
-                        }}
-                        aria-label={"Mark " + w.date + " as " + (w.status === "Paid" ? "unpaid" : "paid")}
-                      >
-                        {w.status}
-                      </button>
-                    </div>
-                  ))}
-                {!wages.some((w) => w.staffId === selectedStaff.id) && (
-                  <p className="empty-state">No wage entries yet.</p>
-                )}
-              </div>
-            </div>
-          )}
-        </SheetContent>
-      </Sheet>
-
-      <Dialog open={!!receipt} onOpenChange={(v) => !v && setReceipt(null)}>
-        <DialogContent className="receipt-dialog">
-          <DialogHeader>
-            <DialogTitle>Bill details</DialogTitle>
-            <DialogDescription>
-              Order {receipt?.id} · {receipt?.status}
-            </DialogDescription>
-          </DialogHeader>
-          {receipt && (
-            <>
-              <style media="print">{`@page { size: ${
-                printSize === "A4" ? "A4" : printSize + " 297mm"
-              }; margin: ${printSize === "A4" ? "12mm" : "2mm"}; }`}</style>
-              <div className={"receipt-paper format-" + printSize} id="print-receipt">
-                <div className="receipt-center">
-                  <div className="receipt-logo">
-                    {(receipt.business || tenantInfo)?.logo_url ? (
-                      <img src={(receipt.business || tenantInfo)!.logo_url!} alt="" />
-                    ) : (
-                      "✳"
-                    )}
-                  </div>
-                  <strong>{(receipt.business || tenantInfo)?.name || "Restaurant"}</strong>
-                  <span>{(receipt.business || tenantInfo)?.address || "Address not set"}</span>
-                  <span>
-                    {(receipt.business || tenantInfo)?.business_phone || ""}
-                    {(receipt.business || tenantInfo)?.gstin
-                      ? " · GSTIN " + (receipt.business || tenantInfo)!.gstin
-                      : ""}
-                  </span>
-                </div>
-                <div className="receipt-dash" />
-                <div className="receipt-meta">
-                  <span>Bill: {receipt.id}</span>
-                  <span>{receipt.issuedAt}</span>
-                  <span>Cashier: Mani Raj</span>
-                  <span>
-                    {receipt.type}
-                    {receipt.type === "Dine-in" ? " · " + receipt.table : ""}
-                  </span>
-                </div>
-                <div className="receipt-dash" />
-                <div className="receipt-lines">
-                  <div className="receipt-line receipt-column">
-                    <span>ITEM</span>
-                    <span>QTY</span>
-                    <span>AMOUNT</span>
-                  </div>
-                  {receipt.items.map((l, i) => (
-                    <div className="receipt-line" key={i}>
-                      <span>
-                        {l.name}
-                        <small>
-                          {money(l.unitPrice)} each{l.discount ? " · discount " + money(l.discount) : ""}
-                        </small>
-                      </span>
-                      <span>{l.qty}</span>
-                      <span>{money((l.unitPrice - l.discount) * l.qty)}</span>
-                    </div>
-                  ))}
-                </div>
-                <div className="receipt-dash" />
-                <div className="receipt-sums">
-                  <div>
-                    <span>Subtotal</span>
-                    <span>{money(receipt.subtotal)}</span>
-                  </div>
-                  <div>
-                    <span>Discount</span>
-                    <span>−{money(receipt.discount)}</span>
-                  </div>
-                  <div>
-                    <span>GST 5%</span>
-                    <span>{money(receipt.tax)}</span>
-                  </div>
-                  <div className="receipt-total">
-                    <b>Total</b>
-                    <b>{money(receipt.total)}</b>
-                  </div>
-                  <div>
-                    <span>Paid via {receipt.payment}</span>
-                    <span>{money(receipt.total)}</span>
-                  </div>
-                </div>
-                <div className="receipt-dash" />
-                <div className="receipt-center receipt-footer">
-                  <span>{(receipt.business || tenantInfo)?.receipt_footer || "Thank you for dining with us!"}</span>
-                  <span>Order verification: {receipt.id}</span>
-                </div>
-              </div>
-              <label className="print-format">
-                Print paper size{" "}
-                <select
-                  aria-label="Receipt paper size"
-                  value={printSize}
-                  onChange={(e) => setPrintSize(e.target.value as "58mm" | "85mm" | "A4")}
-                >
-                  <option value="58mm">58 mm thermal roll</option>
-                  <option value="85mm">85 mm thermal roll</option>
-                  <option value="A4">A4 sheet</option>
-                </select>
-              </label>
-            </>
-          )}
-          <DialogFooter>
-            <button className="quiet-btn" onClick={() => setReceipt(null)}>
-              Close
-            </button>
-            <button className="primary-btn" onClick={() => window.print()}>
-              <Printer size={17} /> Print Bill
-            </button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

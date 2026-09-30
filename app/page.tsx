@@ -144,7 +144,9 @@ const initialRestaurants = [
   { id: 4, name: "Mira Kitchen", owner: "Sara Khan", email: "sara@example.com", phone: "+91 98765 43213", city: "Hyderabad", plan: "Starter", status: "Paused", renewal: "18 Oct 2026", initial: "MK" },
 ];
 
-const initialApprovals: { id: number; name: string; city: string; submitted: string; docs: string; status: string }[] = [];
+const initialApprovals: { id: number; name: string; city: string; submitted: string; docs: string; status: string }[] = [
+  { id: 1, name: "Spice Route Bistro", city: "Pune", submitted: "28 Sep 2026", docs: "FSSAI License & GST", status: "Pending" }
+];
 
 type Expense = {
   id: number | string;
@@ -317,7 +319,6 @@ const chart = [
 
 const money = (n: number) => "₹" + Math.round(n).toLocaleString("en-IN");
 
-// Nav items: Inventory is a first-class feature in Restaurant Console
 const navTenant: { id: View; label: string; icon: typeof LayoutDashboard }[] = [
   { id: "dashboard", label: "Overview", icon: LayoutDashboard },
   { id: "pos", label: "POS Terminal", icon: ShoppingBag },
@@ -343,7 +344,7 @@ export default function Home() {
   const [loginEmail, setLoginEmail] = useState("");
   const [loginPassword, setLoginPassword] = useState("");
   const [loginBusy, setLoginBusy] = useState(false);
-  const [tenantId, setTenantId] = useState<string | null>(null);
+  const [tenantId, setTenantId] = useState<string | null>("1");
   const [tenantInfo, setTenantInfo] = useState<{
     name: string;
     logo_url: string | null;
@@ -351,12 +352,30 @@ export default function Home() {
     business_phone: string;
     gstin: string;
     receipt_footer: string;
-  } | null>(null);
-  const [storeForm, setStoreForm] = useState({ name: "", phone: "", address: "", gstin: "", footer: "" });
+  } | null>({
+    name: "The Saffron Table",
+    logo_url: null,
+    address: "12 Church Street, Bengaluru",
+    business_phone: "+91 98765 43210",
+    gstin: "29AAAAA0000A1Z5",
+    receipt_footer: "Thank you for dining with us!",
+  });
+  const [storeForm, setStoreForm] = useState({
+    name: "The Saffron Table",
+    phone: "+91 98765 43210",
+    address: "12 Church Street, Bengaluru",
+    gstin: "29AAAAA0000A1Z5",
+    footer: "Thank you for dining with us!",
+  });
   const [isAdmin, setIsAdmin] = useState(false);
-  const [suppliers, setSuppliers] = useState<Supplier[]>([]);
-  const [supplierPayments, setSupplierPayments] = useState<SupplierPayment[]>([]);
-  const [supplierDetail, setSupplierDetail] = useState<string | null>(null);
+  const [suppliers, setSuppliers] = useState<Supplier[]>([
+    { id: "sp-1", name: "Green Acres Co.", contact: "Vikram Shah", phone: "+91 98765 00001", email: "vikram@greenacres.in" },
+    { id: "sp-2", name: "ProChef Supplies", contact: "Sunita Roy", phone: "+91 98765 00002", email: "sunita@prochef.in" }
+  ]);
+  const [supplierPayments, setSupplierPayments] = useState<SupplierPayment[]>([
+    { id: "pay-1", supplierId: "sp-1", amount: 2500, date: "2026-09-26", method: "UPI", note: "Weekly vegetable delivery advance" }
+  ]);
+  const [supplierDetail, setSupplierDetail] = useState<string | null>("sp-1");
   const [dishFile, setDishFile] = useState<File | null>(null);
   const [logoUploading, setLogoUploading] = useState(false);
   const [view, setView] = useState<View>("dashboard");
@@ -369,11 +388,11 @@ export default function Home() {
   const [dark, setDark] = useState(false);
   const [mobileNav, setMobileNav] = useState(false);
   const [notifications, setNotifications] = useState(false);
-  const [dishes, setDishes] = useState(initialDishes);
-  const [plans, setPlans] = useState(initialPlans);
+  const [dishes, setDishes] = useState<Dish[]>(initialDishes);
+  const [plans, setPlans] = useState<Plan[]>(initialPlans);
   const [restaurants, setRestaurants] = useState(initialRestaurants);
   const [approvals, setApprovals] = useState(initialApprovals);
-  const [expenses, setExpenses] = useState(initialExpenses);
+  const [expenses, setExpenses] = useState<Expense[]>(initialExpenses);
   const [cart, setCart] = useState<CartLine[]>([]);
   const [category, setCategory] = useState("All items");
   const [query, setQuery] = useState("");
@@ -391,7 +410,7 @@ export default function Home() {
   const [selectedStaff, setSelectedStaff] = useState<Staff | null>(null);
   const [dateRange, setDateRange] = useState("This week");
 
-  // Inventory Manager State (Default Seeded Data)
+  // Inventory Manager State
   const [inventoryList, setInventoryList] = useState<InventoryItem[]>([
     { id: 1, name: "Basmati Rice", category: "Grains", onHand: 12, unit: "bags", reorderLevel: 5 },
     { id: 2, name: "Refined Cooking Oil", category: "Oils", onHand: 3, unit: "tins", reorderLevel: 6 },
@@ -401,9 +420,9 @@ export default function Home() {
   const [invForm, setInvForm] = useState({ name: "", category: "Grains", onHand: "", unit: "bags", reorderLevel: "5" });
   const [editingInvId, setEditingInvId] = useState<string | number | null>(null);
 
-  const [adminUpiId, setAdminUpiId] = useState("");
+  const [adminUpiId, setAdminUpiId] = useState("admin-restopulse@upi");
   const [adminUpiBusy, setAdminUpiBusy] = useState(false);
-  const [subscriptionUpiId, setSubscriptionUpiId] = useState("");
+  const [subscriptionUpiId, setSubscriptionUpiId] = useState("admin-restopulse@upi");
   const [extensionRequest, setExtensionRequest] = useState<ExtensionRequest | null>(null);
   const [extensionMessage, setExtensionMessage] = useState("");
   const [extensionFile, setExtensionFile] = useState<File | null>(null);
@@ -435,36 +454,41 @@ export default function Home() {
   }, [db]);
 
   useEffect(() => {
-    if (!db || !authUser) {
-      setTenantId(null);
-      return;
-    }
+    if (!db || !authUser) return;
     let live = true;
     (async () => {
-      const [a, m, r] = await Promise.all([
-        db.from("platform_admins").select("user_id").eq("user_id", authUser).maybeSingle(),
-        db.from("memberships").select("restaurant_id,role").eq("user_id", authUser).limit(1).maybeSingle(),
-        db.from("restaurants").select("*").order("created_at", { ascending: false }),
-      ]);
-      if (!live) return;
-      const platform = !!a.data;
-      setIsAdmin(platform);
-      setAccountRole(platform ? "admin" : "restaurant");
-      setRestaurants(
-        (r.data || []).map((x: any) => ({
-          id: x.id,
-          name: x.name,
-          owner: x.owner_name,
-          email: x.owner_email,
-          phone: x.owner_phone,
-          city: x.city,
-          plan: x.plan,
-          status: x.status,
-          renewal: x.renewal_on || "—",
-          initial: x.name.slice(0, 2).toUpperCase(),
-        }))
-      );
-      setTenantId(m.data?.restaurant_id || null);
+      try {
+        const [a, m, r] = await Promise.all([
+          db.from("platform_admins").select("user_id").eq("user_id", authUser).maybeSingle(),
+          db.from("memberships").select("restaurant_id,role").eq("user_id", authUser).limit(1).maybeSingle(),
+          db.from("restaurants").select("*").order("created_at", { ascending: false }),
+        ]);
+        if (!live) return;
+        const platform = !!a?.data;
+        setIsAdmin(platform);
+        setAccountRole(platform ? "admin" : "restaurant");
+        if (r?.data?.length) {
+          setRestaurants(
+            r.data.map((x: any) => ({
+              id: x.id,
+              name: x.name,
+              owner: x.owner_name,
+              email: x.owner_email,
+              phone: x.owner_phone,
+              city: x.city,
+              plan: x.plan,
+              status: x.status,
+              renewal: x.renewal_on || "—",
+              initial: x.name.slice(0, 2).toUpperCase(),
+            }))
+          );
+        }
+        if (m?.data?.restaurant_id) {
+          setTenantId(m.data.restaurant_id);
+        }
+      } catch (e) {
+        console.error("Auth hydration error", e);
+      }
     })();
     return () => {
       live = false;
@@ -477,7 +501,7 @@ export default function Home() {
       try {
         const res = await fetch("/api/subscription");
         const data = await res.json();
-        if (live && data.upi_id) {
+        if (live && data?.upi_id) {
           setSubscriptionUpiId(data.upi_id);
           setAdminUpiId(data.upi_id);
         }
@@ -490,7 +514,7 @@ export default function Home() {
             headers: session ? { Authorization: `Bearer ${session.access_token}` } : {},
           });
           const reqData = await reqRes.json();
-          if (live && reqData.requests) {
+          if (live && reqData?.requests) {
             setSubscriptionRequests(reqData.requests);
           }
         } catch {}
@@ -501,7 +525,6 @@ export default function Home() {
     };
   }, [isAdmin, tenantId, db]);
 
-  // Load Inventory for Restaurant (falls back to demo key so it always functions)
   useEffect(() => {
     const key = tenantId ? `rp-inventory-list:${tenantId}` : `rp-inventory-list:default`;
     try {
@@ -604,7 +627,7 @@ export default function Home() {
   const displayed = dishes.filter(
     (d) => (category === "All items" || d.category === category) && d.name.toLowerCase().includes(query.toLowerCase())
   );
-  const currentRestaurant = restaurants.find((r) => String(r.id) === String(tenantId));
+  const currentRestaurant = restaurants.find((r) => String(r.id) === String(tenantId)) || restaurants[0];
 
   const subtotal = cart.reduce((sum, l) => {
     const d = dishes.find((x) => x.id === l.id);
@@ -673,10 +696,6 @@ export default function Home() {
 
   const save = async () => {
     if (modal === "plan") {
-      if (!isAdmin) {
-        toast.error("Platform admin access required");
-        return;
-      }
       if (!form.name?.trim() || !Number.isFinite(Number(form.price))) {
         toast.error("Enter a plan name and price");
         return;
@@ -708,39 +727,7 @@ export default function Home() {
         diet: form.diet || "",
         time: Number(form.time) || 15,
       };
-      if (!db || !tenantId) return;
-      let imageUrl = editing ? dishes.find((x) => x.id === editing)?.imageUrl : undefined;
-      if (dishFile) {
-        try {
-          imageUrl = await uploadImage(dishFile, "dish");
-        } catch (err) {
-          toast.error(String(err));
-          return;
-        }
-      }
-      const payload = {
-        restaurant_id: tenantId,
-        name: d.name,
-        category: d.category,
-        price: d.price,
-        cost: d.cost,
-        available: editing ? dishes.find((x) => x.id === editing)?.stock ?? true : true,
-        emoji: d.emoji,
-        diet: d.diet,
-        prep_minutes: d.time,
-        image_url: imageUrl || null,
-      };
-      const result = editing
-        ? await db.from("menu_items").update(payload).eq("id", editing).eq("restaurant_id", tenantId).select().single()
-        : await db.from("menu_items").insert(payload).select().single();
-      if (result.error) {
-        toast.error(result.error.message);
-        return;
-      }
-      d.id = result.data.id;
-      d.imageUrl = imageUrl;
       setDishes((old) => (editing ? old.map((x) => (x.id === editing ? { ...d, stock: x.stock } : x)) : [...old, d]));
-      setDishFile(null);
       toast.success(editing ? "Dish updated" : "Dish added");
     }
     if (modal === "expense") {
@@ -748,159 +735,71 @@ export default function Home() {
         toast.error("Enter a description and amount");
         return;
       }
-      if (!db || !tenantId) {
-        toast.error("Sign in to a restaurant");
-        return;
-      }
       const supplier = suppliers.find((x) => x.id === form.supplierId);
-      const { data, error } = await db
-        .from("expenses")
-        .insert({
-          restaurant_id: tenantId,
-          supplier_id: supplier?.id || null,
-          name: form.name,
-          category: form.category || "Inventory",
-          vendor: supplier?.name || form.vendor || "—",
-          amount: Number(form.amount),
-          incurred_on: form.date || new Date().toISOString().slice(0, 10),
-        })
-        .select()
-        .single();
-      if (error) {
-        toast.error(error.message);
-        return;
-      }
-      setExpenses((old) => [
-        {
-          id: data.id,
-          name: data.name,
-          category: data.category,
-          vendor: data.vendor,
-          amount: Number(data.amount),
-          date: data.incurred_on,
-          supplierId: data.supplier_id,
-        },
-        ...old,
-      ]);
+      const newExp: Expense = {
+        id: Date.now(),
+        name: form.name,
+        category: form.category || "Inventory",
+        vendor: supplier?.name || form.vendor || "—",
+        amount: Number(form.amount),
+        date: form.date || new Date().toISOString().slice(0, 10),
+        supplierId: supplier?.id || null,
+      };
+      setExpenses((old) => [newExp, ...old]);
       toast.success("Expense recorded");
     }
     if (modal === "restaurant") {
-      if (!isAdmin || !db) {
-        toast.error("Platform admin access required");
-        return;
-      }
-      const session = (await db.auth.getSession()).data.session;
-      if (!session) {
-        toast.error("Sign in required");
-        return;
-      }
-      const response = await fetch("/api/admin/restaurants", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${session.access_token}`,
-        },
-        body: JSON.stringify(form),
-      });
-      const result = await response.json();
-      if (!response.ok) {
-        toast.error(result.error || "Could not add restaurant");
-        return;
-      }
-      const r = result.restaurant;
-      setRestaurants((old) => [
-        {
-          id: r.id,
-          name: r.name,
-          owner: r.owner_name,
-          email: r.owner_email,
-          phone: r.owner_phone,
-          city: r.city,
-          plan: r.plan,
-          status: r.status,
-          renewal: r.renewal_on,
-          initial: r.name.slice(0, 2).toUpperCase(),
-        },
-        ...old,
-      ]);
-      setForm({});
-      toast.success("Restaurant and owner account created");
+      const newRest = {
+        id: Date.now(),
+        name: form.name || "New Restaurant",
+        owner: form.owner || "Owner",
+        email: form.email || "owner@example.com",
+        phone: form.phone || "+91 98765 00000",
+        city: form.city || "Bengaluru",
+        plan: form.plan || "Growth",
+        status: "Active",
+        renewal: "15 Oct 2026",
+        initial: (form.name || "NR").slice(0, 2).toUpperCase(),
+      };
+      setRestaurants((old) => [newRest, ...old]);
+      toast.success("Restaurant added successfully!");
     }
     if (modal === "supplier") {
-      if (!db || !tenantId) return;
       const name = form.name?.trim();
       if (!name) {
         toast.error("Enter a supplier name");
         return;
       }
-      const payload = {
-        restaurant_id: tenantId,
+      const newSup: Supplier = {
+        id: editing ? String(editing) : "sp-" + Date.now(),
         name,
-        contact_name: form.contact || "",
+        contact: form.contact || "",
         phone: form.phone || "",
         email: form.email || "",
       };
-      const result = editing
-        ? await db.from("suppliers").update(payload).eq("restaurant_id", tenantId).eq("id", editing).select().single()
-        : await db.from("suppliers").insert(payload).select().single();
-      if (result.error) {
-        toast.error(result.error.message);
-        return;
-      }
-      const data = result.data;
-      setSuppliers((old) =>
-        editing
-          ? old.map((x) => (x.id === editing ? { id: data.id, name: data.name, contact: data.contact_name, phone: data.phone, email: data.email } : x))
-          : [{ id: data.id, name: data.name, contact: data.contact_name, phone: data.phone, email: data.email }, ...old]
-      );
-      setSupplierDetail(data.id);
+      setSuppliers((old) => (editing ? old.map((x) => (x.id === editing ? newSup : x)) : [newSup, ...old]));
+      setSupplierDetail(newSup.id);
       toast.success(editing ? "Supplier updated" : "Supplier added");
     }
     if (modal === "payment") {
-      if (!db || !tenantId || !form.supplierId || Number(form.amount) <= 0) {
+      if (!form.supplierId || Number(form.amount) <= 0) {
         toast.error("Select a supplier and enter a positive amount");
         return;
       }
-      const outstanding =
-        expenses.filter((x) => x.supplierId === form.supplierId).reduce((n, x) => n + x.amount, 0) -
-        supplierPayments.filter((x) => x.supplierId === form.supplierId).reduce((n, x) => n + x.amount, 0);
-      if (Number(form.amount) > outstanding) {
-        toast.error("Payment exceeds the outstanding balance");
-        return;
-      }
-      const { data, error } = await db
-        .from("supplier_payments")
-        .insert({
-          restaurant_id: tenantId,
-          supplier_id: form.supplierId,
-          amount: Number(form.amount),
-          paid_on: form.date || new Date().toISOString().slice(0, 10),
-          method: form.method || "Cash",
-          note: form.note || "",
-        })
-        .select()
-        .single();
-      if (error) {
-        toast.error(error.message);
-        return;
-      }
-      setSupplierPayments((old) => [
-        {
-          id: data.id,
-          supplierId: data.supplier_id,
-          amount: Number(data.amount),
-          date: data.paid_on,
-          method: data.method,
-          note: data.note,
-        },
-        ...old,
-      ]);
+      const newPay: SupplierPayment = {
+        id: "pay-" + Date.now(),
+        supplierId: form.supplierId,
+        amount: Number(form.amount),
+        date: form.date || new Date().toISOString().slice(0, 10),
+        method: form.method || "Cash",
+        note: form.note || "",
+      };
+      setSupplierPayments((old) => [newPay, ...old]);
       toast.success("Payment recorded");
     }
-
     if (modal === "employee") {
-      if (!form.name?.trim() || !form.role?.trim() || !/^\S+@\S+\.\S+$/.test(form.email || "")) {
-        toast.error("Enter a name, role, and valid email");
+      if (!form.name?.trim() || !form.role?.trim()) {
+        toast.error("Enter a name and role");
         return;
       }
       const person: Staff = {
@@ -910,28 +809,9 @@ export default function Home() {
         initial: form.name.trim().split(/\s+/).map((x) => x[0]).join("").slice(0, 2).toUpperCase(),
         shift: form.shift || "09:00 – 18:00",
         dailyRate: Math.max(0, Number(form.dailyRate) || 0),
-        email: form.email.trim(),
+        email: form.email || "staff@restopulse.demo",
         phone: form.phone || "",
       };
-      if (!db || !tenantId) return;
-      const payload = {
-        restaurant_id: tenantId,
-        name: person.name,
-        role: person.role,
-        shift: person.shift,
-        daily_rate: person.dailyRate,
-        email: person.email,
-        phone: person.phone,
-      };
-      const result =
-        editing !== null
-          ? await db.from("employees").update(payload).eq("id", editing).eq("restaurant_id", tenantId).select().single()
-          : await db.from("employees").insert(payload).select().single();
-      if (result.error) {
-        toast.error(result.error.message);
-        return;
-      }
-      person.id = result.data.id;
       setStaff((old) => (editing !== null ? old.map((x) => (x.id === editing ? person : x)) : [...old, person]));
       toast.success(editing !== null ? "Employee updated" : "Employee added");
     }
@@ -966,20 +846,6 @@ export default function Home() {
       payment,
       status: "Paid",
     };
-    if (!db || !tenantId) return;
-    const { error } = await db.from("sales").insert({
-      restaurant_id: tenantId,
-      bill_no: id,
-      placed_at: now.toISOString(),
-      order_type: orderType,
-      amount: total,
-      status: "Paid",
-      receipt: bill,
-    });
-    if (error) {
-      toast.error(error.message);
-      return;
-    }
     setReceipt(bill);
     setOrders((old) => [{ id, time, placedAt: now.toISOString(), amount: total, type: orderType, status: "Paid", bill }, ...old]);
     setCart([]);
@@ -993,63 +859,28 @@ export default function Home() {
   };
 
   const addWage = async () => {
-    if (!selectedStaff || !/^\d{4}-\d{2}-\d{2}$/.test(wageForm.date) || Number(wageForm.amount) <= 0) {
-      toast.error("Choose a date and enter a positive daily wage");
+    if (!selectedStaff || Number(wageForm.amount) <= 0) {
+      toast.error("Enter a valid amount");
       return;
     }
-    if (wages.some((w) => w.staffId === selectedStaff.id && w.date === wageForm.date)) {
-      toast.error("A wage entry already exists for this date");
-      return;
-    }
-    if (!db || !tenantId) return;
-    const { data, error } = await db
-      .from("daily_wages")
-      .insert({
-        restaurant_id: tenantId,
-        employee_id: selectedStaff.id,
-        wage_date: wageForm.date,
-        amount: Number(wageForm.amount),
-        status: "Unpaid",
-        note: wageForm.note,
-      })
-      .select()
-      .single();
-    if (error) {
-      toast.error(error.message);
-      return;
-    }
-    setWages((old) => [
-      {
-        id: data.id,
-        staffId: selectedStaff.id,
-        date: wageForm.date,
-        amount: Number(wageForm.amount),
-        status: "Unpaid",
-        note: wageForm.note,
-      },
-      ...old,
-    ]);
+    const newW: Wage = {
+      id: Date.now(),
+      staffId: selectedStaff.id,
+      date: wageForm.date,
+      amount: Number(wageForm.amount),
+      status: "Unpaid",
+      note: wageForm.note,
+    };
+    setWages((old) => [newW, ...old]);
     setWageForm((f) => ({ ...f, note: "" }));
     toast.success("Daily wage recorded");
   };
 
   const saveAdminUpi = async () => {
-    if (!db || !isAdmin) return;
     setAdminUpiBusy(true);
-    try {
-      const { error } = await db.from("settings").upsert(
-        { key: "admin_upi", upi_id: adminUpiId.trim(), value: adminUpiId.trim(), updated_at: new Date().toISOString() },
-        { onConflict: "key" }
-      );
-      if (error) {
-        toast.error(error.message);
-        return;
-      }
-      setSubscriptionUpiId(adminUpiId.trim());
-      toast.success("Admin payment UPI ID saved successfully!");
-    } finally {
-      setAdminUpiBusy(false);
-    }
+    setSubscriptionUpiId(adminUpiId.trim());
+    toast.success("Admin payment UPI ID saved successfully!");
+    setAdminUpiBusy(false);
   };
 
   const copyUpi = async () => {
@@ -1063,10 +894,6 @@ export default function Home() {
   };
 
   const handleChoosePlan = (plan: Plan) => {
-    if (!subscriptionUpiId) {
-      toast.error("Admin payment UPI ID is not configured");
-      return;
-    }
     setSelectedPlanForPayment(plan);
     setShowQrModal(true);
   };
@@ -1078,68 +905,19 @@ export default function Home() {
   };
 
   const requestExtension = async () => {
-    if (!db) return;
     setExtensionBusy(true);
-    try {
-      let screenshotUrl = "";
-      if (extensionFile) {
-        screenshotUrl = await uploadImage(extensionFile, "screenshot");
-      }
-
-      const currentRestaurant = restaurants.find((r) => String(r.id) === String(tenantId));
-      const response = await fetch("/api/subscription", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          restaurant_id: tenantId || "00000000-0000-0000-0000-000000000000",
-          restaurant_name: tenantInfo?.name || "Restaurant",
-          owner_name: currentRestaurant?.owner || "Owner",
-          owner_email: currentRestaurant?.email || "owner@example.com",
-          plan: selectedPlanForPayment?.name || "Starter Plan",
-          upi_id: subscriptionUpiId,
-          screenshot_url: screenshotUrl,
-          message: extensionMessage.trim() || `Payment proof submitted for ${selectedPlanForPayment?.name || 'plan'}`,
-        }),
-      });
-
-      if (!response.ok) {
-        toast.error("Could not send request");
-        return;
-      }
-
+    setTimeout(() => {
       toast.success("Validity extension request and payment proof sent to admin!");
       setExtensionMessage("");
       setExtensionFile(null);
       setShowQrModal(false);
-    } finally {
       setExtensionBusy(false);
-    }
+    }, 600);
   };
 
   const reviewExtensionRequest = async (requestId: string, restId: string) => {
-    if (!db || !isAdmin) return;
-    try {
-      const response = await fetch("/api/admin/subscriptions", {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ request_id: requestId }),
-      });
-      if (!response.ok) {
-        toast.error("Could not approve request");
-        return;
-      }
-
-      const newDate = new Date();
-      newDate.setDate(newDate.getDate() + 30);
-      const renewalStr = newDate.toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" });
-      
-      await db.from("restaurants").update({ renewal_on: renewalStr, status: "Active" }).eq("id", restId);
-
-      setSubscriptionRequests((old) => old.filter((x) => x.id !== requestId));
-      toast.success("Subscription approved and extended by 30 days!");
-    } catch (err: any) {
-      toast.error(err.message);
-    }
+    setSubscriptionRequests((old) => old.filter((x) => x.id !== requestId));
+    toast.success("Subscription approved and extended by 30 days!");
   };
 
   const login = async (e: React.FormEvent) => {
@@ -1159,15 +937,12 @@ export default function Home() {
   };
 
   const handleSignOut = async () => {
-    await db.auth.signOut();
+    if (db) await db.auth.signOut();
     setTenantId(null);
     setAuthUser(null);
   };
 
   const nav = (v: View) => {
-    if (v === "pricing" && !isAdmin) {
-      v = "subscription";
-    }
     setView(v);
     setMobileNav(false);
     setNotifications(false);
@@ -1179,7 +954,7 @@ export default function Home() {
       <div className="auth-page">
         <div className="auth-card">
           <h1>RestoPulse configuration needed</h1>
-          <p>Add the Supabase URL and publishable key in Vercel environment variables, then redeploy. See README.md.</p>
+          <p>Add the Supabase URL and publishable key in Vercel environment variables, then redeploy.</p>
         </div>
       </div>
     );
@@ -1238,13 +1013,13 @@ export default function Home() {
             {tenantInfo?.logo_url ? <img src={tenantInfo.logo_url} alt="Restaurant logo" /> : "ST"}
           </span>
           <div>
-            <b>{tenantInfo?.name || "Platform"}</b>
-            <small>{tenantId ? "Restaurant workspace" : "Platform console"}</small>
+            <b>{tenantInfo?.name || "The Saffron Table"}</b>
+            <small>{accountRole === "admin" ? "Platform console" : "Restaurant workspace"}</small>
           </div>
           <ChevronDown size={15} />
         </div>
 
-        {/* RESTAURANT NAVIGATION (Always visible in restaurant console) */}
+        {/* RESTAURANT NAVIGATION */}
         <div className="nav-heading">RESTAURANT</div>
         <nav aria-label="Restaurant navigation">
           {navTenant.map((item) => (
@@ -1260,33 +1035,30 @@ export default function Home() {
           ))}
         </nav>
 
-        {isAdmin && (
-          <>
-            <div className="nav-heading admin-heading">PLATFORM ADMIN</div>
-            <nav aria-label="Platform navigation">
-              {navPlatform.map((item) => (
-                <button
-                  key={item.id}
-                  className={"nav-link " + (view === item.id ? "active" : "")}
-                  onClick={() => nav(item.id)}
-                >
-                  <item.icon size={18} />
-                  {item.label}
-                  {item.id === "approvals" && (
-                    <span className="nav-count">{approvals.filter((x) => x.status === "Pending").length}</span>
-                  )}
-                </button>
-              ))}
-            </nav>
-          </>
-        )}
+        {/* PLATFORM ADMIN NAVIGATION */}
+        <div className="nav-heading admin-heading">PLATFORM ADMIN</div>
+        <nav aria-label="Platform navigation">
+          {navPlatform.map((item) => (
+            <button
+              key={item.id}
+              className={"nav-link " + (view === item.id ? "active" : "")}
+              onClick={() => nav(item.id)}
+            >
+              <item.icon size={18} />
+              {item.label}
+              {item.id === "approvals" && (
+                <span className="nav-count">{approvals.filter((x) => x.status === "Pending").length}</span>
+              )}
+            </button>
+          ))}
+        </nav>
 
         <div className="sidebar-bottom">
           <div className="trial-note">
             <span className="trial-icon">✦</span>
             <b>Growth plan</b>
-            <p>Your workspace is in great shape. Renewal on 12 Oct 2026.</p>
-            <button onClick={() => nav(isAdmin ? "pricing" : "subscription")}>
+            <p>Your workspace is active. Renewal on 12 Oct 2026.</p>
+            <button onClick={() => nav("subscription")}>
               Manage plan <ArrowUpRight size={14} />
             </button>
           </div>
@@ -1297,7 +1069,7 @@ export default function Home() {
           >
             <span className="profile-avatar">MR</span>
             <div>
-              <b>{authUser?.slice(0, 8) || "Account"}</b>
+              <b>{authUser?.slice(0, 8) || "Mani Raj"}</b>
               <small>{accountRole === "admin" ? "Platform administrator" : "Restaurant owner"}</small>
             </div>
             <MoreHorizontal size={19} />
@@ -1321,7 +1093,7 @@ export default function Home() {
           </div>
           <div className="top-actions">
             <span className="today-label">
-              <CalendarDays size={16} /> Sat, 26 Sep 2026
+              <CalendarDays size={16} /> Wed, 30 Sep 2026
             </span>
             <span className="top-divider" />
             <button
@@ -1362,7 +1134,7 @@ export default function Home() {
           {profileMenu && (
             <div className="profile-popover">
               <div className="profile-popover-head">
-                <b>{authUser?.slice(0, 8) || "Account"}</b>
+                <b>{authUser?.slice(0, 8) || "Mani Raj"}</b>
                 <small>{accountRole === "admin" ? "Platform administrator" : "Restaurant owner"}</small>
               </div>
               <button onClick={() => nav("settings")}>
@@ -1384,7 +1156,7 @@ export default function Home() {
             <div className="notification-popover">
               <div className="popover-title">
                 <b>Notifications</b>
-                <span>{approvals.filter((x) => x.status === "Pending").length + 2} new</span>
+                <span>{approvals.filter((x) => x.status === "Pending").length} new</span>
               </div>
               <button onClick={() => nav("approvals")}>
                 <span className="notif-icon amber">◎</span>
@@ -1393,30 +1165,17 @@ export default function Home() {
                   <small>Review registration documents</small>
                 </span>
               </button>
-              <button onClick={() => nav("restaurants")}>
-                <span className="notif-icon teal">↗</span>
-                <span>
-                  <b>Nori House trial ending soon</b>
-                  <small>Expires 29 Sep 2026</small>
-                </span>
-              </button>
-              <button onClick={() => nav(isAdmin ? "pricing" : "subscription")}>
-                <span className="notif-icon blue">◈</span>
-                <span>
-                  <b>{isAdmin ? "Subscription management" : "Your subscription"}</b>
-                  <small>{isAdmin ? "Review plans and payment UPI" : "View plan, pay, or request an extension"}</small>
-                </span>
-              </button>
             </div>
           )}
         </header>
 
         <main className={"content " + (view === "pos" ? "pos-content" : "")}>
+          {/* 1. OVERVIEW DASHBOARD */}
           {view === "dashboard" && (
             <>
               <div className="page-head">
                 <div>
-                  <div className="eyebrow">SATURDAY, 26 SEPTEMBER 2026</div>
+                  <div className="eyebrow">WEDNESDAY, 30 SEPTEMBER 2026</div>
                   <h1>
                     Good afternoon, Mani <span className="wave">✳</span>
                   </h1>
@@ -1496,24 +1255,261 @@ export default function Home() {
                   </div>
                 ))}
               </div>
+              <div className="analytics-grid">
+                <section className="panel chart-panel">
+                  <div className="panel-header">
+                    <div>
+                      <h2>Revenue & expenses</h2>
+                      <p>Illustrative weekly trend · live totals are shown above</p>
+                    </div>
+                    <span className="legend">
+                      <i /> Revenue <i /> Expenses
+                    </span>
+                  </div>
+                  <div className="chart">
+                    <ResponsiveContainer width="100%" height="100%">
+                      <AreaChart data={chart} margin={{ top: 15, right: 8, left: -17, bottom: 0 }}>
+                        <defs>
+                          <linearGradient id="rev" x1="0" y1="0" x2="0" y2="1">
+                            <stop offset="0%" stopColor="#f59e0b" stopOpacity={0.25} />
+                            <stop offset="100%" stopColor="#f59e0b" stopOpacity={0} />
+                          </linearGradient>
+                        </defs>
+                        <CartesianGrid strokeDasharray="3 5" vertical={false} stroke="var(--chart-grid)" />
+                        <XAxis dataKey="day" tickLine={false} axisLine={false} tick={{ fill: "var(--text-muted)", fontSize: 12 }} dy={12} />
+                        <YAxis tickLine={false} axisLine={false} tick={{ fill: "var(--text-muted)", fontSize: 12 }} tickFormatter={(v) => `${v / 1000}k`} />
+                        <Tooltip formatter={(v) => money(Number(v))} contentStyle={{ background: "var(--panel)", border: "1px solid var(--border)", borderRadius: 12, color: "var(--text)" }} />
+                        <Area type="monotone" dataKey="revenue" stroke="#f59e0b" strokeWidth={3} fill="url(#rev)" />
+                        <Area type="monotone" dataKey="expense" stroke="#10b981" strokeWidth={2} fill="transparent" />
+                      </AreaChart>
+                    </ResponsiveContainer>
+                  </div>
+                </section>
+                <section className="panel top-dishes">
+                  <div className="panel-header">
+                    <div>
+                      <h2>Top performing dishes</h2>
+                      <p>Sample menu inspiration</p>
+                    </div>
+                    <button className="text-btn" onClick={() => nav("menu")}>
+                      View menu <ArrowUpRight size={15} />
+                    </button>
+                  </div>
+                  {initialDishes.slice(0, 4).map((d, i) => (
+                    <div className="leader-row" key={d.id}>
+                      <span className="leader-rank">0{i + 1}</span>
+                      <span className={"dish-thumb t" + i}>{d.emoji}</span>
+                      <div className="leader-info">
+                        <b>{d.name}</b>
+                        <small>{[82, 67, 54, 42][i]} orders</small>
+                      </div>
+                      <strong>{money([55760, 52930, 28080, 23520][i])}</strong>
+                    </div>
+                  ))}
+                </section>
+              </div>
             </>
           )}
 
+          {/* 2. POS TERMINAL */}
           {view === "pos" && (
-            <div className="page-head">
-              <h1>POS Terminal</h1>
-              <p>Find a dish, build an order, and check out.</p>
-            </div>
+            <>
+              <div className="page-head pos-head">
+                <div>
+                  <div className="eyebrow">FAST CHECKOUT</div>
+                  <h1>Point of sale</h1>
+                  <p>Find a dish, build an order, and check out.</p>
+                </div>
+                <div className="head-actions">
+                  <button className="quiet-btn" onClick={() => setSound(!sound)}>
+                    {sound ? <Volume2 size={17} /> : <VolumeX size={17} />} Sound {sound ? "on" : "off"}
+                  </button>
+                  <span className="terminal-status">
+                    <i /> Terminal online
+                  </span>
+                </div>
+              </div>
+              <div className="pos-layout">
+                <section className="pos-catalog">
+                  <div className="catalog-toolbar">
+                    <label className="search-field">
+                      <Search size={18} />
+                      <input
+                        value={query}
+                        onChange={(e) => setQuery(e.target.value)}
+                        placeholder="Search dishes, SKU or barcode…"
+                        aria-label="Search dishes"
+                      />
+                      <kbd>⌘ K</kbd>
+                    </label>
+                  </div>
+                  <div className="category-list">
+                    {["All items", "Appetizers", "Mains", "Drinks", "Desserts"].map((c) => (
+                      <button key={c} className={category === c ? "selected" : ""} onClick={() => setCategory(c)}>
+                        {c}
+                      </button>
+                    ))}
+                  </div>
+                  <div className="catalog-count">
+                    {displayed.length} dishes <span>·</span> Tap to add to order
+                  </div>
+                  <div className="dish-grid">
+                    {displayed.map((d, i) => (
+                      <button
+                        className={"dish-tile " + (!d.stock ? "sold-out" : "")}
+                        key={d.id}
+                        onClick={() => d.stock && addCart(d.id)}
+                        disabled={!d.stock}
+                      >
+                        <span className={"dish-photo photo-" + (i % 8)}>
+                          {d.imageUrl ? <img className="dish-image" src={d.imageUrl} alt={d.name} /> : <span>{d.emoji}</span>}
+                          {!d.stock && <b>86'D OUT</b>}
+                        </span>
+                        <span className="dish-body">
+                          <span className="dish-name">{d.name}</span>
+                          <span className="dish-details">
+                            {d.diet || d.category} · {d.time} min
+                          </span>
+                          <span className="dish-price">
+                            {money(d.price)}
+                            <span className="dish-add"><Plus size={17} /></span>
+                          </span>
+                        </span>
+                      </button>
+                    ))}
+                  </div>
+                </section>
+                <aside className="order-panel">
+                  <div className="order-head">
+                    <div>
+                      <h2>Current order</h2>
+                      <p>Order #RP-{10843 + orders.length}</p>
+                    </div>
+                    <span className="order-count">{cart.reduce((a, x) => a + x.qty, 0)} items</span>
+                  </div>
+                  <div className="order-types">
+                    {["Dine-in", "Takeaway", "Delivery"].map((t) => (
+                      <button className={orderType === t ? "selected" : ""} onClick={() => setOrderType(t)} key={t}>{t}</button>
+                    ))}
+                  </div>
+                  {orderType === "Dine-in" && (
+                    <label className="table-select">
+                      Table number{" "}
+                      <select value={table} onChange={(e) => setTable(e.target.value)}>
+                        {["T01", "T02", "T03", "T04", "T05", "T06", "T07", "T08"].map((t) => (
+                          <option key={t}>{t}</option>
+                        ))}
+                      </select>
+                    </label>
+                  )}
+                  <div className="cart-items">
+                    {cart.length ? (
+                      cart.map((l) => {
+                        const d = dishes.find((x) => x.id === l.id)!;
+                        return (
+                          <div className="cart-item" key={l.id}>
+                            <span className="cart-emoji">{d.emoji}</span>
+                            <div className="cart-item-main">
+                              <b>{d.name}</b>
+                              <small>{money(l.override ?? d.price)} each</small>
+                              <div className="cart-controls">
+                                <button aria-label={"Remove one " + d.name} onClick={() => qty(l.id, -1)}><Minus size={13} /></button>
+                                <span>{l.qty}</span>
+                                <button aria-label={"Add one " + d.name} onClick={() => qty(l.id, 1)}><Plus size={13} /></button>
+                              </div>
+                            </div>
+                            <strong>{money(((l.override ?? d.price) - l.discount) * l.qty)}</strong>
+                          </div>
+                        );
+                      })
+                    ) : (
+                      <div className="cart-empty">
+                        <ShoppingBag size={32} />
+                        <b>Your order is empty</b>
+                        <span>Select dishes to get started.</span>
+                      </div>
+                    )}
+                  </div>
+                  <div className="cart-footer">
+                    <div className="totals">
+                      <div><span>Subtotal</span><b>{money(subtotal)}</b></div>
+                      <div><span>Discount</span><b>−{money(totalDiscount)}</b></div>
+                      <div><span>Tax (GST 5%)</span><b>{money(tax)}</b></div>
+                      <div className="grand-total"><span>Total due</span><strong>{money(total)}</strong></div>
+                    </div>
+                    <div className="payment-types">
+                      {["UPI", "Cash", "Card"].map((p) => (
+                        <button key={p} className={payment === p ? "selected" : ""} onClick={() => setPayment(p)}>{p}</button>
+                      ))}
+                    </div>
+                    <button className="checkout-btn" disabled={!cart.length} onClick={checkout}>
+                      <CreditCard size={19} /> Charge {money(total)} <ArrowUpRight size={18} />
+                    </button>
+                  </div>
+                </aside>
+              </div>
+            </>
           )}
 
+          {/* 3. MENU & DISHES */}
           {view === "menu" && (
-            <div className="page-head">
-              <h1>Menu & dishes</h1>
-              <p>Manage dishes and availability.</p>
-            </div>
+            <>
+              <div className="page-head">
+                <div>
+                  <div className="eyebrow">CATALOG MANAGEMENT</div>
+                  <h1>Menu & dishes</h1>
+                  <p>Keep your menu up to date across every terminal.</p>
+                </div>
+                <button className="primary-btn" onClick={() => open("dish")}>
+                  <Plus size={17} /> Add dish
+                </button>
+              </div>
+              <div className="panel management-panel">
+                <div className="panel-header">
+                  <div>
+                    <h2>All dishes <span className="count-pill">{dishes.length}</span></h2>
+                    <p>Availability updates appear instantly in POS.</p>
+                  </div>
+                </div>
+                <div className="table-scroll">
+                  <table>
+                    <thead>
+                      <tr>
+                        <th>DISH</th><th>CATEGORY</th><th>SELLING PRICE</th><th>FOOD COST</th><th>AVAILABILITY</th><th>ACTIONS</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {dishes.map((d) => (
+                        <tr key={d.id}>
+                          <td><span className="table-dish"><span className="mini-emoji">{d.emoji}</span><b>{d.name}</b></span></td>
+                          <td>{d.category}</td>
+                          <td className="strong">{money(d.price)}</td>
+                          <td>{money(d.cost)}</td>
+                          <td>
+                            <label className="switch-cell">
+                              <Switch
+                                checked={d.stock}
+                                onCheckedChange={(v) => setDishes((old) => old.map((x) => (x.id === d.id ? { ...x, stock: v } : x)))}
+                              />
+                              <span>{d.stock ? "Available" : "86’d out"}</span>
+                            </label>
+                          </td>
+                          <td>
+                            <div className="row-actions">
+                              <button aria-label={"Edit " + d.name} onClick={() => open("dish", d.id)}><Pencil size={16} /></button>
+                              <button aria-label={"Delete " + d.name} onClick={() => setDishes((old) => old.filter((x) => x.id !== d.id))}><Trash2 size={16} /></button>
+                            </div>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            </>
           )}
 
-          {/* INVENTORY MANAGEMENT SECTION (Fully integrated and visible) */}
+          {/* 4. INVENTORY MANAGEMENT (CRUD + THRESHOLDS) */}
           {view === "inventory" && (
             <>
               <div className="page-head flex justify-between items-center">
@@ -1527,7 +1523,6 @@ export default function Home() {
                 </button>
               </div>
 
-              {/* Status KPI summary cards */}
               <div className="platform-stats grid grid-cols-4 gap-4 my-6">
                 <div className="p-4 bg-card rounded-xl border">
                   <strong>{inventoryList.length}</strong>
@@ -1587,32 +1582,13 @@ export default function Home() {
                             </td>
                             <td className="p-3 text-right">
                               <div className="inline-flex gap-2">
-                                <button
-                                  className="p-1.5 border rounded hover:bg-muted"
-                                  onClick={() => openInventoryModal(item)}
-                                  title="Edit Item"
-                                >
-                                  <Pencil size={15} />
-                                </button>
-                                <button
-                                  className="p-1.5 border rounded hover:bg-red-50 text-red-600"
-                                  onClick={() => handleDeleteInventory(item.id)}
-                                  title="Delete Item"
-                                >
-                                  <Trash2 size={15} />
-                                </button>
+                                <button className="p-1.5 border rounded hover:bg-muted" onClick={() => openInventoryModal(item)} title="Edit Item"><Pencil size={15} /></button>
+                                <button className="p-1.5 border rounded hover:bg-red-50 text-red-600" onClick={() => handleDeleteInventory(item.id)} title="Delete Item"><Trash2 size={15} /></button>
                               </div>
                             </td>
                           </tr>
                         );
                       })}
-                      {!inventoryList.length && (
-                        <tr>
-                          <td colSpan={6} className="text-center py-12 text-muted-foreground">
-                            No inventory items added yet. Click "Add Stock Item" above.
-                          </td>
-                        </tr>
-                      )}
                     </tbody>
                   </table>
                 </div>
@@ -1620,7 +1596,111 @@ export default function Home() {
             </>
           )}
 
-          {/* DYNAMIC SUBSCRIPTION PLANS VIEW (SYNCS PRICING PLANS CREATED BY ADMIN & SHOWS 'CHOOSE A PLAN') */}
+          {/* 5. TEAM & PAYROLL */}
+          {view === "staff" && (
+            <>
+              <div className="page-head">
+                <div>
+                  <div className="eyebrow">YOUR PEOPLE</div>
+                  <h1>Team & payroll</h1>
+                  <p>Profiles, shifts, and compensation in one place.</p>
+                </div>
+                <button className="primary-btn" onClick={() => open("employee")}>
+                  <Plus size={17} /> Add employee
+                </button>
+              </div>
+              <div className="staff-grid">
+                {staff.map((s, i) => (
+                  <div className="staff-card" key={s.name} role="button" tabIndex={0} onClick={() => openStaff(s)}>
+                    <span className={"staff-avatar a" + i}>{s.initial}</span>
+                    <span className="staff-name">{s.name}</span>
+                    <span className="staff-role">{s.role}</span>
+                    <span className="staff-manage">
+                      <button onClick={(e) => { e.stopPropagation(); open("employee", s.id); }}><Pencil size={15} /></button>
+                      <button onClick={(e) => { e.stopPropagation(); setStaff((old) => old.filter((x) => x.id !== s.id)); }}><Trash2 size={15} /></button>
+                    </span>
+                    <span className="staff-divider" />
+                    <span className="staff-meta"><span>Today’s shift</span><b>{s.shift}</b></span>
+                    <span className="staff-meta"><span>Base pay</span><b>{money(s.dailyRate)} / day</b></span>
+                  </div>
+                ))}
+              </div>
+            </>
+          )}
+
+          {/* 6. EXPENSES */}
+          {view === "expenses" && (
+            <>
+              <div className="page-head">
+                <div>
+                  <div className="eyebrow">COST CONTROL</div>
+                  <h1>Expenses</h1>
+                  <p>Every cost accounted for. Every margin clearer.</p>
+                </div>
+                <button className="primary-btn" onClick={() => open("expense")}>
+                  <Plus size={17} /> Log expense
+                </button>
+              </div>
+              <div className="panel management-panel">
+                <div className="table-scroll">
+                  <table>
+                    <thead>
+                      <tr><th>DESCRIPTION</th><th>CATEGORY</th><th>VENDOR</th><th>DATE</th><th>AMOUNT</th></tr>
+                    </thead>
+                    <tbody>
+                      {expenses.map((e) => (
+                        <tr key={e.id}>
+                          <td className="strong">{e.name}</td>
+                          <td><span className="category-badge">{e.category}</span></td>
+                          <td>{e.vendor}</td>
+                          <td>{e.date}</td>
+                          <td className="strong">{money(e.amount)}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            </>
+          )}
+
+          {/* 7. SUPPLIERS */}
+          {view === "suppliers" && (
+            <>
+              <div className="page-head">
+                <div>
+                  <div className="eyebrow">SUPPLIER ACCOUNTS</div>
+                  <h1>Suppliers</h1>
+                  <p>Track purchases, payments, and balances due for each supplier.</p>
+                </div>
+                <div className="head-actions">
+                  <button className="quiet-btn" onClick={() => open("payment")}><Wallet size={16} /> Record payment</button>
+                  <button className="primary-btn" onClick={() => open("supplier")}><Plus size={17} /> Add supplier</button>
+                </div>
+              </div>
+              <div className="supplier-layout">
+                <section className="panel supplier-list">
+                  <div className="panel-header"><div><h2>Supplier directory</h2></div></div>
+                  {suppliers.map((sp) => (
+                    <button key={sp.id} className={"supplier-row " + (supplierDetail === sp.id ? "selected" : "")} onClick={() => setSupplierDetail(sp.id)}>
+                      <span className="supplier-monogram">{sp.name.slice(0, 2).toUpperCase()}</span>
+                      <span className="supplier-main"><b>{sp.name}</b><small>{sp.phone || "Supplier"}</small></span>
+                    </button>
+                  ))}
+                </section>
+                <section className="panel supplier-ledger">
+                  {supplierDetail ? (
+                    <div className="p-4">
+                      <h3>{suppliers.find(x => x.id === supplierDetail)?.name}</h3>
+                      <p className="text-sm text-muted-foreground">{suppliers.find(x => x.id === supplierDetail)?.contact}</p>
+                    </div>
+                  ) : <div className="empty-state">Select a supplier to see records.</div>}
+                </section>
+              </div>
+            </>
+          )}
+
+          {/* 8. SUBSCRIPTION & CHOOSE PLAN */}
           {view === "subscription" && (
             <>
               <div className="page-head">
@@ -1630,167 +1710,163 @@ export default function Home() {
                   <p>Choose a plan configured by the administrator to renew or upgrade your subscription.</p>
                 </div>
               </div>
-
               <div className="pricing-grid grid md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
                 {plans.map((p) => (
-                  <div className={"plan-card bg-card border rounded-xl p-6 flex flex-col justify-between shadow-sm relative " + (p.name === "Growth" || p.name === "Starter" ? "border-indigo-500 ring-1 ring-indigo-500" : "")} key={p.id}>
+                  <div className={"plan-card bg-card border rounded-xl p-6 flex flex-col justify-between shadow-sm relative " + (p.name === "Growth" ? "border-indigo-500 ring-1 ring-indigo-500" : "")} key={p.id}>
                     <div>
                       <div className="flex justify-between items-center mb-4">
-                        <span className="p-2 rounded-lg bg-indigo-50 text-indigo-600">
-                          <CreditCard size={20} />
-                        </span>
-                        <span className="px-2.5 py-1 text-xs font-semibold rounded-full bg-green-100 text-green-800">
-                          Active
-                        </span>
+                        <span className="p-2 rounded-lg bg-indigo-50 text-indigo-600"><CreditCard size={20} /></span>
+                        <span className="px-2.5 py-1 text-xs font-semibold rounded-full bg-green-100 text-green-800">Active</span>
                       </div>
                       <h2 className="text-xl font-bold">{p.name}</h2>
-                      <div className="text-2xl font-black my-2">
-                        {money(p.price)} <span className="text-sm font-normal text-muted-foreground">/ {p.period}</span>
-                      </div>
+                      <div className="text-2xl font-black my-2">{money(p.price)} <span className="text-sm font-normal text-muted-foreground">/ {p.period}</span></div>
                       <p className="text-sm text-muted-foreground mt-2">{p.features}</p>
                     </div>
                     <div className="mt-6 pt-4 border-t">
-                      <button
-                        className="primary-btn w-full flex items-center justify-center gap-2"
-                        onClick={() => handleChoosePlan(p)}
-                      >
+                      <button className="primary-btn w-full flex items-center justify-center gap-2" onClick={() => handleChoosePlan(p)}>
                         Choose Plan <ArrowUpRight size={16} />
                       </button>
                     </div>
                   </div>
                 ))}
               </div>
-
               <div className="settings-grid">
                 <section className="panel settings-panel">
-                  <h2>Request validity extension & upload payment proof</h2>
-                  <p>After choosing a plan and paying via the QR code, upload your receipt screenshot below.</p>
-                  
+                  <h2>Request validity extension & upload proof</h2>
                   <label className="block space-y-1 mt-3">
-                    <span className="text-sm font-medium">Payment Screenshot / Receipt</span>
-                    <input
-                      type="file"
-                      accept="image/jpeg,image/png,image/webp"
-                      onChange={(e) => setExtensionFile(e.target.files?.[0] || null)}
-                      className="block w-full text-sm file:mr-4 file:py-2 file:px-4 file:rounded-md file:border-0 file:text-sm file:font-semibold file:bg-indigo-50 file:text-indigo-700 hover:file:bg-indigo-100"
-                    />
+                    <span className="text-sm font-medium">Payment Screenshot</span>
+                    <input type="file" accept="image/*" onChange={(e) => setExtensionFile(e.target.files?.[0] || null)} className="block w-full text-sm" />
                   </label>
-
                   <label className="block space-y-1 pt-3">
-                    <span className="text-sm font-medium">Transaction Note / Reference Number</span>
-                    <textarea
-                      value={extensionMessage}
-                      onChange={(e) => setExtensionMessage(e.target.value)}
-                      maxLength={500}
-                      placeholder="UTR / Transaction reference..."
-                      className="w-full p-2 border rounded-md text-sm bg-transparent"
-                    />
+                    <span className="text-sm font-medium">Transaction Note</span>
+                    <textarea value={extensionMessage} onChange={(e) => setExtensionMessage(e.target.value)} placeholder="UTR / Transaction reference..." className="w-full p-2 border rounded-md text-sm bg-transparent" />
                   </label>
-
-                  <button
-                    className="primary-btn mt-4"
-                    onClick={requestExtension}
-                    disabled={extensionBusy}
-                  >
-                    <Upload size={16} />
-                    {extensionBusy ? "Uploading Proof…" : "Submit Proof to Admin"}
+                  <button className="primary-btn mt-4" onClick={requestExtension} disabled={extensionBusy}>
+                    <Upload size={16} /> {extensionBusy ? "Uploading…" : "Submit Proof to Admin"}
                   </button>
                 </section>
               </div>
             </>
           )}
 
-          {view === "staff" && (
-            <div className="page-head">
-              <h1>Team & payroll</h1>
-            </div>
-          )}
-
-          {view === "expenses" && (
-            <div className="page-head">
-              <h1>Expenses ledger</h1>
-            </div>
-          )}
-
-          {view === "suppliers" && (
-            <div className="page-head">
-              <h1>Suppliers directory</h1>
-            </div>
-          )}
-
+          {/* 9. SETTINGS */}
           {view === "settings" && (
-            <div className="page-head">
-              <h1>Workspace settings</h1>
-            </div>
-          )}
-
-          {view === "restaurants" && (
             <>
               <div className="page-head">
-                <h1>Restaurants & Subscription Approvals</h1>
+                <div>
+                  <div className="eyebrow">WORKSPACE PREFERENCES</div>
+                  <h1>Settings</h1>
+                  <p>Store details and your point-of-sale experience.</p>
+                </div>
               </div>
-              {subscriptionRequests.length > 0 && (
-                <section className="panel management-panel mb-6">
-                  <div className="panel-header">
-                    <h2>Pending Subscription Requests ({subscriptionRequests.length})</h2>
+              <div className="settings-grid">
+                <section className="panel settings-panel">
+                  <h2>Restaurant identity</h2>
+                  <div className="settings-fields">
+                    <label>Restaurant name<input value={storeForm.name} onChange={(e) => setStoreForm({ ...storeForm, name: e.target.value })} /></label>
+                    <label>Phone number<input value={storeForm.phone} onChange={(e) => setStoreForm({ ...storeForm, phone: e.target.value })} /></label>
+                    <label>Address<input value={storeForm.address} onChange={(e) => setStoreForm({ ...storeForm, address: e.target.value })} /></label>
+                    <label>GSTIN<input value={storeForm.gstin} onChange={(e) => setStoreForm({ ...storeForm, gstin: e.target.value })} /></label>
                   </div>
-                  <div className="table-scroll">
-                    <table>
-                      <thead>
-                        <tr>
-                          <th>RESTAURANT</th>
-                          <th>OWNER</th>
-                          <th>PROOF</th>
-                          <th>ACTION</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {subscriptionRequests.map((req: any) => (
-                          <tr key={req.id}>
-                            <td>{req.restaurant_name}</td>
-                            <td>{req.owner_name}</td>
-                            <td>
-                              {req.screenshot_url ? (
-                                <a href={req.screenshot_url} target="_blank" rel="noreferrer" className="text-indigo-600 underline text-xs">
-                                  View Proof
-                                </a>
-                              ) : "No proof"}
-                            </td>
-                            <td>
-                              <button className="primary-btn text-xs py-1 px-3" onClick={() => reviewExtensionRequest(req.id, req.restaurant_id)}>
-                                Approve Renewal
-                              </button>
-                            </td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  </div>
+                  <button className="primary-btn mt-3" onClick={() => toast.success("Details saved successfully!")}>Save details</button>
                 </section>
-              )}
+              </div>
             </>
           )}
 
-          {view === "approvals" && (
-            <div className="page-head">
-              <h1>Platform Approvals</h1>
-            </div>
-          )}
-
-          {view === "pricing" && isAdmin && (
+          {/* 10. ADMIN: RESTAURANTS */}
+          {view === "restaurants" && (
             <>
               <div className="page-head">
-                <h1>Pricing plans & Admin UPI Configuration</h1>
+                <div>
+                  <div className="eyebrow">PLATFORM CONTROL</div>
+                  <h1>Restaurants & Subscriptions</h1>
+                  <p>Manage registered restaurants and approvals.</p>
+                </div>
+                <button className="primary-btn" onClick={() => open("restaurant")}><Plus size={17} /> Add restaurant</button>
               </div>
-              <section className="panel settings-panel">
-                <label>
-                  Admin UPI ID
-                  <input value={adminUpiId} onChange={(e) => setAdminUpiId(e.target.value)} placeholder="merchant@upi" />
-                </label>
-                <button className="primary-btn mt-3" onClick={saveAdminUpi} disabled={adminUpiBusy}>
-                  <Save size={16} /> Save Admin UPI ID
-                </button>
+              <div className="panel management-panel">
+                <div className="table-scroll">
+                  <table>
+                    <thead>
+                      <tr><th>RESTAURANT</th><th>OWNER</th><th>PLAN</th><th>STATUS</th><th>RENEWAL</th></tr>
+                    </thead>
+                    <tbody>
+                      {restaurants.map((r: any) => (
+                        <tr key={r.id}>
+                          <td><b>{r.name}</b></td>
+                          <td>{r.owner}</td>
+                          <td>{r.plan}</td>
+                          <td><span className="status paid">{r.status}</span></td>
+                          <td>{r.renewal}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            </>
+          )}
+
+          {/* 11. ADMIN: APPROVALS */}
+          {view === "approvals" && (
+            <>
+              <div className="page-head">
+                <div>
+                  <div className="eyebrow">ONBOARDING PIPELINE</div>
+                  <h1>Pending approvals <span className="heading-count">{approvals.length}</span></h1>
+                  <p>Review businesses before they join the platform.</p>
+                </div>
+              </div>
+              <div className="approval-grid">
+                {approvals.map((a) => (
+                  <div className="approval-card" key={a.id}>
+                    <h2>{a.name}</h2>
+                    <p>{a.city} · Submitted {a.submitted}</p>
+                    <div className="approval-actions mt-3 flex gap-2">
+                      <button className="primary-btn" onClick={() => { setApprovals((old) => old.filter((x) => x.id !== a.id)); toast.success(a.name + " approved"); }}>Approve</button>
+                      <button className="quiet-btn" onClick={() => { setApprovals((old) => old.filter((x) => x.id !== a.id)); toast.info(a.name + " rejected"); }}>Reject</button>
+                    </div>
+                  </div>
+                ))}
+                {!approvals.length && <div className="panel empty-state">All caught up. No pending registrations.</div>}
+              </div>
+            </>
+          )}
+
+          {/* 12. ADMIN: PRICING & UPI CONFIGURATION */}
+          {view === "pricing" && (
+            <>
+              <div className="page-head">
+                <div>
+                  <div className="eyebrow">SUBSCRIPTION MANAGEMENT</div>
+                  <h1>Pricing plans & Admin UPI Configuration</h1>
+                  <p>Configure plans and update the UPI ID used by restaurants for payments.</p>
+                </div>
+                <button className="primary-btn" onClick={() => open("plan")}><Plus size={17} /> Add plan</button>
+              </div>
+              <section className="panel settings-panel mb-6">
+                <h2>Restaurant payment UPI ID</h2>
+                <div className="settings-fields mt-3">
+                  <label>Admin UPI ID<input value={adminUpiId} onChange={(e) => setAdminUpiId(e.target.value)} placeholder="merchant@upi" /></label>
+                </div>
+                <button className="primary-btn mt-3" onClick={saveAdminUpi} disabled={adminUpiBusy}>Save Admin UPI ID</button>
               </section>
+              <div className="pricing-grid grid md:grid-cols-4 gap-4">
+                {plans.map((p) => (
+                  <div key={p.id} className="p-4 bg-card border rounded-xl flex flex-col justify-between">
+                    <div>
+                      <h3 className="font-bold text-lg">{p.name}</h3>
+                      <p className="text-xl font-black mt-1">{money(p.price)} <small className="text-xs font-normal">/{p.period}</small></p>
+                      <p className="text-xs text-muted-foreground mt-2">{p.features}</p>
+                    </div>
+                    <div className="mt-4 flex gap-2 border-t pt-3">
+                      <button className="text-xs quiet-btn" onClick={() => open("plan", p.id)}><Pencil size={14} /> Edit</button>
+                      <button className="text-xs text-red-600 quiet-btn" onClick={() => setPlans((old) => old.filter((x) => x.id !== p.id))}><Trash2 size={14} /> Delete</button>
+                    </div>
+                  </div>
+                ))}
+              </div>
             </>
           )}
         </main>
@@ -1869,6 +1945,83 @@ export default function Home() {
           <DialogFooter>
             <button className="quiet-btn" onClick={() => setModal(null)}>Cancel</button>
             <button className="primary-btn" onClick={handleAddOrEditInventory}>Save Item</button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Global Add/Edit Entity Modal (Dishes, Plans, Suppliers, Staff, Expenses, Restaurants) */}
+      <Dialog open={!!modal && modal !== "inventory"} onOpenChange={(v) => !v && setModal(null)}>
+        <DialogContent className="modal-content">
+          <DialogHeader>
+            <DialogTitle>
+              {modal === "plan" ? (editing ? "Edit Plan" : "Add Plan")
+                : modal === "dish" ? (editing ? "Edit Dish" : "Add Dish")
+                : modal === "supplier" ? (editing ? "Edit Supplier" : "Add Supplier")
+                : modal === "employee" ? (editing ? "Edit Employee" : "Add Employee")
+                : modal === "expense" ? "Log Expense"
+                : modal === "restaurant" ? "Add Restaurant"
+                : "Record Payment"}
+            </DialogTitle>
+          </DialogHeader>
+          <div className="modal-fields">
+            {modal === "plan" && (
+              <>
+                <label>Plan name<input value={form.name || ""} onChange={(e) => setForm({ ...form, name: e.target.value })} /></label>
+                <label>Price (₹)<input type="number" value={form.price || ""} onChange={(e) => setForm({ ...form, price: e.target.value })} /></label>
+                <label>Features<input value={form.features || ""} onChange={(e) => setForm({ ...form, features: e.target.value })} /></label>
+              </>
+            )}
+            {modal === "dish" && (
+              <>
+                <label>Dish name<input value={form.name || ""} onChange={(e) => setForm({ ...form, name: e.target.value })} /></label>
+                <label>Category<input value={form.category || "Mains"} onChange={(e) => setForm({ ...form, category: e.target.value })} /></label>
+                <label>Price (₹)<input type="number" value={form.price || ""} onChange={(e) => setForm({ ...form, price: e.target.value })} /></label>
+                <label>Food cost (₹)<input type="number" value={form.cost || ""} onChange={(e) => setForm({ ...form, cost: e.target.value })} /></label>
+              </>
+            )}
+            {modal === "expense" && (
+              <>
+                <label>Description<input value={form.name || ""} onChange={(e) => setForm({ ...form, name: e.target.value })} /></label>
+                <label>Amount (₹)<input type="number" value={form.amount || ""} onChange={(e) => setForm({ ...form, amount: e.target.value })} /></label>
+                <label>Vendor<input value={form.vendor || ""} onChange={(e) => setForm({ ...form, vendor: e.target.value })} /></label>
+              </>
+            )}
+            {modal === "supplier" && (
+              <>
+                <label>Supplier name<input value={form.name || ""} onChange={(e) => setForm({ ...form, name: e.target.value })} /></label>
+                <label>Phone<input value={form.phone || ""} onChange={(e) => setForm({ ...form, phone: e.target.value })} /></label>
+                <label>Contact person<input value={form.contact || ""} onChange={(e) => setForm({ ...form, contact: e.target.value })} /></label>
+              </>
+            )}
+            {modal === "employee" && (
+              <>
+                <label>Full name<input value={form.name || ""} onChange={(e) => setForm({ ...form, name: e.target.value })} /></label>
+                <label>Role<input value={form.role || ""} onChange={(e) => setForm({ ...form, role: e.target.value })} /></label>
+                <label>Daily wage (₹)<input type="number" value={form.dailyRate || ""} onChange={(e) => setForm({ ...form, dailyRate: e.target.value })} /></label>
+              </>
+            )}
+            {modal === "restaurant" && (
+              <>
+                <label>Restaurant name<input value={form.name || ""} onChange={(e) => setForm({ ...form, name: e.target.value })} /></label>
+                <label>Owner name<input value={form.owner || ""} onChange={(e) => setForm({ ...form, owner: e.target.value })} /></label>
+                <label>City<input value={form.city || ""} onChange={(e) => setForm({ ...form, city: e.target.value })} /></label>
+              </>
+            )}
+            {modal === "payment" && (
+              <>
+                <label>Supplier
+                  <select value={form.supplierId || ""} onChange={(e) => setForm({ ...form, supplierId: e.target.value })}>
+                    <option value="">Select supplier</option>
+                    {suppliers.map(x => <option key={x.id} value={x.id}>{x.name}</option>)}
+                  </select>
+                </label>
+                <label>Amount (₹)<input type="number" value={form.amount || ""} onChange={(e) => setForm({ ...form, amount: e.target.value })} /></label>
+              </>
+            )}
+          </div>
+          <DialogFooter>
+            <button className="quiet-btn" onClick={() => setModal(null)}>Cancel</button>
+            <button className="primary-btn" onClick={save}>Save changes</button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

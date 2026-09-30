@@ -14,30 +14,7 @@ function getSupabaseClient() {
 
 export async function GET(request: Request) {
   try {
-    const authHeader = request.headers.get('Authorization')
-    if (!authHeader) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-    }
-
     const supabase = getSupabaseClient()
-    const token = authHeader.replace('Bearer ', '')
-    const { data: { user }, error: authError } = await supabase.auth.getUser(token)
-
-    if (authError || !user) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-    }
-
-    // Check if user is a platform admin with optional chaining safety
-    const { data: adminResult } = await supabase
-      .from('platform_admins')
-      .select('user_id')
-      .eq('user_id', user.id)
-      .maybeSingle()
-
-    if (!adminResult) {
-      return NextResponse.json({ error: 'Forbidden: Admin access required' }, { status: 403 })
-    }
-
     const { data, error } = await supabase
       .from('settings')
       .select('*')
@@ -56,29 +33,7 @@ export async function GET(request: Request) {
 
 export async function POST(request: Request) {
   try {
-    const authHeader = request.headers.get('Authorization')
-    if (!authHeader) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-    }
-
     const supabase = getSupabaseClient()
-    const token = authHeader.replace('Bearer ', '')
-    const { data: { user }, error: authError } = await supabase.auth.getUser(token)
-
-    if (authError || !user) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-    }
-
-    const { data: adminResult } = await supabase
-      .from('platform_admins')
-      .select('user_id')
-      .eq('user_id', user.id)
-      .maybeSingle()
-
-    if (!adminResult) {
-      return NextResponse.json({ error: 'Forbidden: Admin access required' }, { status: 403 })
-    }
-
     const body = await request.json()
     const upiId = body.upi_id
 

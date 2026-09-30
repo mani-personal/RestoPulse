@@ -1,61 +1,104 @@
-import { NextRequest, NextResponse } from 'next/server';
-import { createClient } from '@supabase/supabase-js';
+import { NextResponse } from 'next/server'
+import { createClient } from '@supabase/supabase-js'
 
-export const runtime = 'nodejs';
+function getSupabaseClient() {
+  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
+  const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
 
-type AuthUser = { id: string; user_metadata?: Record<string, unknown> };
+  if (!supabaseUrl || !supabaseKey) {
+    throw new Error('Missing Supabase environment variables')
+  }
 
-function serverClient() {
-  const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
-  const secret = process.env.SUPABASE_SECRET_KEY;
-  if (!url || !secret) throw new Error('Server configuration is incomplete');
-  return createClient(url, secret, { auth: { autoRefreshToken: false, persistSession: false } });
+  return createClient(supabaseUrl, supabaseKey)
 }
 
-async function getUser(request: NextRequest) {
-  const token = request.headers.get('authorization')?.match(/^Bearer (.+)$/)?.[1];
-  if (!token) return { admin: null, user: null as AuthUser | null, error: 'Sign in required', status: 401 as const };
-  const admin = serverClient();
-  const { data: { user }, error } = await admin.auth.getUser(token);
-  if (error || !user) return { admin, user: null, error: 'Invalid session', status: 401 as const };
-  return { admin, user: user as AuthUser, error: null, status: 200 as const };
-}
-
-async function requireAdmin(request: NextRequest) {
-  const result = await getUser(request);
-  if (result.error || !result.user) return result;
-  const { data: row, error } = await result.admin.from('platform_admins').select('user_id').eq('user_id', result.user.id).maybeSingle();
-  if (error) return { ...result, error: error.message, status: 500 as const };
-  if (!row) return { ...result, error: 'Platform admin access required', status: 403 as const };
-  return result;
-}
-
-export async function GET(request: NextRequest) {
+export async function GET(request: Request) {
   try {
-    const result = await requireAdmin(request);
-    if (result.error) return NextResponse.json({ error: result.error }, { status: result.status });
-    const value = typeof result.user?.user_metadata?.admin_upi_id === 'string' ? result.user.user_metadata.admin_upi_id : '';
-    return NextResponse.json({ key: 'admin_upi_id', value });
-  } catch (error) {
-    return NextResponse.json({ error: error instanceof Error ? error.message : 'Server error' }, { status: 500 });
+    const authHeader = request.headers.get('Authorization')
+    if (!authHeader) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    }
+
+    const supabase = getSupabaseClient()
+    const token = authHeader.replace('Bearer ', '')
+    const { data: { user }, error: authError } = await supabase.auth.getUser(token)
+
+    if (authError || !user) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    }
+
+    // Check if user is a platform admin with optional chaining safety
+    const { data: adminResult } = await supabase
+      .from('platform_admins')
+      .select('user_id')
+      .eq('user_id', user.id)
+      .maybeSingle()
+
+    if (!adminResult) {
+      return NextResponse.json({ error: 'Forbidden: Admin access required' }, { status: 403 })
+    }
+
+    const { data, error } = await supabase
+      .from('settings')
+      .select('*')
+      .eq('key', 'admin_upi')
+      .maybeSingle()
+
+    if (error) {
+      return NextResponse.json({ error: error.message }, { status: 400 })
+    }
+
+    return NextResponse.json({ value: data?.value || data?.upi_id || '' }, { status: 200 })
+  } catch (err: any) {
+    return NextResponse.json({ error: err.message || 'Internal Server Error' }, { status: 500 })
   }
 }
 
-export async function POST(request: NextRequest) {
+export async function POST(request: Request) {
   try {
-    const result = await requireAdmin(request);
-    if (result.error) return NextResponse.json({ error: result.error }, { status: result.status });
-    const body = await request.json().catch(() => ({}));
-    const upiId = String(body.upi_id ?? '').trim();
-    if (upiId && !/^[\w.-]+@[\w.-]+$/.test(upiId)) {
-      return NextResponse.json({ error: 'Enter a valid UPI ID, for example payments@bank' }, { status: 400 });
+    const authHeader = request.headers.get('Authorization')
+    if (!authHeader) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
-    const currentMetadata = result.user?.user_metadata || {};
-    const nextMetadata = { ...currentMetadata, admin_upi_id: upiId };
-    const { data, error } = await result.admin.auth.admin.updateUserById(result.user!.id, { user_metadata: nextMetadata });
-    if (error) return NextResponse.json({ error: error.message }, { status: 400 });
-    return NextResponse.json({ success: true, value: typeof data.user?.user_metadata?.admin_upi_id === 'string' ? data.user.user_metadata.admin_upi_id : '' });
-  } catch (error) {
-    return NextResponse.json({ error: error instanceof Error ? error.message : 'Server error' }, { status: 500 });
+
+    const supabase = getSupabaseClient()
+    const token = authHeader.replace('Bearer ', '')
+    const { data: { user }, error: authError } = await supabase.auth.getUser(token)
+
+    if (authError || !user) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    }
+
+    const { data: adminResult } = await supabase
+      .from('platform_admins')
+      .select('user_id')
+      .eq('user_id', user.id)
+      .maybeSingle()
+
+    if (!adminResult) {
+      return NextResponse.json({ error: 'Forbidden: Admin access required' }, { status: 403 })
+    }
+
+    const body = await request.json()
+    const upiId = body.upi_id
+
+    const { data, error } = await supabase
+      .from('settings')
+      .upsert({ 
+        key: 'admin_upi', 
+        upi_id: upiId, 
+        value: upiId,
+        updated_at: new Date().toISOString() 
+      }, { onConflict: 'key' })
+      .select()
+      .single()
+
+    if (error) {
+      return NextResponse.json({ error: error.message }, { status: 400 })
+    }
+
+    return NextResponse.json({ success: true, value: data?.upi_id || data?.value }, { status: 200 })
+  } catch (err: any) {
+    return NextResponse.json({ error: err.message || 'Internal Server Error' }, { status: 500 })
   }
 }

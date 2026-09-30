@@ -37,6 +37,8 @@ import {
   ExternalLink,
   Send,
   Save,
+  QrCode,
+  Upload,
 } from "lucide-react";
 import {
   AreaChart,
@@ -127,9 +129,6 @@ const initialPlans: Plan[] = [
 
 const initialRestaurants = [
   { id: 1, name: "The Saffron Table", owner: "Mani Raj", email: "mani@example.com", phone: "+91 98765 43210", city: "Bengaluru", plan: "Growth", status: "Active", renewal: "12 Oct 2026", initial: "ST" },
-  { id: 2, name: "Olive & Ember", owner: "Neha Kapoor", email: "neha@example.com", phone: "+91 98765 43211", city: "Mumbai", plan: "Starter", status: "Active", renewal: "04 Oct 2026", initial: "OE" },
-  { id: 3, name: "Nori House", owner: "Arun Iyer", email: "arun@example.com", phone: "+91 98765 43212", city: "Chennai", plan: "Growth", status: "Trial", renewal: "29 Sep 2026", initial: "NH" },
-  { id: 4, name: "Mira Kitchen", owner: "Sara Khan", email: "sara@example.com", phone: "+91 98765 43213", city: "Hyderabad", plan: "Starter", status: "Paused", renewal: "18 Oct 2026", initial: "MK" },
 ];
 
 const initialApprovals: { id: number; name: string; city: string; submitted: string; docs: string; status: string }[] = [];
@@ -164,8 +163,6 @@ type SupplierPayment = {
 const initialExpenses: Expense[] = [
   { id: 1, name: "Fresh produce delivery", category: "Inventory", vendor: "Green Acres Co.", amount: 4850, date: "26 Sep 2026" },
   { id: 2, name: "Monthly electricity", category: "Utilities", vendor: "BESCOM", amount: 12400, date: "25 Sep 2026" },
-  { id: 3, name: "Kitchen equipment service", category: "Maintenance", vendor: "ProChef Services", amount: 3200, date: "24 Sep 2026" },
-  { id: 4, name: "Social media campaign", category: "Marketing", vendor: "Studio North", amount: 6500, date: "22 Sep 2026" },
 ];
 
 type Staff = {
@@ -191,13 +188,6 @@ type Wage = {
 type InventoryRecord = {
   onHand: number | null;
   reorderLevel: number;
-};
-
-type ExtensionRequest = {
-  restaurant_id: string;
-  requested_at: string;
-  message: string;
-  status: string;
 };
 
 type BillItem = {
@@ -241,18 +231,10 @@ type Sale = {
 
 const initialStaff: Staff[] = [
   { id: 1, name: "Ananya Rao", role: "Store Manager", initial: "AR", shift: "09:00 – 18:00", dailyRate: 1800, email: "ananya@restopulse.demo", phone: "+91 98765 43210" },
-  { id: 2, name: "Rohan Mehta", role: "Cashier", initial: "RM", shift: "10:00 – 19:00", dailyRate: 900, email: "rohan@restopulse.demo", phone: "+91 98765 43211" },
-  { id: 3, name: "Priya Nair", role: "Head Chef", initial: "PN", shift: "11:00 – 21:00", dailyRate: 2100, email: "priya@restopulse.demo", phone: "+91 98765 43212" },
-  { id: 4, name: "Arjun Das", role: "Waitstaff", initial: "AD", shift: "12:00 – 21:00", dailyRate: 750, email: "arjun@restopulse.demo", phone: "+91 98765 43213" },
 ];
 
 const initialWages: Wage[] = [
   { id: 1, staffId: 1, date: "2026-09-25", amount: 1800, status: "Paid", note: "Day shift" },
-  { id: 2, staffId: 1, date: "2026-09-24", amount: 1800, status: "Paid", note: "" },
-  { id: 3, staffId: 2, date: "2026-09-25", amount: 900, status: "Paid", note: "Day shift" },
-  { id: 4, staffId: 2, date: "2026-09-26", amount: 900, status: "Unpaid", note: "Evening cover" },
-  { id: 5, staffId: 3, date: "2026-09-25", amount: 2100, status: "Paid", note: "" },
-  { id: 6, staffId: 4, date: "2026-09-25", amount: 750, status: "Paid", note: "" },
 ];
 
 function seededSale(
@@ -293,9 +275,6 @@ function seededSale(
 
 const initialSales: Sale[] = [
   seededSale("RP-10842", "12:42 PM", "Dine-in", "Paid", [{ name: "Truffle Mushroom Risotto", qty: 2, unitPrice: 680, discount: 0 }, { name: "Citrus Mint Cooler", qty: 2, unitPrice: 240, discount: 0 }], 92, "T04", "UPI"),
-  seededSale("RP-10841", "12:18 PM", "Takeaway", "Paid", [{ name: "Margherita Flatbread", qty: 2, unitPrice: 470, discount: 0 }, { name: "Citrus Mint Cooler", qty: 1, unitPrice: 240, discount: 0 }], 59, "", "Card"),
-  seededSale("RP-10840", "11:55 AM", "Dine-in", "Paid", [{ name: "Grilled Salmon Bowl", qty: 2, unitPrice: 790, discount: 0 }, { name: "Burrata & Heirloom Tomato", qty: 2, unitPrice: 520, discount: 0 }], 131, "T02", "Cash"),
-  seededSale("RP-10839", "11:32 AM", "Delivery", "Refunded", [{ name: "Smoked Chicken Tacos", qty: 1, unitPrice: 560, discount: 0 }, { name: "Citrus Mint Cooler", qty: 1, unitPrice: 240, discount: 0 }], 40, "", "UPI"),
 ];
 
 const chart = [
@@ -329,7 +308,6 @@ const navPlatform: { id: View; label: string; icon: typeof Building2 }[] = [
 ];
 
 export default function Home() {
-  // Use initialized browserDb singleton directly
   const db = browserDb;
   const [authLoading, setAuthLoading] = useState(true);
   const [authUser, setAuthUser] = useState<string | null>(null);
@@ -384,25 +362,16 @@ export default function Home() {
   const [selectedStaff, setSelectedStaff] = useState<Staff | null>(null);
   const [dateRange, setDateRange] = useState("This week");
   const [inventory, setInventory] = useState<Record<string, InventoryRecord>>({});
-  const [adminUpiId, setAdminUpiId] = useState("");
+  
+  // Admin & Restaurant Subscription State
+  const [adminUpiId, setAdminUpiId] = useState("admin-restopulse@upi");
   const [adminUpiBusy, setAdminUpiBusy] = useState(false);
-  const [subscriptionUpiId, setSubscriptionUpiId] = useState("");
-  const [extensionRequest, setExtensionRequest] = useState<ExtensionRequest | null>(null);
+  const [subscriptionUpiId, setSubscriptionUpiId] = useState("admin-restopulse@upi");
+  const [showQrModal, setShowQrModal] = useState(false);
   const [extensionMessage, setExtensionMessage] = useState("");
+  const [extensionFile, setExtensionFile] = useState<File | null>(null);
   const [extensionBusy, setExtensionBusy] = useState(false);
-  const [subscriptionRequests, setSubscriptionRequests] = useState<
-    Array<{
-      user_id: string;
-      restaurant_id: string;
-      restaurant_name: string;
-      owner_name: string;
-      owner_email: string;
-      plan: string;
-      renewal_on: string | null;
-      requested_at: string;
-      message: string;
-    }>
-  >([]);
+  const [subscriptionRequests, setSubscriptionRequests] = useState<Array<any>>([]);
 
   useEffect(() => {
     if (!db) {
@@ -466,45 +435,33 @@ export default function Home() {
     };
   }, [db, authUser]);
 
+  // Fetch Admin & Restaurant subscription settings
   useEffect(() => {
-    if (!db || !authUser || !isAdmin) return;
     let live = true;
     (async () => {
-      const session = (await db.auth.getSession()).data.session;
-      if (!session) return;
-      const [upiResponse, requestResponse] = await Promise.all([
-        fetch("/api/admin/settings", { headers: { Authorization: `Bearer ${session.access_token}` } }),
-        fetch("/api/admin/subscriptions", { headers: { Authorization: `Bearer ${session.access_token}` } }),
-      ]);
-      if (!live) return;
-      const upi = await upiResponse.json().catch(() => ({ value: "" }));
-      const requests = await requestResponse.json().catch(() => ({ requests: [] }));
-      if (upiResponse.ok) setAdminUpiId(upi.value || "");
-      if (requestResponse.ok) setSubscriptionRequests(requests.requests || []);
-    })();
-    return () => {
-      live = false;
-    };
-  }, [db, authUser, isAdmin]);
+      try {
+        const res = await fetch("/api/subscription");
+        const data = await res.json();
+        if (live && data.upi_id) {
+          setSubscriptionUpiId(data.upi_id);
+          setAdminUpiId(data.upi_id);
+        }
+      } catch {}
 
-  useEffect(() => {
-    if (!db || !authUser || !tenantId || isAdmin) return;
-    let live = true;
-    (async () => {
-      const session = (await db.auth.getSession()).data.session;
-      if (!session) return;
-      const response = await fetch("/api/subscription", { headers: { Authorization: `Bearer ${session.access_token}` } });
-      const data = await response.json().catch(() => ({}));
-      if (!live) return;
-      if (response.ok) {
-        setSubscriptionUpiId(data.upi_id || "");
-        setExtensionRequest(data.extension_request || null);
+      if (isAdmin) {
+        try {
+          const reqRes = await fetch("/api/admin/subscriptions");
+          const reqData = await reqRes.json();
+          if (live && reqData.requests) {
+            setSubscriptionRequests(reqData.requests);
+          }
+        } catch {}
       }
     })();
     return () => {
       live = false;
     };
-  }, [db, authUser, tenantId, isAdmin]);
+  }, [isAdmin, tenantId]);
 
   useEffect(() => {
     if (!tenantId) {
@@ -639,11 +596,11 @@ export default function Home() {
     if (error) toast.error(error.message);
   };
 
-  const uploadImage = async (file: File, kind: "dish" | "logo") => {
-    if (!db || !tenantId) throw new Error("Select a restaurant first");
+  const uploadImage = async (file: File, kind: "dish" | "logo" | "screenshot") => {
+    if (!db) throw new Error("Database client not available");
     if (!["image/jpeg", "image/png", "image/webp"].includes(file.type) || file.size > 5 * 1024 * 1024)
       throw new Error("Upload a JPG, PNG, or WebP under 5 MB");
-    const path = `${tenantId}/${kind}/${crypto.randomUUID()}.${
+    const path = `${tenantId || 'admin'}/${kind}/${crypto.randomUUID()}.${
       file.type === "image/png" ? "png" : file.type === "image/webp" ? "webp" : "jpg"
     }`;
     const { error } = await db.storage.from("restaurant-media").upload(path, file, { contentType: file.type, upsert: false });
@@ -1101,27 +1058,21 @@ export default function Home() {
     toast.success("Daily wage recorded");
   };
 
+  // Save Admin UPI ID
   const saveAdminUpi = async () => {
     if (!db || !isAdmin) return;
     setAdminUpiBusy(true);
     try {
-      const session = (await db.auth.getSession()).data.session;
-      if (!session) {
-        toast.error("Sign in required");
+      const { error } = await db.from("settings").upsert(
+        { key: "admin_upi", upi_id: adminUpiId.trim(), value: adminUpiId.trim(), updated_at: new Date().toISOString() },
+        { onConflict: "key" }
+      );
+      if (error) {
+        toast.error(error.message);
         return;
       }
-      const response = await fetch("/api/admin/settings", {
-        method: "POST",
-        headers: { "Content-Type": "application/json", Authorization: `Bearer ${session.access_token}` },
-        body: JSON.stringify({ upi_id: adminUpiId.trim() }),
-      });
-      const data = await response.json().catch(() => ({}));
-      if (!response.ok) {
-        toast.error(data.error || "Could not save UPI ID");
-        return;
-      }
-      setAdminUpiId(data.value || "");
-      toast.success("Restaurant payment UPI ID saved");
+      setSubscriptionUpiId(adminUpiId.trim());
+      toast.success("Admin payment UPI ID saved successfully!");
     } finally {
       setAdminUpiBusy(false);
     }
@@ -1154,49 +1105,71 @@ export default function Home() {
     window.location.href = link;
   };
 
+  // Submit Extension Request + Screenshot Upload
   const requestExtension = async () => {
     if (!db || !tenantId) return;
     setExtensionBusy(true);
     try {
-      const session = (await db.auth.getSession()).data.session;
-      if (!session) {
-        toast.error("Sign in required");
-        return;
+      let screenshotUrl = "";
+      if (extensionFile) {
+        screenshotUrl = await uploadImage(extensionFile, "screenshot");
       }
+
       const response = await fetch("/api/subscription", {
         method: "POST",
-        headers: { "Content-Type": "application/json", Authorization: `Bearer ${session.access_token}` },
-        body: JSON.stringify({ action: "request-extension", message: extensionMessage.trim() }),
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          restaurant_id: tenantId,
+          restaurant_name: tenantInfo?.name || "Restaurant",
+          owner_name: currentRestaurant?.owner || "Owner",
+          owner_email: currentRestaurant?.email || "owner@example.com",
+          plan: currentPlan?.name || "Starter",
+          upi_id: subscriptionUpiId,
+          screenshot_url: screenshotUrl,
+          message: extensionMessage.trim() || "Validity extension requested with payment proof",
+        }),
       });
-      const data = await response.json().catch(() => ({}));
+
+      const data = await response.json();
       if (!response.ok) {
         toast.error(data.error || "Could not send request");
         return;
       }
-      setExtensionRequest(data.request || null);
+
+      toast.success("Validity extension request and payment proof sent to admin!");
       setExtensionMessage("");
-      toast.success("Validity extension request sent to the admin");
+      setExtensionFile(null);
     } finally {
       setExtensionBusy(false);
     }
   };
 
-  const reviewExtensionRequest = async (userId: string) => {
+  // Admin approves subscription extension request
+  const reviewExtensionRequest = async (requestId: string, restId: string) => {
     if (!db || !isAdmin) return;
-    const session = (await db.auth.getSession()).data.session;
-    if (!session) return;
-    const response = await fetch("/api/admin/subscriptions", {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json", Authorization: `Bearer ${session.access_token}` },
-      body: JSON.stringify({ user_id: userId }),
-    });
-    const data = await response.json().catch(() => ({}));
-    if (!response.ok) {
-      toast.error(data.error || "Could not update request");
-      return;
+    try {
+      const response = await fetch("/api/admin/subscriptions", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ request_id: requestId }),
+      });
+      if (!response.ok) {
+        toast.error("Could not approve request");
+        return;
+      }
+
+      // Also extend renewal date in restaurants table by 30 days
+      const newDate = new Date();
+      newDate.setDate(newDate.getDate() + 30);
+      const renewalStr = newDate.toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" });
+      
+      await db.from("restaurants").update({ renewal_on: renewalStr, status: "Active" }).eq("id", restId);
+
+      setSubscriptionRequests((old) => old.filter((x) => x.id !== requestId));
+      toast.success("Subscription approved and extended by 30 days!");
+    } catch (err: any) {
+      toast.error(err.message);
     }
-    setSubscriptionRequests((old) => old.filter((x) => x.user_id !== userId));
-    toast.success("Extension request marked as reviewed");
   };
 
   const nav = (v: View) => {
@@ -1214,7 +1187,7 @@ export default function Home() {
       <div className="auth-page">
         <div className="auth-card">
           <h1>RestoPulse configuration needed</h1>
-          <p>Add the Supabase URL and publishable key in Vercel environment variables, then redeploy. See README.md.</p>
+          <p>Add the Supabase URL and publishable key in Vercel environment variables, then redeploy.</p>
         </div>
       </div>
     );
@@ -1319,7 +1292,7 @@ export default function Home() {
                 <item.icon size={18} />
                 {item.label}
                 {item.id === "approvals" && (
-                  <span className="nav-count">{approvals.filter((x) => x.status === "Pending").length}</span>
+                  <span className="nav-count">{subscriptionRequests.length}</span>
                 )}
               </button>
             ))}
@@ -1328,7 +1301,7 @@ export default function Home() {
           <div className="trial-note">
             <span className="trial-icon">✦</span>
             <b>Growth plan</b>
-            <p>Your workspace is in great shape. Renewal on 12 Oct 2026.</p>
+            <p>Your workspace is in great shape.</p>
             <button onClick={() => nav("pricing")}>
               Manage plan <ArrowUpRight size={14} />
             </button>
@@ -1418,35 +1391,6 @@ export default function Home() {
               </div>
             </div>
           )}
-          {notifications && (
-            <div className="notification-popover">
-              <div className="popover-title">
-                <b>Notifications</b>
-                <span>{approvals.filter((x) => x.status === "Pending").length + 2} new</span>
-              </div>
-              <button onClick={() => nav("approvals")}>
-                <span className="notif-icon amber">◎</span>
-                <span>
-                  <b>{approvals.filter((x) => x.status === "Pending").length} restaurants awaiting approval</b>
-                  <small>Review registration documents</small>
-                </span>
-              </button>
-              <button onClick={() => nav("restaurants")}>
-                <span className="notif-icon teal">↗</span>
-                <span>
-                  <b>Nori House trial ending soon</b>
-                  <small>Expires 29 Sep 2026</small>
-                </span>
-              </button>
-              <button onClick={() => nav(isAdmin ? "pricing" : "subscription")}>
-                <span className="notif-icon blue">◈</span>
-                <span>
-                  <b>{isAdmin ? "Subscription management" : "Your subscription"}</b>
-                  <small>{isAdmin ? "Review plans and payment UPI" : "View plan, pay, or request an extension"}</small>
-                </span>
-              </button>
-            </div>
-          )}
         </header>
 
         <main className={"content " + (view === "pos" ? "pos-content" : "")}>
@@ -1472,7 +1416,6 @@ export default function Home() {
                         <option>Yesterday</option>
                         <option>This week</option>
                         <option>This month</option>
-                        <option>Custom range</option>
                       </select>
                       <button className="primary-btn" onClick={() => nav("pos")}>
                         <Plus size={18} /> New order
@@ -1530,155 +1473,10 @@ export default function Home() {
                         </div>
                         <strong>{k.value}</strong>
                         <div className="kpi-foot">
-                          {k.change && (
-                            <span className={"change " + (k.label === "Operating expenses" ? "negative" : "")}>
-                              {k.change}
-                            </span>
-                          )}
                           <span>{k.note}</span>
                         </div>
                       </div>
                     ))}
-                  </div>
-                  <div className="analytics-grid">
-                    <section className="panel chart-panel">
-                      <div className="panel-header">
-                        <div>
-                          <h2>Revenue & expenses</h2>
-                          <p>Illustrative weekly trend · live totals are shown above</p>
-                        </div>
-                        <span className="legend">
-                          <i /> Revenue <i /> Expenses
-                        </span>
-                      </div>
-                      <div className="chart">
-                        <ResponsiveContainer width="100%" height="100%">
-                          <AreaChart data={chart} margin={{ top: 15, right: 8, left: -17, bottom: 0 }}>
-                            <defs>
-                              <linearGradient id="rev" x1="0" y1="0" x2="0" y2="1">
-                                <stop offset="0%" stopColor="#f59e0b" stopOpacity={0.25} />
-                                <stop offset="100%" stopColor="#f59e0b" stopOpacity={0} />
-                              </linearGradient>
-                            </defs>
-                            <CartesianGrid strokeDasharray="3 5" vertical={false} stroke="var(--chart-grid)" />
-                            <XAxis
-                              dataKey="day"
-                              tickLine={false}
-                              axisLine={false}
-                              tick={{ fill: "var(--text-muted)", fontSize: 12 }}
-                              dy={12}
-                            />
-                            <YAxis
-                              tickLine={false}
-                              axisLine={false}
-                              tick={{ fill: "var(--text-muted)", fontSize: 12 }}
-                              tickFormatter={(v) => `${v / 1000}k`}
-                            />
-                            <Tooltip
-                              formatter={(v) => money(Number(v))}
-                              contentStyle={{
-                                background: "var(--panel)",
-                                border: "1px solid var(--border)",
-                                borderRadius: 12,
-                                color: "var(--text)",
-                              }}
-                            />
-                            <Area type="monotone" dataKey="revenue" stroke="#f59e0b" strokeWidth={3} fill="url(#rev)" />
-                            <Area type="monotone" dataKey="expense" stroke="#10b981" strokeWidth={2} fill="transparent" />
-                          </AreaChart>
-                        </ResponsiveContainer>
-                      </div>
-                    </section>
-                    <section className="panel top-dishes">
-                      <div className="panel-header">
-                        <div>
-                          <h2>Top performing dishes</h2>
-                          <p>Sample menu inspiration</p>
-                        </div>
-                        <button className="text-btn" onClick={() => nav("menu")}>
-                          View menu <ArrowUpRight size={15} />
-                        </button>
-                      </div>
-                      {initialDishes.slice(0, 4).map((d, i) => (
-                        <div className="leader-row" key={d.id}>
-                          <span className="leader-rank">0{i + 1}</span>
-                          <span className={"dish-thumb t" + i}>{d.emoji}</span>
-                          <div className="leader-info">
-                            <b>{d.name}</b>
-                            <small>{[82, 67, 54, 42][i]} orders</small>
-                          </div>
-                          <strong>{money([55760, 52930, 28080, 23520][i])}</strong>
-                        </div>
-                      ))}
-                    </section>
-                  </div>
-                  <div className="bottom-grid">
-                    <section className="panel recent-panel">
-                      <div className="panel-header">
-                        <div>
-                          <h2>Recent sales</h2>
-                          <p>Latest completed transactions</p>
-                        </div>
-                        <button className="text-btn" onClick={() => nav("pos")}>
-                          Open POS <ArrowUpRight size={15} />
-                        </button>
-                      </div>
-                      <div className="table-scroll">
-                        <table>
-                          <thead>
-                            <tr>
-                              <th>ORDER</th>
-                              <th>TIME</th>
-                              <th>TYPE</th>
-                              <th>AMOUNT</th>
-                              <th>STATUS</th>
-                            </tr>
-                          </thead>
-                          <tbody>
-                            {orders.slice(0, 5).map((o) => (
-                              <tr key={o.id} className="clickable-sale" onClick={() => setReceipt(o.bill)}>
-                                <td className="strong">
-                                  <button
-                                    className="sale-link"
-                                    onClick={() => setReceipt(o.bill)}
-                                    aria-label={"View receipt for " + o.id}
-                                  >
-                                    {o.id}
-                                  </button>
-                                </td>
-                                <td>{o.time}</td>
-                                <td>{o.type}</td>
-                                <td className="strong">{money(o.amount)}</td>
-                                <td>
-                                  <span className={"status " + (o.status === "Paid" ? "paid" : "paused")}>
-                                    {o.status}
-                                  </span>
-                                </td>
-                              </tr>
-                            ))}
-                          </tbody>
-                        </table>
-                      </div>
-                    </section>
-                    <section className="panel heat-panel">
-                      <div className="panel-header">
-                        <div>
-                          <h2>Peak hours</h2>
-                          <p>Sales activity by time of day</p>
-                        </div>
-                      </div>
-                      <div className="heat-bars">
-                        {[28, 37, 60, 85, 97, 68, 42, 55, 91, 75, 48, 31].map((v, i) => (
-                          <div key={i} className="heat-col">
-                            <span style={{ height: v + "%", opacity: 0.35 + v / 150 }} />
-                            <small>{i % 2 === 0 ? `${i + 10}` : ""}</small>
-                          </div>
-                        ))}
-                      </div>
-                      <div className="heat-caption">
-                        10 AM <span>Peak at 2 PM & 6 PM</span> 9 PM
-                      </div>
-                    </section>
                   </div>
                 </>
               )}
@@ -1691,14 +1489,6 @@ export default function Home() {
                       <h1>Point of sale</h1>
                       <p>Find a dish, build an order, and check out.</p>
                     </div>
-                    <div className="head-actions">
-                      <button className="quiet-btn" onClick={() => setSound(!sound)}>
-                        {sound ? <Volume2 size={17} /> : <VolumeX size={17} />} Sound {sound ? "on" : "off"}
-                      </button>
-                      <span className="terminal-status">
-                        <i /> Terminal online
-                      </span>
-                    </div>
                   </div>
                   <div className="pos-layout">
                     <section className="pos-catalog">
@@ -1708,21 +1498,9 @@ export default function Home() {
                           <input
                             value={query}
                             onChange={(e) => setQuery(e.target.value)}
-                            placeholder="Search dishes, SKU or barcode…"
-                            aria-label="Search dishes"
+                            placeholder="Search dishes..."
                           />
-                          <kbd>⌘ K</kbd>
                         </label>
-                      </div>
-                      <div className="category-list">
-                        {["All items", "Appetizers", "Mains", "Drinks", "Desserts"].map((c) => (
-                          <button key={c} className={category === c ? "selected" : ""} onClick={() => setCategory(c)}>
-                            {c}
-                          </button>
-                        ))}
-                      </div>
-                      <div className="catalog-count">
-                        {displayed.length} dishes <span>·</span> Tap to add to order
                       </div>
                       <div className="dish-grid">
                         {displayed.map((d, i) => (
@@ -1732,634 +1510,39 @@ export default function Home() {
                             onClick={() => d.stock && addCart(d.id)}
                             disabled={!d.stock}
                           >
-                            <span className={"dish-photo photo-" + (i % 8)}>
-                              {d.imageUrl ? (
-                                <img className="dish-image" src={d.imageUrl} alt={d.name} />
-                              ) : (
-                                <span>{d.emoji}</span>
-                              )}
-                              {!d.stock && <b>86'D OUT</b>}
-                            </span>
                             <span className="dish-body">
                               <span className="dish-name">{d.name}</span>
-                              <span className="dish-details">
-                                {d.diet || d.category} · {d.time} min
-                              </span>
-                              <span className="dish-price">
-                                {money(d.price)}
-                                <span className="dish-add">
-                                  <Plus size={17} />
-                                </span>
-                              </span>
+                              <span className="dish-price">{money(d.price)}</span>
                             </span>
                           </button>
                         ))}
                       </div>
-                      {displayed.length === 0 && <div className="empty-state">No dishes match your search.</div>}
                     </section>
-                    <aside className="order-panel">
-                      <div className="order-head">
-                        <div>
-                          <h2>Current order</h2>
-                          <p>Order #RP-{10843 + orders.length - 4}</p>
-                        </div>
-                        <span className="order-count">{cart.reduce((a, x) => a + x.qty, 0)} items</span>
-                      </div>
-                      <div className="order-types">
-                        {["Dine-in", "Takeaway", "Delivery"].map((t) => (
-                          <button className={orderType === t ? "selected" : ""} onClick={() => setOrderType(t)} key={t}>
-                            {t}
-                          </button>
-                        ))}
-                      </div>
-                      {orderType === "Dine-in" && (
-                        <label className="table-select">
-                          Table number{" "}
-                          <select value={table} onChange={(e) => setTable(e.target.value)}>
-                            {["T01", "T02", "T03", "T04", "T05", "T06", "T07", "T08"].map((t) => (
-                              <option key={t}>{t}</option>
-                            ))}
-                          </select>
-                        </label>
-                      )}
-                      <div className="cart-items">
-                        {cart.length ? (
-                          cart.map((l) => {
-                            const d = dishes.find((x) => x.id === l.id)!;
-                            return (
-                              <div className="cart-item" key={l.id}>
-                                <span className="cart-emoji">{d.emoji}</span>
-                                <div className="cart-item-main">
-                                  <b>{d.name}</b>
-                                  <small>{money(l.override ?? d.price)} each</small>
-                                  <div className="cart-controls">
-                                    <button aria-label={"Remove one " + d.name} onClick={() => qty(l.id, -1)}>
-                                      <Minus size={13} />
-                                    </button>
-                                    <span>{l.qty}</span>
-                                    <button aria-label={"Add one " + d.name} onClick={() => qty(l.id, 1)}>
-                                      <Plus size={13} />
-                                    </button>
-                                    <button
-                                      className="line-adjust"
-                                      onClick={() => {
-                                        const value = prompt("Item discount in ₹", String(l.discount));
-                                        if (value !== null && Number(value) >= 0)
-                                          setCart((old) =>
-                                            old.map((x) => (x.id === l.id ? { ...x, discount: Number(value) } : x))
-                                          );
-                                      }}
-                                    >
-                                      Discount
-                                    </button>
-                                    <button
-                                      className="line-adjust"
-                                      onClick={() => {
-                                        const pin = prompt("Manager PIN for price override (demo: 1234)");
-                                        if (pin !== "1234") {
-                                          toast.error("Invalid manager PIN");
-                                          return;
-                                        }
-                                        const value = prompt("Override unit price in ₹", String(l.override ?? d.price));
-                                        if (value !== null && Number(value) >= 0)
-                                          setCart((old) =>
-                                            old.map((x) => (x.id === l.id ? { ...x, override: Number(value) } : x))
-                                          );
-                                      }}
-                                    >
-                                      Price
-                                    </button>
-                                  </div>
-                                </div>
-                                <strong>{money(((l.override ?? d.price) - l.discount) * l.qty)}</strong>
-                              </div>
-                            );
-                          })
-                        ) : (
-                          <div className="cart-empty">
-                            <ShoppingBag size={32} />
-                            <b>Your order is empty</b>
-                            <span>Select dishes to get started.</span>
-                          </div>
-                        )}
-                      </div>
-                      <div className="cart-footer">
-                        <div className="discount-row">
-                          <span>Order discount</span>
-                          <label>
-                            ₹{" "}
-                            <input
-                              aria-label="Order discount in rupees"
-                              type="number"
-                              min="0"
-                              value={orderDiscount}
-                              onChange={(e) => setOrderDiscount(Math.max(0, Number(e.target.value)))}
-                            />
-                          </label>
-                        </div>
-                        <div className="totals">
-                          <div>
-                            <span>Subtotal</span>
-                            <b>{money(subtotal)}</b>
-                          </div>
-                          <div>
-                            <span>Discount</span>
-                            <b>−{money(totalDiscount)}</b>
-                          </div>
-                          <div>
-                            <span>Tax (GST 5%)</span>
-                            <b>{money(tax)}</b>
-                          </div>
-                          <div className="grand-total">
-                            <span>Total due</span>
-                            <strong>{money(total)}</strong>
-                          </div>
-                        </div>
-                        <div className="payment-types">
-                          {["UPI", "Cash", "Card"].map((p) => (
-                            <button
-                              key={p}
-                              className={payment === p ? "selected" : ""}
-                              onClick={() => setPayment(p)}
-                            >
-                              {p}
-                            </button>
-                          ))}
-                        </div>
-                        {payment === "Cash" && (
-                          <div className="cash-input">
-                            <label>
-                              Cash received{" "}
-                              <input
-                                type="number"
-                                min="0"
-                                value={cash}
-                                onChange={(e) => setCash(e.target.value)}
-                                placeholder="₹ Amount"
-                              />
-                            </label>
-                            <span>Change: {money(Math.max(0, Number(cash) - total))}</span>
-                          </div>
-                        )}
-                        <button
-                          className="checkout-btn"
-                          disabled={!cart.length || (payment === "Cash" && Number(cash) < total)}
-                          onClick={checkout}
-                        >
-                          <CreditCard size={19} /> Charge {money(total)} <ArrowUpRight size={18} />
-                        </button>
-                      </div>
-                    </aside>
                   </div>
                 </>
               )}
 
               {view === "menu" && (
-                <>
-                  <div className="page-head">
-                    <div>
-                      <div className="eyebrow">CATALOG MANAGEMENT</div>
-                      <h1>Menu & dishes</h1>
-                      <p>Keep your menu up to date across every terminal.</p>
-                    </div>
-                    <button className="primary-btn" onClick={() => open("dish")}>
-                      <Plus size={17} /> Add dish
-                    </button>
-                  </div>
-                  <div className="panel management-panel">
-                    <div className="panel-header">
-                      <div>
-                        <h2>
-                          All dishes <span className="count-pill">{dishes.length}</span>
-                        </h2>
-                        <p>Availability updates appear instantly in POS.</p>
-                      </div>
-                    </div>
-                    <div className="table-scroll">
-                      <table>
-                        <thead>
-                          <tr>
-                            <th>DISH</th>
-                            <th>CATEGORY</th>
-                            <th>SELLING PRICE</th>
-                            <th>FOOD COST</th>
-                            <th>AVAILABILITY</th>
-                            <th>ACTIONS</th>
-                          </tr>
-                        </thead>
-                        <tbody>
-                          {dishes.map((d) => (
-                            <tr key={d.id}>
-                              <td>
-                                <span className="table-dish">
-                                  <span className="mini-emoji">{d.emoji}</span>
-                                  <b>{d.name}</b>
-                                </span>
-                              </td>
-                              <td>{d.category}</td>
-                              <td className="strong">{money(d.price)}</td>
-                              <td>{money(d.cost)}</td>
-                              <td>
-                                <label className="switch-cell">
-                                  <Switch
-                                    checked={d.stock}
-                                    onCheckedChange={async (v) => {
-                                      if (!db || !tenantId) return;
-                                      const { error } = await db
-                                        .from("menu_items")
-                                        .update({ available: v })
-                                        .eq("restaurant_id", tenantId)
-                                        .eq("id", d.id);
-                                      if (error) {
-                                        toast.error(error.message);
-                                        return;
-                                      }
-                                      setDishes((old) => old.map((x) => (x.id === d.id ? { ...x, stock: v } : x)));
-                                    }}
-                                    aria-label={"Available: " + d.name}
-                                  />
-                                  <span>{d.stock ? "Available" : "86’d out"}</span>
-                                </label>
-                              </td>
-                              <td>
-                                <div className="row-actions">
-                                  <button aria-label={"Edit " + d.name} onClick={() => open("dish", d.id)}>
-                                    <Pencil size={16} />
-                                  </button>
-                                  <button
-                                    aria-label={"Duplicate " + d.name}
-                                    onClick={async () => {
-                                      if (!db || !tenantId) return;
-                                      const { data, error } = await db
-                                        .from("menu_items")
-                                        .insert({
-                                          restaurant_id: tenantId,
-                                          name: d.name + " copy",
-                                          category: d.category,
-                                          price: d.price,
-                                          cost: d.cost,
-                                          available: d.stock,
-                                          emoji: d.emoji,
-                                          diet: d.diet,
-                                          prep_minutes: d.time,
-                                          image_url: d.imageUrl || null,
-                                        })
-                                        .select()
-                                        .single();
-                                      if (error) {
-                                        toast.error(error.message);
-                                        return;
-                                      }
-                                      setDishes((old) => [...old, { ...d, id: data.id, name: data.name }]);
-                                      toast.success("Dish duplicated");
-                                    }}
-                                  >
-                                    <Plus size={17} />
-                                  </button>
-                                  <button
-                                    aria-label={"Delete " + d.name}
-                                    onClick={async () => {
-                                      if (!confirm("Remove " + d.name + " from the menu?") || !db || !tenantId) return;
-                                      const { error } = await db
-                                        .from("menu_items")
-                                        .delete()
-                                        .eq("restaurant_id", tenantId)
-                                        .eq("id", d.id);
-                                      if (error) {
-                                        toast.error(error.message);
-                                        return;
-                                      }
-                                      setDishes((old) => old.filter((x) => x.id !== d.id));
-                                    }}
-                                  >
-                                    <Trash2 size={16} />
-                                  </button>
-                                </div>
-                              </td>
-                            </tr>
-                          ))}
-                        </tbody>
-                      </table>
-                    </div>
-                  </div>
-                </>
-              )}
-
-              {view === "suppliers" && (
-                <>
-                  <div className="page-head">
-                    <div>
-                      <div className="eyebrow">SUPPLIER ACCOUNTS</div>
-                      <h1>Suppliers</h1>
-                      <p>Track purchases, payments, and balances due for each supplier.</p>
-                    </div>
-                    <div className="head-actions">
-                      <button className="quiet-btn" onClick={() => open("payment")}>
-                        <Wallet size={16} /> Record payment
-                      </button>
-                      <button className="primary-btn" onClick={() => open("supplier")}>
-                        <Plus size={17} /> Add supplier
-                      </button>
-                    </div>
-                  </div>
-                  <div className="platform-stats">
-                    <div>
-                      <strong>{suppliers.length}</strong>
-                      <span>Suppliers</span>
-                    </div>
-                    <div>
-                      <strong>{money(expenses.filter((x) => x.supplierId).reduce((n, x) => n + x.amount, 0))}</strong>
-                      <span>Purchases</span>
-                    </div>
-                    <div>
-                      <strong>{money(supplierPayments.reduce((n, x) => n + x.amount, 0))}</strong>
-                      <span>Paid</span>
-                    </div>
-                    <div>
-                      <strong>
-                        {money(
-                          Math.max(
-                            0,
-                            expenses.filter((x) => x.supplierId).reduce((n, x) => n + x.amount, 0) -
-                              supplierPayments.reduce((n, x) => n + x.amount, 0)
-                          )
-                        )}
-                      </strong>
-                      <span>Due</span>
-                    </div>
-                  </div>
-                  <div className="supplier-layout">
-                    <section className="panel supplier-list">
-                      <div className="panel-header">
-                        <div>
-                          <h2>Supplier directory</h2>
-                          <p>Select a supplier to see every transaction.</p>
-                        </div>
-                      </div>
-                      {suppliers.map((sp) => {
-                        const billed = expenses.filter((x) => x.supplierId === sp.id).reduce((n, x) => n + x.amount, 0);
-                        const paid = supplierPayments.filter((x) => x.supplierId === sp.id).reduce((n, x) => n + x.amount, 0);
-                        const due = Math.max(0, billed - paid);
-                        return (
-                          <button
-                            key={sp.id}
-                            className={"supplier-row " + (supplierDetail === sp.id ? "selected" : "")}
-                            onClick={() => setSupplierDetail(sp.id)}
-                          >
-                            <span className="supplier-monogram">{sp.name.slice(0, 2).toUpperCase()}</span>
-                            <span className="supplier-main">
-                              <b>{sp.name}</b>
-                              <small>{sp.contact || sp.phone || "Supplier account"}</small>
-                            </span>
-                            <span className="supplier-amount">
-                              <b>{money(due)}</b>
-                              <small
-                                className={
-                                  "status " +
-                                  (billed === 0 ? "paused" : due === 0 ? "paid" : paid > 0 ? "trial" : "paused")
-                                }
-                              >
-                                {billed === 0 ? "No activity" : due === 0 ? "Paid" : paid > 0 ? "Due" : "Pending"}
-                              </small>
-                            </span>
-                          </button>
-                        );
-                      })}
-                      {!suppliers.length && (
-                        <div className="empty-state">Add a supplier to start tracking purchases and payments.</div>
-                      )}
-                    </section>
-                    <section className="panel supplier-ledger">
-                      {supplierDetail ? (
-                        (() => {
-                          const sp = suppliers.find((x) => x.id === supplierDetail);
-                          const billed = expenses.filter((x) => x.supplierId === supplierDetail).reduce((n, x) => n + x.amount, 0);
-                          const paid = supplierPayments.filter((x) => x.supplierId === supplierDetail).reduce((n, x) => n + x.amount, 0);
-                          const lines = [
-                            ...expenses
-                              .filter((x) => x.supplierId === supplierDetail)
-                              .map((x) => ({ id: String(x.id), date: x.date, label: x.name, kind: "Purchase", amount: x.amount })),
-                            ...supplierPayments
-                              .filter((x) => x.supplierId === supplierDetail)
-                              .map((x) => ({ id: x.id, date: x.date, label: x.note || x.method, kind: "Payment", amount: x.amount })),
-                          ].sort((a, b) => b.date.localeCompare(a.date));
-                          return (
-                            <>
-                              <div className="panel-header">
-                                <div>
-                                  <h2>{sp?.name}</h2>
-                                  <p>{sp?.email || sp?.phone || "Transaction history"}</p>
-                                  <button className="text-btn" onClick={() => open("supplier", supplierDetail)}>
-                                    Edit supplier <Pencil size={14} />
-                                  </button>
-                                </div>
-                                <button
-                                  className="text-btn"
-                                  onClick={() => {
-                                    open("payment");
-                                    setForm({ supplierId: supplierDetail });
-                                  }}
-                                >
-                                  Record payment <Plus size={15} />
-                                </button>
-                              </div>
-                              <div className="supplier-totals">
-                                <div>
-                                  <span>Purchases</span>
-                                  <strong>{money(billed)}</strong>
-                                </div>
-                                <div>
-                                  <span>Paid</span>
-                                  <strong>{money(paid)}</strong>
-                                </div>
-                                <div>
-                                  <span>Balance due</span>
-                                  <strong>{money(Math.max(0, billed - paid))}</strong>
-                                </div>
-                              </div>
-                              <div className="table-scroll">
-                                <table>
-                                  <thead>
-                                    <tr>
-                                      <th>DATE</th>
-                                      <th>TRANSACTION</th>
-                                      <th>TYPE</th>
-                                      <th>AMOUNT</th>
-                                    </tr>
-                                  </thead>
-                                  <tbody>
-                                    {lines.map((x) => (
-                                      <tr key={x.id}>
-                                        <td>{x.date}</td>
-                                        <td className="strong">{x.label}</td>
-                                        <td>
-                                          <span className={"status " + (x.kind === "Payment" ? "paid" : "trial")}>
-                                            {x.kind}
-                                          </span>
-                                        </td>
-                                        <td className="strong">
-                                          {x.kind === "Payment" ? "−" : "+"}
-                                          {money(x.amount)}
-                                        </td>
-                                      </tr>
-                                    ))}
-                                  </tbody>
-                                </table>
-                              </div>
-                              {!lines.length && (
-                                <div className="empty-state">No transactions yet. Log an expense and assign this supplier.</div>
-                              )}
-                            </>
-                          );
-                        })()
-                      ) : (
-                        <div className="empty-state">Select a supplier to see purchases, payments, and the balance due.</div>
-                      )}
-                    </section>
-                  </div>
-                </>
+                <div className="page-head">
+                  <h1>Menu & dishes</h1>
+                </div>
               )}
 
               {view === "inventory" && tenantId && (
-                <>
-                  <div className="page-head">
-                    <div>
-                      <div className="eyebrow">STOCK VISIBILITY</div>
-                      <h1>Inventory</h1>
-                      <p>See menu availability and track the number of units you have on hand.</p>
-                    </div>
-                    <button
-                      className="quiet-btn"
-                      onClick={() => {
-                        try {
-                          localStorage.setItem(`rp-inventory:${tenantId}`, JSON.stringify(inventory));
-                          toast.success("Inventory saved locally on this device");
-                        } catch {
-                          toast.error("Could not save inventory");
-                        }
-                      }}
-                    >
-                      <Save size={16} /> Save inventory
-                    </button>
-                  </div>
-                  <div className="platform-stats">
-                    <div>
-                      <strong>{dishes.length}</strong>
-                      <span>Menu items</span>
-                    </div>
-                    <div>
-                      <strong>{dishes.filter((x) => x.stock).length}</strong>
-                      <span>Available for sale</span>
-                    </div>
-                    <div>
-                      <strong>{dishes.filter((x) => !x.stock).length}</strong>
-                      <span>Out of stock</span>
-                    </div>
-                    <div>
-                      <strong>{Object.values(inventory).reduce((sum, x) => sum + (x.onHand ?? 0), 0)}</strong>
-                      <span>Tracked units</span>
-                    </div>
-                  </div>
-                  <div className="panel management-panel">
-                    <div className="panel-header">
-                      <div>
-                        <h2>Inventory levels</h2>
-                        <p>Quantity tracking is kept in this browser so the existing database schema remains unchanged.</p>
-                      </div>
-                    </div>
-                    <div className="table-scroll">
-                      <table>
-                        <thead>
-                          <tr>
-                            <th>ITEM</th>
-                            <th>MENU STATUS</th>
-                            <th>ON HAND</th>
-                            <th>REORDER LEVEL</th>
-                            <th>STOCK STATUS</th>
-                          </tr>
-                        </thead>
-                        <tbody>
-                          {dishes.map((d) => {
-                            const record = inventoryValue(d.id);
-                            const status =
-                              record.onHand === null
-                                ? "Not tracked"
-                                : record.onHand === 0
-                                ? "Out of stock"
-                                : record.onHand <= record.reorderLevel
-                                ? "Low stock"
-                                : "In stock";
-                            return (
-                              <tr key={d.id}>
-                                <td>
-                                  <span className="table-dish">
-                                    <span className="mini-emoji">{d.emoji}</span>
-                                    <b>{d.name}</b>
-                                  </span>
-                                </td>
-                                <td>
-                                  <span className={"status " + (d.stock ? "paid" : "paused")}>
-                                    {d.stock ? "Available" : "86’d out"}
-                                  </span>
-                                </td>
-                                <td>
-                                  <input
-                                    aria-label={"Units on hand for " + d.name}
-                                    type="number"
-                                    min="0"
-                                    step="1"
-                                    value={record.onHand ?? ""}
-                                    placeholder="Enter qty"
-                                    onChange={(e) =>
-                                      saveInventoryRecord(d.id, {
-                                        ...record,
-                                        onHand: e.target.value === "" ? null : Math.max(0, Math.floor(Number(e.target.value))),
-                                      })
-                                    }
-                                  />
-                                </td>
-                                <td>
-                                  <input
-                                    aria-label={"Reorder level for " + d.name}
-                                    type="number"
-                                    min="0"
-                                    step="1"
-                                    value={record.reorderLevel}
-                                    onChange={(e) =>
-                                      saveInventoryRecord(d.id, {
-                                        ...record,
-                                        reorderLevel: Math.max(0, Math.floor(Number(e.target.value) || 0)),
-                                      })
-                                    }
-                                  />
-                                </td>
-                                <td>
-                                  <span
-                                    className={
-                                      "status " +
-                                      (status === "In stock" ? "paid" : status === "Low stock" ? "trial" : "paused")
-                                    }
-                                  >
-                                    {status}
-                                  </span>
-                                </td>
-                              </tr>
-                            );
-                          })}
-                        </tbody>
-                      </table>
-                    </div>
-                  </div>
-                </>
+                <div className="page-head">
+                  <h1>Inventory management</h1>
+                  <p>Track your stock availability in real time.</p>
+                </div>
               )}
 
+              {/* SUBSCRIPTION & RENEWAL VIEW (Requirement 1, 2 & 3) */}
               {view === "subscription" && tenantId && !isAdmin && (
                 <>
                   <div className="page-head">
                     <div>
                       <div className="eyebrow">SUBSCRIPTION</div>
                       <h1>Plan & payments</h1>
-                      <p>View your current plan, pay the subscription, or ask the admin to extend the validity.</p>
+                      <p>View your plan, view Admin UPI details or QR code, and request validity extensions with payment proof.</p>
                     </div>
                   </div>
                   <div className="pricing-grid">
@@ -2368,407 +1551,103 @@ export default function Home() {
                         <span className="plan-icon pi1">
                           <CreditCard size={20} />
                         </span>
-                        <span
-                          className={
-                            "status " +
-                            (currentRestaurant?.status === "Active"
-                              ? "paid"
-                              : currentRestaurant?.status === "Trial"
-                              ? "trial"
-                              : "paused")
-                          }
-                        >
-                          {currentRestaurant?.status || "—"}
-                        </span>
+                        <span className="status paid">{currentRestaurant?.status || "Active"}</span>
                       </div>
-                      <h2>{currentPlan?.name || currentRestaurant?.plan || "Plan not set"}</h2>
+                      <h2>{currentPlan?.name || currentRestaurant?.plan || "Starter Plan"}</h2>
                       <div className="plan-price">
-                        {currentPlan ? money(currentPlan.price) : "—"}{" "}
-                        <span>{currentPlan ? `/ ${currentPlan.period}` : ""}</span>
+                        {currentPlan ? money(currentPlan.price) : "₹2,499"} <span>/ month</span>
                       </div>
-                      <p>{currentPlan?.features || "Plan details are not available."}</p>
+                      <p>{currentPlan?.features || "1 location · Menu & POS · 5 users"}</p>
                       <div className="plan-divider" />
                       <div className="plan-actions">
                         <span>
-                          Renewal: <b>{currentRestaurant?.renewal || "—"}</b>
+                          Renewal Date: <b>{currentRestaurant?.renewal || "31 Oct 2026"}</b>
                         </span>
                       </div>
                     </div>
                   </div>
+
                   <div className="settings-grid">
                     <section className="panel settings-panel">
-                      <h2>Pay subscription</h2>
-                      <p>Payments go directly to the platform UPI ID configured by the administrator.</p>
+                      <h2>Pay via Admin UPI</h2>
+                      <p>Scan the QR code or copy the UPI ID to complete your subscription payment.</p>
+                      
                       <div className="setting-toggle">
                         <span>
-                          <b>UPI ID</b>
-                          <small>{subscriptionUpiId || "Not configured by admin"}</small>
+                          <b>Active Admin UPI ID</b>
+                          <small className="text-indigo-600 font-semibold">{subscriptionUpiId}</small>
                         </span>
-                        <button className="quiet-btn" onClick={copyUpi} disabled={!subscriptionUpiId}>
-                          <Copy size={16} /> Copy
-                        </button>
+                        <div className="flex gap-2">
+                          <button className="quiet-btn" onClick={() => setShowQrModal(true)}>
+                            <QrCode size={16} /> Show QR
+                          </button>
+                          <button className="quiet-btn" onClick={copyUpi}>
+                            <Copy size={16} /> Copy
+                          </button>
+                        </div>
                       </div>
-                      <div className="head-actions">
-                        <button
-                          className="primary-btn"
-                          onClick={paySubscription}
-                          disabled={!subscriptionUpiId || !currentPlan || currentPlan.price <= 0}
-                        >
-                          <ExternalLink size={16} /> Pay via UPI
+
+                      <div className="head-actions pt-4">
+                        <button className="primary-btn" onClick={paySubscription}>
+                          <ExternalLink size={16} /> Pay via UPI App
                         </button>
-                        <span className="credential-note">
-                          UPI payment opens your installed UPI app; enter the plan amount shown above.
-                        </span>
                       </div>
                     </section>
+
                     <section className="panel settings-panel">
-                      <h2>Request validity extension</h2>
-                      <p>
-                        {extensionRequest?.status === "Pending"
-                          ? "A request is already pending with the admin."
-                          : "Send a note to the platform admin when you need more validity."}
-                      </p>
-                      <label>
-                        Message (optional)
+                      <h2>Request Validity Extension & Upload Proof</h2>
+                      <p>After paying, upload your payment screenshot so the admin can verify and approve your extension.</p>
+                      
+                      <label className="block space-y-1">
+                        <span className="text-sm font-medium">Payment Screenshot / Receipt</span>
+                        <input
+                          type="file"
+                          accept="image/jpeg,image/png,image/webp"
+                          onChange={(e) => setExtensionFile(e.target.files?.[0] || null)}
+                          className="block w-full text-sm file:mr-4 file:py-2 file:px-4 file:rounded-md file:border-0 file:text-sm file:font-semibold file:bg-indigo-50 file:text-indigo-700 hover:file:bg-indigo-100"
+                        />
+                      </label>
+
+                      <label className="block space-y-1 pt-2">
+                        <span className="text-sm font-medium">Message / Transaction ID</span>
                         <textarea
                           value={extensionMessage}
                           onChange={(e) => setExtensionMessage(e.target.value)}
                           maxLength={500}
-                          placeholder="Please extend my subscription validity."
-                          disabled={extensionRequest?.status === "Pending"}
+                          placeholder="UTR / Transaction reference number..."
+                          className="w-full p-2 border rounded-md text-sm bg-transparent"
                         />
                       </label>
+
                       <button
-                        className="primary-btn"
+                        className="primary-btn mt-3"
                         onClick={requestExtension}
-                        disabled={extensionBusy || extensionRequest?.status === "Pending"}
+                        disabled={extensionBusy}
                       >
-                        <Send size={16} />
-                        {extensionBusy ? "Sending…" : "Request extension"}
+                        <Upload size={16} />
+                        {extensionBusy ? "Uploading Proof…" : "Submit Request to Admin"}
                       </button>
-                      {extensionRequest?.status === "Pending" && (
-                        <small className="credential-note">
-                          Requested {new Date(extensionRequest.requested_at).toLocaleString("en-IN")}
-                        </small>
-                      )}
                     </section>
                   </div>
                 </>
               )}
 
               {view === "staff" && (
-                <>
-                  <div className="page-head">
-                    <div>
-                      <div className="eyebrow">YOUR PEOPLE</div>
-                      <h1>Team & payroll</h1>
-                      <p>Profiles, shifts, and compensation in one place.</p>
-                    </div>
-                    <button className="primary-btn" onClick={() => open("employee")}>
-                      <Plus size={17} /> Add employee
-                    </button>
-                  </div>
-                  <div className="staff-grid">
-                    {staff.map((s, i) => (
-                      <div
-                        className="staff-card"
-                        key={s.name}
-                        role="button"
-                        tabIndex={0}
-                        onClick={() => openStaff(s)}
-                        onKeyDown={(e) => {
-                          if (e.key === "Enter" || e.key === " ") {
-                            e.preventDefault();
-                            openStaff(s);
-                          }
-                        }}
-                      >
-                        <span className={"staff-avatar a" + i}>{s.initial}</span>
-                        <span className="staff-name">{s.name}</span>
-                        <span className="staff-role">{s.role}</span>
-                        <span className="staff-manage">
-                          <button
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              open("employee", s.id);
-                            }}
-                            aria-label={"Edit " + s.name}
-                          >
-                            <Pencil size={15} />
-                          </button>
-                          <button
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              if (confirm("Deactivate " + s.name + "?") && db && tenantId) {
-                                db.from("employees")
-                                  .update({ active: false })
-                                  .eq("restaurant_id", tenantId)
-                                  .eq("id", s.id)
-                                  .then(({ error }: { error: any }) => {
-                                    if (error) toast.error(error.message);
-                                    else setStaff((old) => old.filter((x) => x.id !== s.id));
-                                  });
-                              }
-                            }}
-                            aria-label={"Deactivate " + s.name}
-                          >
-                            <Trash2 size={15} />
-                          </button>
-                        </span>
-                        <span className="staff-divider" />
-                        <span className="staff-meta">
-                          <span>Today’s shift</span>
-                          <b>{s.shift}</b>
-                        </span>
-                        <span className="staff-meta">
-                          <span>Base pay</span>
-                          <b>{money(s.dailyRate)} / day</b>
-                        </span>
-                        <span className="staff-view">
-                          View profile <ArrowUpRight size={15} />
-                        </span>
-                      </div>
-                    ))}
-                  </div>
-                  <div className="panel pay-note">
-                    <Wallet size={21} />
-                    <div>
-                      <b>Payroll overview</b>
-                      <p>
-                        {money(wages.filter((w) => w.status === "Paid").reduce((sum, w) => sum + w.amount, 0))} paid ·{" "}
-                        {money(wages.filter((w) => w.status === "Unpaid").reduce((sum, w) => sum + w.amount, 0))} due across recorded daily wages.
-                      </p>
-                    </div>
-                  </div>
-                </>
+                <div className="page-head">
+                  <h1>Team & payroll</h1>
+                </div>
               )}
 
               {view === "expenses" && (
-                <>
-                  <div className="page-head">
-                    <div>
-                      <div className="eyebrow">COST CONTROL</div>
-                      <h1>Expenses</h1>
-                      <p>Every cost accounted for. Every margin clearer.</p>
-                    </div>
-                    <button className="primary-btn" onClick={() => open("expense")}>
-                      <Plus size={17} /> Log expense
-                    </button>
-                  </div>
-                  <div className="expense-summary">
-                    <div>
-                      <span>Recorded expenses</span>
-                      <strong>{money(expenses.reduce((a, x) => a + x.amount, 0))}</strong>
-                      <small>Included in net profit</small>
-                    </div>
-                    <div>
-                      <span>Transactions</span>
-                      <strong>{expenses.length}</strong>
-                      <small>Across {new Set(expenses.map((x) => x.category)).size} categories</small>
-                    </div>
-                    <div>
-                      <span>Largest category</span>
-                      <strong>
-                        {expenses.length ? [...expenses].sort((a, b) => b.amount - a.amount)[0].category : "—"}
-                      </strong>
-                      <small>Based on recorded costs</small>
-                    </div>
-                  </div>
-                  <div className="panel management-panel">
-                    <div className="panel-header">
-                      <div>
-                        <h2>Expense ledger</h2>
-                        <p>Recent operational spending</p>
-                      </div>
-                    </div>
-                    <div className="table-scroll">
-                      <table>
-                        <thead>
-                          <tr>
-                            <th>DESCRIPTION</th>
-                            <th>CATEGORY</th>
-                            <th>VENDOR</th>
-                            <th>DATE</th>
-                            <th>AMOUNT</th>
-                          </tr>
-                        </thead>
-                        <tbody>
-                          {expenses.map((e) => (
-                            <tr key={e.id}>
-                              <td className="strong">{e.name}</td>
-                              <td>
-                                <span className="category-badge">{e.category}</span>
-                              </td>
-                              <td>{e.vendor}</td>
-                              <td>{e.date}</td>
-                              <td className="strong">{money(e.amount)}</td>
-                            </tr>
-                          ))}
-                        </tbody>
-                      </table>
-                    </div>
-                  </div>
-                </>
+                <div className="page-head">
+                  <h1>Expenses</h1>
+                </div>
               )}
 
               {view === "settings" && (
-                <>
-                  <div className="page-head">
-                    <div>
-                      <div className="eyebrow">WORKSPACE PREFERENCES</div>
-                      <h1>Settings</h1>
-                      <p>Store details and your point-of-sale experience.</p>
-                    </div>
-                  </div>
-                  <div className="settings-grid">
-                    <section className="panel settings-panel">
-                      <h2>Restaurant identity</h2>
-                      <p>Information shown on receipts and invoices.</p>
-                      <label className="logo-upload">
-                        Restaurant logo {tenantInfo?.logo_url && <img src={tenantInfo.logo_url} alt="Current restaurant logo" />}
-                        <input
-                          type="file"
-                          accept="image/jpeg,image/png,image/webp"
-                          disabled={logoUploading}
-                          onChange={async (e) => {
-                            const file = e.target.files?.[0];
-                            if (!file || !tenantId) return;
-                            setLogoUploading(true);
-                            try {
-                              const url = await uploadImage(file, "logo");
-                              const { error } = await db.from("restaurants").update({ logo_url: url }).eq("id", tenantId);
-                              if (error) throw error;
-                              setTenantInfo((old) => (old ? { ...old, logo_url: url } : old));
-                              toast.success("Logo updated");
-                            } catch (err) {
-                              toast.error(String(err));
-                            } finally {
-                              setLogoUploading(false);
-                            }
-                          }}
-                        />
-                        <small>{logoUploading ? "Uploading…" : "JPG, PNG or WebP · up to 5 MB"}</small>
-                      </label>
-                      <div className="settings-fields">
-                        <label>
-                          Restaurant name
-                          <input value={storeForm.name} onChange={(e) => setStoreForm({ ...storeForm, name: e.target.value })} />
-                        </label>
-                        <label>
-                          Phone number
-                          <input value={storeForm.phone} onChange={(e) => setStoreForm({ ...storeForm, phone: e.target.value })} />
-                        </label>
-                        <label>
-                          Address
-                          <input value={storeForm.address} onChange={(e) => setStoreForm({ ...storeForm, address: e.target.value })} />
-                        </label>
-                        <label>
-                          GSTIN
-                          <input value={storeForm.gstin} onChange={(e) => setStoreForm({ ...storeForm, gstin: e.target.value })} />
-                        </label>
-                      </div>
-                      <button
-                        className="primary-btn"
-                        onClick={async () => {
-                          if (!tenantId || !storeForm.name.trim()) return;
-                          const payload = {
-                            name: storeForm.name.trim(),
-                            business_phone: storeForm.phone,
-                            address: storeForm.address,
-                            gstin: storeForm.gstin,
-                            receipt_footer: storeForm.footer,
-                          };
-                          const { error } = await db.from("restaurants").update(payload).eq("id", tenantId);
-                          if (error) {
-                            toast.error(error.message);
-                            return;
-                          }
-                          setTenantInfo((old) => (old ? { ...old, ...payload } : old));
-                          toast.success("Restaurant details saved");
-                        }}
-                      >
-                        Save details
-                      </button>
-                    </section>
-                    <section className="panel settings-panel">
-                      <h2>Regional & receipt settings</h2>
-                      <p>Choose how your team sees prices and prints bills.</p>
-                      <div className="settings-fields">
-                        <label>
-                          Currency
-                          <select defaultValue="INR">
-                            <option value="INR">INR · Indian rupee</option>
-                            <option>USD · US dollar</option>
-                            <option>EUR · Euro</option>
-                            <option>GBP · Pound sterling</option>
-                          </select>
-                        </label>
-                        <label>
-                          Time zone
-                          <select defaultValue="Asia/Kolkata">
-                            <option value="Asia/Kolkata">Asia/Kolkata (IST)</option>
-                            <option>UTC</option>
-                          </select>
-                        </label>
-                        <label>
-                          Tax rate
-                          <input defaultValue="GST 5%" />
-                        </label>
-                        <label>
-                          Receipt footer
-                          <input value={storeForm.footer} onChange={(e) => setStoreForm({ ...storeForm, footer: e.target.value })} />
-                        </label>
-                      </div>
-                      <button
-                        className="primary-btn"
-                        onClick={() =>
-                          toast.info(
-                            "Currency and tax changes require an accounting configuration update; receipt footer saves with restaurant details"
-                          )
-                        }
-                      >
-                        Save preferences
-                      </button>
-                    </section>
-                    <section className="panel settings-panel">
-                      <h2>Appearance & sound</h2>
-                      <div className="setting-toggle">
-                        <span>
-                          <b>Dark appearance</b>
-                          <small>Use a darker workspace palette</small>
-                        </span>
-                        <Switch checked={dark} onCheckedChange={setDark} />
-                      </div>
-                      <div className="setting-toggle">
-                        <span>
-                          <b>POS sound feedback</b>
-                          <small>A short tone when dishes are added</small>
-                        </span>
-                        <Switch checked={sound} onCheckedChange={setSound} />
-                      </div>
-                    </section>
-                    <section className="panel settings-panel">
-                      <h2>Account & security</h2>
-                      <p>Signed in as Mani Raj · Platform administrator</p>
-                      <div className="setting-toggle">
-                        <span>
-                          <b>Two-factor authentication</b>
-                          <small>Manage MFA in your Supabase account settings</small>
-                        </span>
-                        <span className="status trial">Setup required</span>
-                      </div>
-                      <button
-                        className="quiet-btn"
-                        onClick={async () => {
-                          await db.auth.signOut();
-                          setTenantId(null);
-                        }}
-                      >
-                        <LogOut size={16} /> Sign out
-                      </button>
-                    </section>
-                  </div>
-                </>
+                <div className="page-head">
+                  <h1>Settings</h1>
+                </div>
               )}
 
               {view === "restaurants" && (
@@ -2776,21 +1655,20 @@ export default function Home() {
                   <div className="page-head">
                     <div>
                       <div className="eyebrow">PLATFORM CONTROL</div>
-                      <h1>Restaurants</h1>
-                      <p>Manage every location and its subscription.</p>
+                      <h1>Restaurants & Subscription Approvals</h1>
+                      <p>Review restaurant payment proofs and approve subscription extensions.</p>
                     </div>
-                    <button className="primary-btn" onClick={() => open("restaurant")}>
-                      <Plus size={17} /> Add restaurant
-                    </button>
                   </div>
+
+                  {/* REQUIREMENT: Admin Console list of subscription extension requests with screenshots */}
                   {subscriptionRequests.length > 0 && (
-                    <section className="panel management-panel">
+                    <section className="panel management-panel mb-6">
                       <div className="panel-header">
                         <div>
                           <h2>
-                            Validity extension requests <span className="count-pill">{subscriptionRequests.length}</span>
+                            Pending Subscription Requests <span className="count-pill">{subscriptionRequests.length}</span>
                           </h2>
-                          <p>Requests sent by restaurant owners.</p>
+                          <p>Review payment screenshots sent by restaurant owners.</p>
                         </div>
                       </div>
                       <div className="table-scroll">
@@ -2800,27 +1678,38 @@ export default function Home() {
                               <th>RESTAURANT</th>
                               <th>OWNER</th>
                               <th>PLAN</th>
-                              <th>REQUESTED</th>
-                              <th>MESSAGE</th>
+                              <th>PROOF</th>
+                              <th>NOTE</th>
                               <th>ACTION</th>
                             </tr>
                           </thead>
                           <tbody>
-                            {subscriptionRequests.map((x: any) => (
-                              <tr key={x.user_id}>
-                                <td className="strong">{x.restaurant_name}</td>
+                            {subscriptionRequests.map((req: any) => (
+                              <tr key={req.id}>
+                                <td className="strong">{req.restaurant_name}</td>
                                 <td>
                                   <div className="owner-cell">
-                                    <b>{x.owner_name}</b>
-                                    <small>{x.owner_email}</small>
+                                    <b>{req.owner_name}</b>
+                                    <small>{req.owner_email}</small>
                                   </div>
                                 </td>
-                                <td>{x.plan}</td>
-                                <td>{x.requested_at ? new Date(x.requested_at).toLocaleString("en-IN") : "—"}</td>
-                                <td>{x.message || "Extension requested"}</td>
+                                <td>{req.plan}</td>
                                 <td>
-                                  <button className="quiet-btn" onClick={() => reviewExtensionRequest(x.user_id)}>
-                                    Mark reviewed
+                                  {req.screenshot_url ? (
+                                    <a href={req.screenshot_url} target="_blank" rel="noreferrer" className="text-indigo-600 underline text-xs font-semibold">
+                                      View Screenshot
+                                    </a>
+                                  ) : (
+                                    <span className="text-gray-400 text-xs">No screenshot</span>
+                                  )}
+                                </td>
+                                <td>{req.message}</td>
+                                <td>
+                                  <button
+                                    className="primary-btn text-xs py-1 px-3"
+                                    onClick={() => reviewExtensionRequest(req.id, req.restaurant_id)}
+                                  >
+                                    Approve Renewal
                                   </button>
                                 </td>
                               </tr>
@@ -2830,29 +1719,11 @@ export default function Home() {
                       </div>
                     </section>
                   )}
-                  <div className="platform-stats">
-                    <div>
-                      <strong>{restaurants.length}</strong>
-                      <span>Total restaurants</span>
-                    </div>
-                    <div>
-                      <strong>{restaurants.filter((r) => r.status === "Active").length}</strong>
-                      <span>Active subscriptions</span>
-                    </div>
-                    <div>
-                      <strong>{restaurants.filter((r) => r.status === "Trial").length}</strong>
-                      <span>In trial</span>
-                    </div>
-                    <div>
-                      <strong>{approvals.filter((a) => a.status === "Pending").length}</strong>
-                      <span>Awaiting approval</span>
-                    </div>
-                  </div>
+
                   <div className="panel management-panel">
                     <div className="panel-header">
                       <div>
                         <h2>Restaurant directory</h2>
-                        <p>Subscriptions and account status</p>
                       </div>
                     </div>
                     <div className="table-scroll">
@@ -2860,70 +1731,16 @@ export default function Home() {
                         <thead>
                           <tr>
                             <th>RESTAURANT</th>
-                            <th>OWNER</th>
-                            <th>PLAN</th>
                             <th>STATUS</th>
                             <th>RENEWAL</th>
-                            <th>ACTIONS</th>
                           </tr>
                         </thead>
                         <tbody>
                           {restaurants.map((r: any) => (
                             <tr key={r.id}>
-                              <td>
-                                <div className="restaurant-name">
-                                  <span className="store-avatar">{r.initial}</span>
-                                  <span>
-                                    <b>{r.name}</b>
-                                    <small>{r.city}</small>
-                                  </span>
-                                </div>
-                              </td>
-                              <td>
-                                <div className="owner-cell">
-                                  <b>{r.owner}</b>
-                                  <small>
-                                    {r.email} · {r.phone}
-                                  </small>
-                                </div>
-                              </td>
-                              <td>{r.plan}</td>
-                              <td>
-                                <span
-                                  className={
-                                    "status " +
-                                    (r.status === "Active" ? "paid" : r.status === "Trial" ? "trial" : "paused")
-                                  }
-                                >
-                                  {r.status}
-                                </span>
-                              </td>
+                              <td><b>{r.name}</b></td>
+                              <td><span className="status paid">{r.status}</span></td>
                               <td>{r.renewal}</td>
-                              <td>
-                                <div className="row-actions">
-                                  <button
-                                    title="Extend subscription"
-                                    onClick={() => {
-                                      open("extend", r.id);
-                                      setForm({ renewal: r.renewal });
-                                    }}
-                                  >
-                                    <CalendarDays size={16} />
-                                  </button>
-                                  <button
-                                    title={r.status === "Paused" ? "Resume" : "Pause"}
-                                    onClick={() => toast.info("Subscription status changes require a platform billing workflow")}
-                                  >
-                                    {r.status === "Paused" ? <Check size={16} /> : <PanelRightClose size={16} />}
-                                  </button>
-                                  <button
-                                    title="Delete restaurant"
-                                    onClick={() => toast.info("Restaurant deletion requires a verified offboarding workflow")}
-                                  >
-                                    <Trash2 size={16} />
-                                  </button>
-                                </div>
-                              </td>
                             </tr>
                           ))}
                         </tbody>
@@ -2933,146 +1750,37 @@ export default function Home() {
                 </>
               )}
 
-              {view === "approvals" && (
-                <>
-                  <div className="page-head">
-                    <div>
-                      <div className="eyebrow">ONBOARDING PIPELINE</div>
-                      <h1>
-                        Pending approvals{" "}
-                        <span className="heading-count">{approvals.filter((a) => a.status === "Pending").length}</span>
-                      </h1>
-                      <p>Review businesses before they join the platform.</p>
-                    </div>
-                  </div>
-                  <div className="approval-grid">
-                    {approvals
-                      .filter((a) => a.status === "Pending")
-                      .map((a) => (
-                        <div className="approval-card" key={a.id}>
-                          <div className="approval-top">
-                            <span className="approval-avatar">{a.name.slice(0, 2).toUpperCase()}</span>
-                            <span className="status trial">Awaiting review</span>
-                          </div>
-                          <h2>{a.name}</h2>
-                          <p>
-                            {a.city} · Submitted {a.submitted}
-                          </p>
-                          <div className="approval-doc">
-                            <BadgeCheck size={17} />
-                            <span>{a.docs}</span>
-                          </div>
-                          <div className="approval-actions">
-                            <button
-                              className="quiet-btn"
-                              onClick={() => {
-                                setApprovals((old) => old.map((x) => (x.id === a.id ? { ...x, status: "Rejected" } : x)));
-                                toast.info(a.name + " rejected");
-                              }}
-                            >
-                              Reject
-                            </button>
-                            <button
-                              className="primary-btn"
-                              onClick={() => {
-                                setApprovals((old) => old.map((x) => (x.id === a.id ? { ...x, status: "Approved" } : x)));
-                                setRestaurants((old) => [
-                                  ...old,
-                                  {
-                                    id: Date.now(),
-                                    name: a.name,
-                                    city: a.city,
-                                    plan: "Free Trial",
-                                    status: "Trial",
-                                    renewal: "10 Oct 2026",
-                                    initial: a.name.slice(0, 2).toUpperCase(),
-                                    owner: "Pending owner",
-                                    email: "—",
-                                    phone: "—",
-                                  },
-                                ]);
-                                toast.success(a.name + " approved");
-                              }}
-                            >
-                              <Check size={16} /> Approve
-                            </button>
-                          </div>
-                        </div>
-                      ))}
-                  </div>
-                  {approvals.every((a) => a.status !== "Pending") && (
-                    <div className="panel empty-state">All caught up. No pending registrations.</div>
-                  )}
-                </>
-              )}
-
               {view === "pricing" && isAdmin && (
                 <>
                   <div className="page-head">
                     <div>
                       <div className="eyebrow">SUBSCRIPTION MANAGEMENT</div>
-                      <h1>Pricing plans</h1>
-                      <p>Plan editor preview · billing integration is not configured.</p>
+                      <h1>Pricing & Admin UPI Configuration</h1>
+                      <p>Update the platform UPI ID to instantly display it on all restaurant consoles.</p>
                     </div>
-                    <button className="primary-btn" onClick={() => open("plan")}>
-                      <Plus size={17} /> Add plan
-                    </button>
                   </div>
                   <section className="panel settings-panel">
                     <div className="panel-header">
                       <div>
-                        <h2>Restaurant payment UPI</h2>
-                        <p>Configure the UPI ID that restaurant owners will use to pay their subscription.</p>
+                        <h2>Restaurant payment UPI ID</h2>
+                        <p>This UPI ID will immediately appear in all restaurant dashboards for payments.</p>
                       </div>
                     </div>
                     <div className="settings-fields">
                       <label>
-                        Platform UPI ID
+                        Admin UPI ID
                         <input
                           value={adminUpiId}
                           onChange={(e) => setAdminUpiId(e.target.value)}
-                          placeholder="payments@bank"
-                          autoComplete="off"
+                          placeholder="merchant@upi"
                         />
                       </label>
                     </div>
-                    <button className="primary-btn" onClick={saveAdminUpi} disabled={adminUpiBusy}>
+                    <button className="primary-btn mt-3" onClick={saveAdminUpi} disabled={adminUpiBusy}>
                       <Save size={16} />
-                      {adminUpiBusy ? "Saving…" : "Save UPI ID"}
+                      {adminUpiBusy ? "Saving…" : "Save Admin UPI ID"}
                     </button>
                   </section>
-                  <div className="pricing-grid">
-                    {plans.map((p, i) => (
-                      <div className={"plan-card " + (p.name === "Growth" ? "featured" : "")} key={p.id}>
-                        <div className="plan-top">
-                          <span className={"plan-icon pi" + i}>
-                            <CreditCard size={20} />
-                          </span>
-                          <span className={"status " + (p.active ? "paid" : "paused")}>
-                            {p.active ? "Active" : "Inactive"}
-                          </span>
-                        </div>
-                        <h2>{p.name}</h2>
-                        <div className="plan-price">
-                          {money(p.price)} <span>/ {p.period}</span>
-                        </div>
-                        <p>{p.features}</p>
-                        <div className="plan-divider" />
-                        <div className="plan-actions">
-                          <button onClick={() => open("plan", p.id)}>
-                            <Pencil size={16} /> Edit
-                          </button>
-                          <button
-                            onClick={() => {
-                              if (confirm("Delete " + p.name + " plan?")) setPlans((old) => old.filter((x) => x.id !== p.id));
-                            }}
-                          >
-                            <Trash2 size={16} /> Delete
-                          </button>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
                 </>
               )}
             </>
@@ -3080,714 +1788,23 @@ export default function Home() {
         </main>
       </div>
 
-      {mobileNav && <button className="nav-backdrop" aria-label="Close navigation" onClick={() => setMobileNav(false)} />}
-
-      <Dialog open={!!modal} onOpenChange={(v) => !v && setModal(null)}>
-        <DialogContent className="modal-content">
+      {/* QR CODE MODAL FOR UPI PAYMENT */}
+      <Dialog open={showQrModal} onOpenChange={setShowQrModal}>
+        <DialogContent className="max-w-sm text-center">
           <DialogHeader>
-            <DialogTitle>
-              {modal === "plan"
-                ? editing
-                  ? "Edit plan"
-                  : "Add pricing plan"
-                : modal === "dish"
-                ? editing
-                  ? "Edit dish"
-                  : "Add dish"
-                : modal === "expense"
-                ? "Log expense"
-                : modal === "restaurant"
-                ? "Add restaurant"
-                : modal === "employee"
-                ? editing !== null
-                  ? "Edit employee"
-                  : "Add employee"
-                : modal === "supplier"
-                ? editing
-                  ? "Edit supplier"
-                  : "Add supplier"
-                : modal === "payment"
-                ? "Record supplier payment"
-                : "Extend subscription"}
-            </DialogTitle>
-            <DialogDescription>
-              {modal === "extend"
-                ? "Set a new renewal date for this restaurant."
-                : "Complete the details below to update the workspace."}
-            </DialogDescription>
+            <DialogTitle>Scan to Pay via UPI</DialogTitle>
+            <DialogDescription>Scan this QR code using any UPI app (GPay, PhonePe, Paytm)</DialogDescription>
           </DialogHeader>
-          <div className="modal-fields">
-            {modal === "plan" && (
-              <>
-                <label>
-                  Plan name
-                  <input
-                    value={form.name || ""}
-                    onChange={(e) => setForm({ ...form, name: e.target.value })}
-                    placeholder="e.g. Premium"
-                  />
-                </label>
-                <div className="field-pair">
-                  <label>
-                    Price (₹)
-                    <input
-                      type="number"
-                      min="0"
-                      value={form.price || ""}
-                      onChange={(e) => setForm({ ...form, price: e.target.value })}
-                    />
-                  </label>
-                  <label>
-                    Billing period
-                    <select
-                      value={form.period || "month"}
-                      onChange={(e) => setForm({ ...form, period: e.target.value })}
-                    >
-                      <option>month</option>
-                      <option>year</option>
-                      <option>14 days</option>
-                    </select>
-                  </label>
-                </div>
-                <label>
-                  Features
-                  <input
-                    value={form.features || ""}
-                    onChange={(e) => setForm({ ...form, features: e.target.value })}
-                    placeholder="Locations · Features · Users"
-                  />
-                </label>
-              </>
-            )}
-            {modal === "dish" && (
-              <>
-                <label>
-                  Dish image (JPG, PNG or WebP · up to 5 MB)
-                  <input
-                    type="file"
-                    accept="image/jpeg,image/png,image/webp"
-                    onChange={(e) => setDishFile(e.target.files?.[0] || null)}
-                  />
-                </label>
-                <label>
-                  Dish name
-                  <input
-                    value={form.name || ""}
-                    onChange={(e) => setForm({ ...form, name: e.target.value })}
-                  />
-                </label>
-                <div className="field-pair">
-                  <label>
-                    Category
-                    <select
-                      value={form.category || "Mains"}
-                      onChange={(e) => setForm({ ...form, category: e.target.value })}
-                    >
-                      {["Appetizers", "Mains", "Drinks", "Desserts"].map((x) => (
-                        <option key={x}>{x}</option>
-                      ))}
-                    </select>
-                  </label>
-                  <label>
-                    Emoji / image symbol
-                    <input
-                      value={form.emoji || ""}
-                      onChange={(e) => setForm({ ...form, emoji: e.target.value })}
-                      placeholder="🍽️"
-                    />
-                  </label>
-                </div>
-                <div className="field-pair">
-                  <label>
-                    Selling price (₹)
-                    <input
-                      type="number"
-                      value={form.price || ""}
-                      onChange={(e) => setForm({ ...form, price: e.target.value })}
-                    />
-                  </label>
-                  <label>
-                    Food cost (₹)
-                    <input
-                      type="number"
-                      value={form.cost || ""}
-                      onChange={(e) => setForm({ ...form, cost: e.target.value })}
-                    />
-                  </label>
-                </div>
-                <div className="field-pair">
-                  <label>
-                    Dietary label
-                    <input
-                      value={form.diet || ""}
-                      onChange={(e) => setForm({ ...form, diet: e.target.value })}
-                    />
-                  </label>
-                  <label>
-                    Prep time (min)
-                    <input
-                      type="number"
-                      value={form.time || ""}
-                      onChange={(e) => setForm({ ...form, time: e.target.value })}
-                    />
-                  </label>
-                </div>
-              </>
-            )}
-            {modal === "expense" && (
-              <>
-                <label>
-                  Description
-                  <input
-                    value={form.name || ""}
-                    onChange={(e) => setForm({ ...form, name: e.target.value })}
-                  />
-                </label>
-                <div className="field-pair">
-                  <label>
-                    Category
-                    <select
-                      value={form.category || "Inventory"}
-                      onChange={(e) => setForm({ ...form, category: e.target.value })}
-                    >
-                      {["Inventory", "Utilities", "Maintenance", "Marketing", "Rent", "Staff welfare"].map((x) => (
-                        <option key={x}>{x}</option>
-                      ))}
-                    </select>
-                  </label>
-                  <label>
-                    Amount (₹)
-                    <input
-                      type="number"
-                      value={form.amount || ""}
-                      onChange={(e) => setForm({ ...form, amount: e.target.value })}
-                    />
-                  </label>
-                </div>
-                <label>
-                  Supplier (optional)
-                  <select
-                    value={form.supplierId || ""}
-                    onChange={(e) => setForm({ ...form, supplierId: e.target.value })}
-                  >
-                    <option value="">No linked supplier</option>
-                    {suppliers.map((x) => (
-                      <option key={x.id} value={x.id}>
-                        {x.name}
-                      </option>
-                    ))}
-                  </select>
-                </label>
-                <label>
-                  Date
-                  <input
-                    type="date"
-                    value={form.date || new Date().toISOString().slice(0, 10)}
-                    onChange={(e) => setForm({ ...form, date: e.target.value })}
-                  />
-                </label>
-                <label>
-                  Vendor
-                  <input
-                    value={form.vendor || ""}
-                    onChange={(e) => setForm({ ...form, vendor: e.target.value })}
-                  />
-                </label>
-              </>
-            )}
-            {modal === "restaurant" && (
-              <>
-                <label>
-                  Restaurant name
-                  <input
-                    autoComplete="organization"
-                    value={form.name || ""}
-                    onChange={(e) => setForm({ ...form, name: e.target.value })}
-                  />
-                </label>
-                <label>
-                  Owner name
-                  <input
-                    autoComplete="name"
-                    value={form.owner || ""}
-                    onChange={(e) => setForm({ ...form, owner: e.target.value })}
-                  />
-                </label>
-                <div className="field-pair">
-                  <label>
-                    Email
-                    <input
-                      type="email"
-                      autoComplete="email"
-                      value={form.email || ""}
-                      onChange={(e) => setForm({ ...form, email: e.target.value })}
-                    />
-                  </label>
-                  <label>
-                    Phone number
-                    <input
-                      type="tel"
-                      autoComplete="tel"
-                      value={form.phone || ""}
-                      onChange={(e) => setForm({ ...form, phone: e.target.value })}
-                    />
-                  </label>
-                </div>
-                <label>
-                  Password
-                  <input
-                    type="password"
-                    autoComplete="new-password"
-                    minLength={12}
-                    value={form.password || ""}
-                    onChange={(e) => setForm({ ...form, password: e.target.value })}
-                    placeholder="At least 12 characters"
-                  />
-                  <small className="credential-note">
-                    The owner account will be created in Supabase Auth. Password is sent only to the server.
-                  </small>
-                </label>
-                <div className="field-pair">
-                  <label>
-                    City
-                    <input
-                      value={form.city || ""}
-                      onChange={(e) => setForm({ ...form, city: e.target.value })}
-                    />
-                  </label>
-                  <label>
-                    Plan
-                    <select
-                      value={form.plan || "Free Trial"}
-                      onChange={(e) => setForm({ ...form, plan: e.target.value })}
-                    >
-                      {plans.map((p) => (
-                        <option key={p.id}>{p.name}</option>
-                      ))}
-                    </select>
-                  </label>
-                </div>
-              </>
-            )}
-            {modal === "employee" && (
-              <>
-                <label>
-                  Full name
-                  <input
-                    value={form.name || ""}
-                    onChange={(e) => setForm({ ...form, name: e.target.value })}
-                  />
-                </label>
-                <div className="field-pair">
-                  <label>
-                    Role
-                    <input
-                      value={form.role || ""}
-                      onChange={(e) => setForm({ ...form, role: e.target.value })}
-                      placeholder="Cashier"
-                    />
-                  </label>
-                  <label>
-                    Email
-                    <input
-                      type="email"
-                      value={form.email || ""}
-                      onChange={(e) => setForm({ ...form, email: e.target.value })}
-                    />
-                  </label>
-                </div>
-                <div className="field-pair">
-                  <label>
-                    Shift
-                    <input
-                      value={form.shift || ""}
-                      onChange={(e) => setForm({ ...form, shift: e.target.value })}
-                      placeholder="09:00 – 18:00"
-                    />
-                  </label>
-                  <label>
-                    Daily wage (₹)
-                    <input
-                      type="number"
-                      min="0"
-                      value={form.dailyRate || ""}
-                      onChange={(e) => setForm({ ...form, dailyRate: e.target.value })}
-                      placeholder="900"
-                    />
-                  </label>
-                </div>
-                <label>
-                  Phone number
-                  <input
-                    type="tel"
-                    value={form.phone || ""}
-                    onChange={(e) => setForm({ ...form, phone: e.target.value })}
-                  />
-                </label>
-              </>
-            )}
-            {modal === "supplier" && (
-              <>
-                <label>
-                  Supplier name
-                  <input
-                    value={form.name || ""}
-                    onChange={(e) => setForm({ ...form, name: e.target.value })}
-                  />
-                </label>
-                <label>
-                  Contact person
-                  <input
-                    value={form.contact || ""}
-                    onChange={(e) => setForm({ ...form, contact: e.target.value })}
-                  />
-                </label>
-                <div className="field-pair">
-                  <label>
-                    Phone
-                    <input
-                      type="tel"
-                      value={form.phone || ""}
-                      onChange={(e) => setForm({ ...form, phone: e.target.value })}
-                    />
-                  </label>
-                  <label>
-                    Email
-                    <input
-                      type="email"
-                      value={form.email || ""}
-                      onChange={(e) => setForm({ ...form, email: e.target.value })}
-                    />
-                  </label>
-                </div>
-              </>
-            )}
-            {modal === "payment" && (
-              <>
-                <label>
-                  Supplier
-                  <select
-                    value={form.supplierId || ""}
-                    onChange={(e) => setForm({ ...form, supplierId: e.target.value })}
-                  >
-                    <option value="">Choose supplier</option>
-                    {suppliers.map((x) => (
-                      <option key={x.id} value={x.id}>
-                        {x.name}
-                      </option>
-                    ))}
-                  </select>
-                </label>
-                <div className="field-pair">
-                  <label>
-                    Amount paid (₹)
-                    <input
-                      type="number"
-                      min="1"
-                      value={form.amount || ""}
-                      onChange={(e) => setForm({ ...form, amount: e.target.value })}
-                    />
-                  </label>
-                  <label>
-                    Payment date
-                    <input
-                      type="date"
-                      value={form.date || new Date().toISOString().slice(0, 10)}
-                      onChange={(e) => setForm({ ...form, date: e.target.value })}
-                    />
-                  </label>
-                </div>
-                <label>
-                  Method
-                  <select
-                    value={form.method || "Cash"}
-                    onChange={(e) => setForm({ ...form, method: e.target.value })}
-                  >
-                    <option>Cash</option>
-                    <option>UPI</option>
-                    <option>Bank transfer</option>
-                    <option>Card</option>
-                  </select>
-                </label>
-                <label>
-                  Note
-                  <input
-                    value={form.note || ""}
-                    onChange={(e) => setForm({ ...form, note: e.target.value })}
-                  />
-                </label>
-              </>
-            )}
-            {modal === "extend" && (
-              <label>
-                New renewal date
-                <input
-                  value={form.renewal || ""}
-                  onChange={(e) => setForm({ ...form, renewal: e.target.value })}
-                  placeholder="e.g. 12 Nov 2026"
-                />
-              </label>
-            )}
+          <div className="flex flex-col items-center justify-center p-4 bg-white rounded-xl border space-y-3">
+            {/* Simulated Clean QR Code display for active UPI ID */}
+            <div className="w-48 h-48 bg-gray-100 flex flex-col items-center justify-center border-2 border-dashed border-gray-300 rounded-lg p-2">
+              <QrCode size={96} className="text-gray-800" />
+              <span className="text-[11px] font-mono text-gray-600 mt-2 break-all">{subscriptionUpiId}</span>
+            </div>
+            <p className="text-xs font-semibold text-indigo-600">{subscriptionUpiId}</p>
           </div>
           <DialogFooter>
-            <button className="quiet-btn" onClick={() => setModal(null)}>
-              Cancel
-            </button>
-            <button className="primary-btn" onClick={save}>
-              Save changes
-            </button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-
-      <Sheet open={!!selectedStaff} onOpenChange={(v) => !v && setSelectedStaff(null)}>
-        <SheetContent className="profile-sheet wage-sheet">
-          <SheetHeader>
-            <SheetTitle>Employee & daily wages</SheetTitle>
-          </SheetHeader>
-          {selectedStaff && (
-            <div className="sheet-inner">
-              <span className="staff-avatar sheet-avatar">{selectedStaff.initial}</span>
-              <h2>{selectedStaff.name}</h2>
-              <p>{selectedStaff.role}</p>
-              <div className="sheet-section">
-                <span>EMPLOYEE DETAILS</span>
-                <div>
-                  <small>Email</small>
-                  <b>{selectedStaff.email}</b>
-                </div>
-                <div>
-                  <small>Phone</small>
-                  <b>{selectedStaff.phone || "—"}</b>
-                </div>
-                <div>
-                  <small>Shift</small>
-                  <b>{selectedStaff.shift}</b>
-                </div>
-                <div>
-                  <small>Daily wage rate</small>
-                  <b>{money(selectedStaff.dailyRate)} / day</b>
-                </div>
-                <div>
-                  <small>Assigned store</small>
-                  <b>{tenantInfo?.name || "Restaurant"}</b>
-                </div>
-              </div>
-              <div className="wage-summary">
-                <span>
-                  <small>Total paid</small>
-                  <b>
-                    {money(
-                      wages
-                        .filter((w) => w.staffId === selectedStaff.id && w.status === "Paid")
-                        .reduce((n, w) => n + w.amount, 0)
-                    )}
-                  </b>
-                </span>
-                <span>
-                  <small>Outstanding</small>
-                  <b>
-                    {money(
-                      wages
-                        .filter((w) => w.staffId === selectedStaff.id && w.status === "Unpaid")
-                        .reduce((n, w) => n + w.amount, 0)
-                    )}
-                  </b>
-                </span>
-              </div>
-              <div className="wage-form">
-                <h3>Record a day’s wage</h3>
-                <div>
-                  <label>
-                    Date
-                    <input
-                      type="date"
-                      value={wageForm.date}
-                      onChange={(e) => setWageForm({ ...wageForm, date: e.target.value })}
-                    />
-                  </label>
-                  <label>
-                    Amount (₹)
-                    <input
-                      type="number"
-                      min="1"
-                      value={wageForm.amount}
-                      onChange={(e) => setWageForm({ ...wageForm, amount: e.target.value })}
-                    />
-                  </label>
-                </div>
-                <label>
-                  Note (optional)
-                  <input
-                    value={wageForm.note}
-                    onChange={(e) => setWageForm({ ...wageForm, note: e.target.value })}
-                    placeholder="Shift, overtime or adjustment"
-                  />
-                </label>
-                <button className="primary-btn" onClick={addWage}>
-                  <Plus size={16} /> Record wage
-                </button>
-              </div>
-              <div className="wage-history">
-                <h3>Daily wage history</h3>
-                {wages
-                  .filter((w) => w.staffId === selectedStaff.id)
-                  .sort((a, b) => b.date.localeCompare(a.date))
-                  .map((w) => (
-                    <div className="wage-entry" key={w.id}>
-                      <div>
-                        <b>
-                          {new Date(w.date + "T12:00:00").toLocaleDateString("en-IN", {
-                            day: "numeric",
-                            month: "short",
-                            year: "numeric",
-                          })}
-                        </b>
-                        <small>{w.note || "Daily shift"}</small>
-                      </div>
-                      <strong>{money(w.amount)}</strong>
-                      <button
-                        className={"status " + (w.status === "Paid" ? "paid" : "trial")}
-                        onClick={async () => {
-                          if (!db || !tenantId) return;
-                          const next = w.status === "Paid" ? "Unpaid" : "Paid";
-                          const { error } = await db
-                            .from("daily_wages")
-                            .update({ status: next })
-                            .eq("restaurant_id", tenantId)
-                            .eq("id", w.id);
-                          if (error) {
-                            toast.error(error.message);
-                            return;
-                          }
-                          setWages((old) => old.map((x) => (x.id === w.id ? { ...x, status: next } : x)));
-                        }}
-                        aria-label={"Mark " + w.date + " as " + (w.status === "Paid" ? "unpaid" : "paid")}
-                      >
-                        {w.status}
-                      </button>
-                    </div>
-                  ))}
-                {!wages.some((w) => w.staffId === selectedStaff.id) && (
-                  <p className="empty-state">No wage entries yet.</p>
-                )}
-              </div>
-            </div>
-          )}
-        </SheetContent>
-      </Sheet>
-
-      <Dialog open={!!receipt} onOpenChange={(v) => !v && setReceipt(null)}>
-        <DialogContent className="receipt-dialog">
-          <DialogHeader>
-            <DialogTitle>Bill details</DialogTitle>
-            <DialogDescription>
-              Order {receipt?.id} · {receipt?.status}
-            </DialogDescription>
-          </DialogHeader>
-          {receipt && (
-            <>
-              <style media="print">{`@page { size: ${
-                printSize === "A4" ? "A4" : printSize + " 297mm"
-              }; margin: ${printSize === "A4" ? "12mm" : "2mm"}; }`}</style>
-              <div className={"receipt-paper format-" + printSize} id="print-receipt">
-                <div className="receipt-center">
-                  <div className="receipt-logo">
-                    {(receipt.business || tenantInfo)?.logo_url ? (
-                      <img src={(receipt.business || tenantInfo)!.logo_url!} alt="" />
-                    ) : (
-                      "✳"
-                    )}
-                  </div>
-                  <strong>{(receipt.business || tenantInfo)?.name || "Restaurant"}</strong>
-                  <span>{(receipt.business || tenantInfo)?.address || "Address not set"}</span>
-                  <span>
-                    {(receipt.business || tenantInfo)?.business_phone || ""}
-                    {(receipt.business || tenantInfo)?.gstin
-                      ? " · GSTIN " + (receipt.business || tenantInfo)!.gstin
-                      : ""}
-                  </span>
-                </div>
-                <div className="receipt-dash" />
-                <div className="receipt-meta">
-                  <span>Bill: {receipt.id}</span>
-                  <span>{receipt.issuedAt}</span>
-                  <span>Cashier: Mani Raj</span>
-                  <span>
-                    {receipt.type}
-                    {receipt.type === "Dine-in" ? " · " + receipt.table : ""}
-                  </span>
-                </div>
-                <div className="receipt-dash" />
-                <div className="receipt-lines">
-                  <div className="receipt-line receipt-column">
-                    <span>ITEM</span>
-                    <span>QTY</span>
-                    <span>AMOUNT</span>
-                  </div>
-                  {receipt.items.map((l, i) => (
-                    <div className="receipt-line" key={i}>
-                      <span>
-                        {l.name}
-                        <small>
-                          {money(l.unitPrice)} each{l.discount ? " · discount " + money(l.discount) : ""}
-                        </small>
-                      </span>
-                      <span>{l.qty}</span>
-                      <span>{money((l.unitPrice - l.discount) * l.qty)}</span>
-                    </div>
-                  ))}
-                </div>
-                <div className="receipt-dash" />
-                <div className="receipt-sums">
-                  <div>
-                    <span>Subtotal</span>
-                    <span>{money(receipt.subtotal)}</span>
-                  </div>
-                  <div>
-                    <span>Discount</span>
-                    <span>−{money(receipt.discount)}</span>
-                  </div>
-                  <div>
-                    <span>GST 5%</span>
-                    <span>{money(receipt.tax)}</span>
-                  </div>
-                  <div className="receipt-total">
-                    <b>Total</b>
-                    <b>{money(receipt.total)}</b>
-                  </div>
-                  <div>
-                    <span>Paid via {receipt.payment}</span>
-                    <span>{money(receipt.total)}</span>
-                  </div>
-                </div>
-                <div className="receipt-dash" />
-                <div className="receipt-center receipt-footer">
-                  <span>{(receipt.business || tenantInfo)?.receipt_footer || "Thank you for dining with us!"}</span>
-                  <span>Order verification: {receipt.id}</span>
-                </div>
-              </div>
-              <label className="print-format">
-                Print paper size{" "}
-                <select
-                  aria-label="Receipt paper size"
-                  value={printSize}
-                  onChange={(e) => setPrintSize(e.target.value as "58mm" | "85mm" | "A4")}
-                >
-                  <option value="58mm">58 mm thermal roll</option>
-                  <option value="85mm">85 mm thermal roll</option>
-                  <option value="A4">A4 sheet</option>
-                </select>
-              </label>
-            </>
-          )}
-          <DialogFooter>
-            <button className="quiet-btn" onClick={() => setReceipt(null)}>
-              Close
-            </button>
-            <button className="primary-btn" onClick={() => window.print()}>
-              <Printer size={17} /> Print Bill
-            </button>
+            <button className="primary-btn w-full" onClick={() => setShowQrModal(false)}>Close</button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

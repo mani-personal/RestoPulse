@@ -471,7 +471,10 @@ export default function Home() {
 
       if (isAdmin) {
         try {
-          const reqRes = await fetch("/api/admin/subscriptions");
+          const session = (await db.auth.getSession()).data.session;
+          const reqRes = await fetch("/api/admin/subscriptions", {
+            headers: session ? { Authorization: `Bearer ${session.access_token}` } : {},
+          });
           const reqData = await reqRes.json();
           if (live && reqData.requests) {
             setSubscriptionRequests(reqData.requests);
@@ -482,7 +485,7 @@ export default function Home() {
     return () => {
       live = false;
     };
-  }, [isAdmin, tenantId]);
+  }, [isAdmin, tenantId, db]);
 
   useEffect(() => {
     if (!tenantId) {
@@ -1181,7 +1184,6 @@ export default function Home() {
     }
   };
 
-  // Sign out handler function
   const handleSignOut = async () => {
     await db.auth.signOut();
     setTenantId(null);
@@ -1391,7 +1393,7 @@ export default function Home() {
             </button>
           </div>
 
-          {/* PROFILE POPOVER WITH SIGN OUT ADDED AFTER MANAGE EMPLOYEES */}
+          {/* Profile Popover with Sign Out correctly positioned after Manage Employees */}
           {profileMenu && (
             <div className="profile-popover">
               <div className="profile-popover-head">
@@ -2399,9 +2401,14 @@ export default function Home() {
                           <b>UPI ID</b>
                           <small>{subscriptionUpiId || "Not configured by admin"}</small>
                         </span>
-                        <button className="quiet-btn" onClick={copyUpi} disabled={!subscriptionUpiId}>
-                          <Copy size={16} /> Copy
-                        </button>
+                        <div className="flex gap-2">
+                          <button className="quiet-btn" onClick={() => setShowQrModal(true)}>
+                            <QrCode size={16} /> Show QR
+                          </button>
+                          <button className="quiet-btn" onClick={copyUpi} disabled={!subscriptionUpiId}>
+                            <Copy size={16} /> Copy
+                          </button>
+                        </div>
                       </div>
                       <div className="head-actions">
                         <button
@@ -2418,34 +2425,37 @@ export default function Home() {
                     </section>
                     <section className="panel settings-panel">
                       <h2>Request validity extension</h2>
-                      <p>
-                        {extensionRequest?.status === "Pending"
-                          ? "A request is already pending with the admin."
-                          : "Send a note to the platform admin when you need more validity."}
-                      </p>
-                      <label>
-                        Message (optional)
+                      <p>After paying, upload your payment screenshot so the admin can verify and approve your extension.</p>
+                      
+                      <label className="block space-y-1">
+                        <span className="text-sm font-medium">Payment Screenshot / Receipt</span>
+                        <input
+                          type="file"
+                          accept="image/jpeg,image/png,image/webp"
+                          onChange={(e) => setExtensionFile(e.target.files?.[0] || null)}
+                          className="block w-full text-sm file:mr-4 file:py-2 file:px-4 file:rounded-md file:border-0 file:text-sm file:font-semibold file:bg-indigo-50 file:text-indigo-700 hover:file:bg-indigo-100"
+                        />
+                      </label>
+
+                      <label className="block space-y-1 pt-2">
+                        <span className="text-sm font-medium">Message / Transaction Reference</span>
                         <textarea
                           value={extensionMessage}
                           onChange={(e) => setExtensionMessage(e.target.value)}
                           maxLength={500}
-                          placeholder="Please extend my subscription validity."
-                          disabled={extensionRequest?.status === "Pending"}
+                          placeholder="UTR / Transaction reference number..."
+                          className="w-full p-2 border rounded-md text-sm bg-transparent"
                         />
                       </label>
+
                       <button
-                        className="primary-btn"
+                        className="primary-btn mt-3"
                         onClick={requestExtension}
-                        disabled={extensionBusy || extensionRequest?.status === "Pending"}
+                        disabled={extensionBusy}
                       >
-                        <Send size={16} />
-                        {extensionBusy ? "Sending…" : "Request extension"}
+                        <Upload size={16} />
+                        {extensionBusy ? "Uploading Proof…" : "Submit Request to Admin"}
                       </button>
-                      {extensionRequest?.status === "Pending" && (
-                        <small className="credential-note">
-                          Requested {new Date(extensionRequest.requested_at).toLocaleString("en-IN")}
-                        </small>
-                      )}
                     </section>
                   </div>
                 </>
@@ -2771,21 +2781,22 @@ export default function Home() {
                   <div className="page-head">
                     <div>
                       <div className="eyebrow">PLATFORM CONTROL</div>
-                      <h1>Restaurants</h1>
-                      <p>Manage every location and its subscription.</p>
+                      <h1>Restaurants & Subscription Approvals</h1>
+                      <p>Review restaurant payment proofs and approve subscription extensions.</p>
                     </div>
                     <button className="primary-btn" onClick={() => open("restaurant")}>
                       <Plus size={17} /> Add restaurant
                     </button>
                   </div>
+
                   {subscriptionRequests.length > 0 && (
-                    <section className="panel management-panel">
+                    <section className="panel management-panel mb-6">
                       <div className="panel-header">
                         <div>
                           <h2>
-                            Validity extension requests <span className="count-pill">{subscriptionRequests.length}</span>
+                            Pending Subscription Requests <span className="count-pill">{subscriptionRequests.length}</span>
                           </h2>
-                          <p>Requests sent by restaurant owners.</p>
+                          <p>Review payment screenshots sent by restaurant owners.</p>
                         </div>
                       </div>
                       <div className="table-scroll">
@@ -2795,27 +2806,38 @@ export default function Home() {
                               <th>RESTAURANT</th>
                               <th>OWNER</th>
                               <th>PLAN</th>
-                              <th>REQUESTED</th>
-                              <th>MESSAGE</th>
+                              <th>PROOF</th>
+                              <th>NOTE</th>
                               <th>ACTION</th>
                             </tr>
                           </thead>
                           <tbody>
-                            {subscriptionRequests.map((x: any) => (
-                              <tr key={x.user_id}>
-                                <td className="strong">{x.restaurant_name}</td>
+                            {subscriptionRequests.map((req: any) => (
+                              <tr key={req.id}>
+                                <td className="strong">{req.restaurant_name}</td>
                                 <td>
                                   <div className="owner-cell">
-                                    <b>{x.owner_name}</b>
-                                    <small>{x.owner_email}</small>
+                                    <b>{req.owner_name}</b>
+                                    <small>{req.owner_email}</small>
                                   </div>
                                 </td>
-                                <td>{x.plan}</td>
-                                <td>{x.requested_at ? new Date(x.requested_at).toLocaleString("en-IN") : "—"}</td>
-                                <td>{x.message || "Extension requested"}</td>
+                                <td>{req.plan}</td>
                                 <td>
-                                  <button className="quiet-btn" onClick={() => reviewExtensionRequest(x.user_id)}>
-                                    Mark reviewed
+                                  {req.screenshot_url ? (
+                                    <a href={req.screenshot_url} target="_blank" rel="noreferrer" className="text-indigo-600 underline text-xs font-semibold">
+                                      View Screenshot
+                                    </a>
+                                  ) : (
+                                    <span className="text-gray-400 text-xs">No screenshot</span>
+                                  )}
+                                </td>
+                                <td>{req.message}</td>
+                                <td>
+                                  <button
+                                    className="primary-btn text-xs py-1 px-3"
+                                    onClick={() => reviewExtensionRequest(req.id, req.restaurant_id)}
+                                  >
+                                    Approve Renewal
                                   </button>
                                 </td>
                               </tr>
@@ -2825,6 +2847,7 @@ export default function Home() {
                       </div>
                     </section>
                   )}
+
                   <div className="platform-stats">
                     <div>
                       <strong>{restaurants.length}</strong>
@@ -3006,8 +3029,8 @@ export default function Home() {
                   <div className="page-head">
                     <div>
                       <div className="eyebrow">SUBSCRIPTION MANAGEMENT</div>
-                      <h1>Pricing plans</h1>
-                      <p>Plan editor preview · billing integration is not configured.</p>
+                      <h1>Pricing plans & Admin UPI Configuration</h1>
+                      <p>Configure the UPI ID that restaurant owners will use to pay their subscription.</p>
                     </div>
                     <button className="primary-btn" onClick={() => open("plan")}>
                       <Plus size={17} /> Add plan
@@ -3016,24 +3039,24 @@ export default function Home() {
                   <section className="panel settings-panel">
                     <div className="panel-header">
                       <div>
-                        <h2>Restaurant payment UPI</h2>
-                        <p>Configure the UPI ID that restaurant owners will use to pay their subscription.</p>
+                        <h2>Restaurant payment UPI ID</h2>
+                        <p>This UPI ID will immediately appear in all restaurant dashboards for payments.</p>
                       </div>
                     </div>
                     <div className="settings-fields">
                       <label>
-                        Platform UPI ID
+                        Admin UPI ID
                         <input
                           value={adminUpiId}
                           onChange={(e) => setAdminUpiId(e.target.value)}
-                          placeholder="payments@bank"
+                          placeholder="merchant@upi"
                           autoComplete="off"
                         />
                       </label>
                     </div>
                     <button className="primary-btn" onClick={saveAdminUpi} disabled={adminUpiBusy}>
                       <Save size={16} />
-                      {adminUpiBusy ? "Saving…" : "Save UPI ID"}
+                      {adminUpiBusy ? "Saving…" : "Save Admin UPI ID"}
                     </button>
                   </section>
                   <div className="pricing-grid">
@@ -3783,6 +3806,26 @@ export default function Home() {
             <button className="primary-btn" onClick={() => window.print()}>
               <Printer size={17} /> Print Bill
             </button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* QR CODE MODAL FOR UPI PAYMENT */}
+      <Dialog open={showQrModal} onOpenChange={setShowQrModal}>
+        <DialogContent className="max-w-sm text-center">
+          <DialogHeader>
+            <DialogTitle>Scan to Pay via UPI</DialogTitle>
+            <DialogDescription>Scan this QR code using any UPI app (GPay, PhonePe, Paytm)</DialogDescription>
+          </DialogHeader>
+          <div className="flex flex-col items-center justify-center p-4 bg-white rounded-xl border space-y-3">
+            <div className="w-48 h-48 bg-gray-100 flex flex-col items-center justify-center border-2 border-dashed border-gray-300 rounded-lg p-2">
+              <QrCode size={96} className="text-gray-800" />
+              <span className="text-[11px] font-mono text-gray-600 mt-2 break-all">{subscriptionUpiId}</span>
+            </div>
+            <p className="text-xs font-semibold text-indigo-600">{subscriptionUpiId}</p>
+          </div>
+          <DialogFooter>
+            <button className="primary-btn w-full" onClick={() => setShowQrModal(false)}>Close</button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

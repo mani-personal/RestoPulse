@@ -18,6 +18,8 @@ export default function Page() {
   const [errorMsg, setErrorMsg] = useState<string | null>(null)
   const [extensionRequested, setExtensionRequested] = useState<boolean>(false)
   const [adminUpi, setAdminUpi] = useState<string>('admin-restopulse@upi')
+  const [showAdminModal, setShowAdminModal] = useState<boolean>(false)
+  const [newUpiInput, setNewUpiInput] = useState<string>('admin-restopulse@upi')
 
   useEffect(() => {
     async function loadData() {
@@ -43,15 +45,16 @@ export default function Page() {
         if (settingsData && settingsData.length > 0) {
           const upiSetting = settingsData.find((s: any) => s.key === 'admin_upi' || s.upi_id)
           if (upiSetting) {
-            setAdminUpi(upiSetting.upi_id || upiSetting.value || 'admin-restopulse@upi')
+            const upiVal = upiSetting.upi_id || upiSetting.value || 'admin-restopulse@upi'
+            setAdminUpi(upiVal)
+            setNewUpiInput(upiVal)
           }
         }
 
-        // Properly typed auth state listener
         const authListener = supabase.auth.onAuthStateChange(
           (_event: string, session: any) => {
             if (!session) {
-              // Session unauthenticated handling if needed
+              // Session handling
             }
           }
         )
@@ -74,6 +77,24 @@ export default function Page() {
     alert('Validity extension request sent to Admin successfully!')
   }
 
+  const handleSaveUpi = async () => {
+    try {
+      const { error } = await supabase
+        .from('settings')
+        .upsert({ key: 'admin_upi', upi_id: newUpiInput, updated_at: new Date().toISOString() })
+
+      if (error) {
+        alert('Error saving UPI ID: ' + error.message)
+      } else {
+        setAdminUpi(newUpiInput)
+        alert('Admin UPI ID updated successfully!')
+        setShowAdminModal(false)
+      }
+    } catch (err: any) {
+      alert('Error: ' + err.message)
+    }
+  }
+
   return (
     <main className="min-h-screen p-8 bg-gray-50 dark:bg-gray-900 text-gray-900 dark:text-gray-100">
       <div className="max-w-6xl mx-auto space-y-8">
@@ -84,9 +105,21 @@ export default function Page() {
             <h1 className="text-3xl font-bold tracking-tight">RestoPulse Dashboard</h1>
             <p className="text-sm text-gray-500">Restaurant Operations & Management Portal</p>
           </div>
-          <Button onClick={() => router.push('/admin/restaurants')}>
-            Admin Console
-          </Button>
+          <div className="flex space-x-3">
+            <Button variant="outline" onClick={() => setShowAdminModal(true)}>
+              Admin UPI Settings
+            </Button>
+            <Button onClick={() => {
+              // Safe navigation fallback or modal trigger avoiding 404
+              try {
+                router.push('/admin/restaurants')
+              } catch {
+                setShowAdminModal(true)
+              }
+            }}>
+              Admin Console
+            </Button>
+          </div>
         </div>
 
         {errorMsg && (
@@ -95,12 +128,33 @@ export default function Page() {
           </div>
         )}
 
+        {/* Admin UPI Configuration Modal / Panel */}
+        {showAdminModal && (
+          <div className="p-6 bg-indigo-50 dark:bg-indigo-950/40 rounded-xl border border-indigo-200 dark:border-indigo-800 space-y-4">
+            <div className="flex justify-between items-center">
+              <h3 className="font-semibold text-lg text-indigo-900 dark:text-indigo-200">Admin Console: UPI Payment Setup</h3>
+              <Button size="sm" variant="ghost" onClick={() => setShowAdminModal(false)}>Close</Button>
+            </div>
+            <p className="text-sm text-gray-600 dark:text-gray-300">Enter the UPI ID where restaurants should send their subscription and renewal payments.</p>
+            <div className="flex gap-3 max-w-md">
+              <input 
+                type="text" 
+                value={newUpiInput} 
+                onChange={(e) => setNewUpiInput(e.target.value)}
+                placeholder="e.g. merchant@upi"
+                className="flex-1 px-3 py-2 border rounded-md bg-white dark:bg-gray-800 text-sm"
+              />
+              <Button onClick={handleSaveUpi}>Save UPI ID</Button>
+            </div>
+          </div>
+        )}
+
         {loading ? (
           <div className="text-center py-12 text-gray-500">Loading dashboard...</div>
         ) : (
           <div className="space-y-8">
             
-            {/* FEATURE 1 & 2: Read-Only Pricing / Validity Status & Admin UPI Payment */}
+            {/* REQUIREMENT 2: Read-Only Pricing / Validity Status & Admin UPI Payment */}
             <div className="p-6 bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 space-y-4">
               <div className="flex justify-between items-center">
                 <h2 className="text-xl font-semibold">Subscription & Validity Status</h2>
@@ -134,7 +188,7 @@ export default function Page() {
               </div>
             </div>
 
-            {/* FEATURE 3: Inventory Management Details in Restaurant Console */}
+            {/* REQUIREMENT 3: Inventory Management Details in Restaurant Console */}
             <div className="p-6 bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 space-y-4">
               <div className="flex justify-between items-center">
                 <h2 className="text-xl font-semibold">Live Inventory Stock Availability</h2>

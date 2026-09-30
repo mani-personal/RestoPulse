@@ -603,18 +603,6 @@ export default function Home() {
     setModal("inventory");
   };
 
-  const uploadImage = async (file: File, kind: "dish" | "logo" | "screenshot") => {
-    if (!db) throw new Error("Database client not available");
-    if (!["image/jpeg", "image/png", "image/webp"].includes(file.type) || file.size > 5 * 1024 * 1024)
-      throw new Error("Upload a JPG, PNG, or WebP under 5 MB");
-    const path = `${tenantId || "admin"}/${kind}/${crypto.randomUUID()}.${
-      file.type === "image/png" ? "png" : file.type === "image/webp" ? "webp" : "jpg"
-    }`;
-    const { error } = await db.storage.from("restaurant-media").upload(path, file, { contentType: file.type, upsert: false });
-    if (error) throw error;
-    return db.storage.from("restaurant-media").getPublicUrl(path).data.publicUrl;
-  };
-
   useEffect(() => {
     setDark(localStorage.getItem("rp-theme") === "dark");
   }, []);
@@ -822,15 +810,27 @@ export default function Home() {
     setModal(null);
   };
 
-  const checkout = async () => {
-    if (!cart.length) return;
+  // CHECKOUT: Instantly sets receipt state to trigger receipt dialog popup
+  const checkout = () => {
+    if (!cart.length) {
+      toast.error("Add dishes to the order first");
+      return;
+    }
     const now = new Date();
     const id = "RP-" + now.toISOString().replace(/[-:TZ.]/g, "").slice(0, 14) + "-" + crypto.randomUUID().slice(0, 4).toUpperCase();
     const time = now.toLocaleTimeString("en-IN", { hour: "numeric", minute: "2-digit" });
+    
     const bill: Bill = {
       id,
       issuedAt: now.toLocaleString("en-IN"),
-      business: tenantInfo || undefined,
+      business: tenantInfo || {
+        name: currentRestaurant?.name || "The Saffron Table",
+        logo_url: null,
+        address: "12 Church Street, Bengaluru",
+        business_phone: "+91 98765 43210",
+        gstin: "29AAAAA0000A1Z5",
+        receipt_footer: "Thank you for dining with us!",
+      },
       items: cart.map((l) => ({
         name: dishes.find((d) => d.id === l.id)?.name || "Menu item",
         qty: l.qty,
@@ -842,15 +842,44 @@ export default function Home() {
       tax,
       total,
       type: orderType,
-      table,
+      table: orderType === "Dine-in" ? table : "",
       payment,
       status: "Paid",
     };
+
+    // 1. Immediately pop up the receipt modal
     setReceipt(bill);
-    setOrders((old) => [{ id, time, placedAt: now.toISOString(), amount: total, type: orderType, status: "Paid", bill }, ...old]);
+
+    // 2. Append completed sale transaction
+    const newSale: Sale = {
+      id,
+      time,
+      placedAt: now.toISOString(),
+      amount: total,
+      type: orderType,
+      status: "Paid",
+      bill,
+    };
+    setOrders((old) => [newSale, ...old]);
+
+    // 3. Reset POS order builder
     setCart([]);
     setOrderDiscount(0);
+    setCash("");
     toast.success("Payment complete · " + id);
+
+    // Async background database sync if live
+    if (db && tenantId) {
+      db.from("sales").insert({
+        restaurant_id: tenantId,
+        bill_no: id,
+        placed_at: now.toISOString(),
+        order_type: orderType,
+        amount: total,
+        status: "Paid",
+        receipt: bill,
+      }).then();
+    }
   };
 
   const openStaff = (person: Staff) => {
@@ -1035,30 +1064,34 @@ export default function Home() {
           ))}
         </nav>
 
-        {/* PLATFORM ADMIN NAVIGATION */}
-        <div className="nav-heading admin-heading">PLATFORM ADMIN</div>
-        <nav aria-label="Platform navigation">
-          {navPlatform.map((item) => (
-            <button
-              key={item.id}
-              className={"nav-link " + (view === item.id ? "active" : "")}
-              onClick={() => nav(item.id)}
-            >
-              <item.icon size={18} />
-              {item.label}
-              {item.id === "approvals" && (
-                <span className="nav-count">{approvals.filter((x) => x.status === "Pending").length}</span>
-              )}
-            </button>
-          ))}
-        </nav>
+        {/* 1. PLATFORM ADMIN NAVIGATION: STRICTLY VISIBLE ONLY FOR ADMIN ACCOUNTS */}
+        {isAdmin && (
+          <>
+            <div className="nav-heading admin-heading">PLATFORM ADMIN</div>
+            <nav aria-label="Platform navigation">
+              {navPlatform.map((item) => (
+                <button
+                  key={item.id}
+                  className={"nav-link " + (view === item.id ? "active" : "")}
+                  onClick={() => nav(item.id)}
+                >
+                  <item.icon size={18} />
+                  {item.label}
+                  {item.id === "approvals" && (
+                    <span className="nav-count">{approvals.filter((x) => x.status === "Pending").length}</span>
+                  )}
+                </button>
+              ))}
+            </nav>
+          </>
+        )}
 
         <div className="sidebar-bottom">
           <div className="trial-note">
             <span className="trial-icon">✦</span>
             <b>Growth plan</b>
             <p>Your workspace is active. Renewal on 12 Oct 2026.</p>
-            <button onClick={() => nav("subscription")}>
+            <button onClick={() => nav(isAdmin ? "pricing" : "subscription")}>
               Manage plan <ArrowUpRight size={14} />
             </button>
           </div>
@@ -1247,7 +1280,7 @@ export default function Home() {
                     <div className="kpi-foot">
                       {k.change && (
                         <span className={"change " + (k.label === "Operating expenses" ? "negative" : "")}>
-                          {k.change}
+                              {k.change}
                         </span>
                       )}
                       <span>{k.note}</span>
@@ -1311,7 +1344,7 @@ export default function Home() {
             </>
           )}
 
-          {/* 2. POS TERMINAL */}
+          {/* 2. POS TERMINAL: FULLY INTERACTIVE WITH INSTANT RECEIPT TRIGGER ON CHARGE */}
           {view === "pos" && (
             <>
               <div className="page-head pos-head">
@@ -1389,7 +1422,7 @@ export default function Home() {
                   </div>
                   <div className="order-types">
                     {["Dine-in", "Takeaway", "Delivery"].map((t) => (
-                      <button className={orderType === t ? "selected" : ""} onClick={() => setOrderType(t)} key={t}>{t}</button>
+                      <button key={t} className={orderType === t ? "selected" : ""} onClick={() => setOrderType(t)}>{t}</button>
                     ))}
                   </div>
                   {orderType === "Dine-in" && (
@@ -1509,7 +1542,7 @@ export default function Home() {
             </>
           )}
 
-          {/* 4. INVENTORY MANAGEMENT (CRUD + THRESHOLDS) */}
+          {/* 4. INVENTORY MANAGEMENT (CRUD + STOCK THRESHOLDS) */}
           {view === "inventory" && (
             <>
               <div className="page-head flex justify-between items-center">
@@ -1749,7 +1782,7 @@ export default function Home() {
             </>
           )}
 
-          {/* 9. SETTINGS */}
+          {/* 9. WORKSPACE SETTINGS */}
           {view === "settings" && (
             <>
               <div className="page-head">
@@ -1774,8 +1807,8 @@ export default function Home() {
             </>
           )}
 
-          {/* 10. ADMIN: RESTAURANTS */}
-          {view === "restaurants" && (
+          {/* 10. ADMIN: RESTAURANTS DIRECTORY */}
+          {view === "restaurants" && isAdmin && (
             <>
               <div className="page-head">
                 <div>
@@ -1809,7 +1842,7 @@ export default function Home() {
           )}
 
           {/* 11. ADMIN: APPROVALS */}
-          {view === "approvals" && (
+          {view === "approvals" && isAdmin && (
             <>
               <div className="page-head">
                 <div>
@@ -1835,7 +1868,7 @@ export default function Home() {
           )}
 
           {/* 12. ADMIN: PRICING & UPI CONFIGURATION */}
-          {view === "pricing" && (
+          {view === "pricing" && isAdmin && (
             <>
               <div className="page-head">
                 <div>
@@ -1949,7 +1982,7 @@ export default function Home() {
         </DialogContent>
       </Dialog>
 
-      {/* Global Add/Edit Entity Modal (Dishes, Plans, Suppliers, Staff, Expenses, Restaurants) */}
+      {/* Global Add/Edit Entity Modal */}
       <Dialog open={!!modal && modal !== "inventory"} onOpenChange={(v) => !v && setModal(null)}>
         <DialogContent className="modal-content">
           <DialogHeader>
@@ -2022,6 +2055,49 @@ export default function Home() {
           <DialogFooter>
             <button className="quiet-btn" onClick={() => setModal(null)}>Cancel</button>
             <button className="primary-btn" onClick={save}>Save changes</button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* 2. RECEIPT POPUP DIALOG ON POS CHECKOUT (SHOWS IMMEDIATELY AFTER CHARGING) */}
+      <Dialog open={!!receipt} onOpenChange={(v) => !v && setReceipt(null)}>
+        <DialogContent className="receipt-dialog max-w-sm">
+          <DialogHeader>
+            <DialogTitle>Bill Details & Receipt</DialogTitle>
+            <DialogDescription>Order {receipt?.id} · {receipt?.status}</DialogDescription>
+          </DialogHeader>
+          {receipt && (
+            <div className="p-4 bg-white text-gray-900 rounded-lg font-mono text-xs space-y-2 border">
+              <div className="text-center font-bold text-sm">{receipt.business?.name || "The Saffron Table"}</div>
+              <div className="text-center text-[10px] text-gray-500">{receipt.business?.address}</div>
+              <div className="border-b border-dashed my-2" />
+              <div className="flex justify-between">
+                <span>Bill: {receipt.id}</span>
+                <span>{receipt.type} {receipt.table ? `· ${receipt.table}` : ''}</span>
+              </div>
+              <div className="text-[10px] text-gray-500">{receipt.issuedAt}</div>
+              <div className="border-b border-dashed my-2" />
+              <div className="space-y-1">
+                {receipt.items.map((item, idx) => (
+                  <div key={idx} className="flex justify-between">
+                    <span>{item.qty}x {item.name}</span>
+                    <span>{money(item.qty * item.unitPrice)}</span>
+                  </div>
+                ))}
+              </div>
+              <div className="border-b border-dashed my-2" />
+              <div className="flex justify-between"><span>Subtotal:</span><span>{money(receipt.subtotal)}</span></div>
+              {receipt.discount > 0 && <div className="flex justify-between text-green-600"><span>Discount:</span><span>−{money(receipt.discount)}</span></div>}
+              <div className="flex justify-between"><span>Tax (5%):</span><span>{money(receipt.tax)}</span></div>
+              <div className="flex justify-between font-bold text-sm pt-1 border-t"><span>Total:</span><span>{money(receipt.total)}</span></div>
+              <div className="text-center text-[10px] text-gray-500 pt-2">{receipt.business?.receipt_footer}</div>
+            </div>
+          )}
+          <DialogFooter className="flex gap-2">
+            <button className="quiet-btn" onClick={() => setReceipt(null)}>Close</button>
+            <button className="primary-btn flex items-center gap-1.5" onClick={() => window.print()}>
+              <Printer size={16} /> Print Receipt
+            </button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

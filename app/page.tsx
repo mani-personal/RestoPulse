@@ -358,7 +358,7 @@ export default function Home() {
 
   const [currentUserRole, setCurrentUserRole] = useState<string>("owner");
 
-  // Dynamic state populated directly by the database
+  // DYNAMIC CURRENT ACTIVE PLAN STATE (LINKED TO REAL-TIME BACKEND POLLING)
   const [activePlanName, setActivePlanName] = useState<string>("Free trial");
   const [activeRenewalDate, setActiveRenewalDate] = useState<string>("2026-10-13");
   const [activeRestaurantName, setActiveRestaurantName] = useState<string>("Restaurant");
@@ -475,7 +475,7 @@ export default function Home() {
     return 30;
   };
 
-  // MULTI-TENANT LIVE STATUS SYNC: FETCHES BY ACTIVE USER OR TENANT ID
+  // Synchronize Live Subscription from Database (bypasses RLS)
   const syncLiveSubscriptionStatus = useCallback(async () => {
     try {
       const url = `/api/subscription?restaurant_id=${encodeURIComponent(tenantId || "")}&user_id=${encodeURIComponent(authUser || "")}&email=${encodeURIComponent(loginEmail || "")}`;
@@ -518,11 +518,9 @@ export default function Home() {
           }));
           setRestaurants(mapped);
 
-          // Find current restaurant by tenantId, or fallback to user's restaurant
           const found =
             mapped.find((r: any) => String(r.id) === String(tenantId)) ||
             mapped.find((r: any) => r.email === loginEmail) ||
-            mapped.find((r: any) => r.name === activeRestaurantName) ||
             mapped[0];
 
           if (found) {
@@ -540,7 +538,7 @@ export default function Home() {
         }
       }
     } catch {}
-  }, [db, tenantId, loginEmail, activeRestaurantName]);
+  }, [db, tenantId, loginEmail]);
 
   const fetchRealApprovals = useCallback(async () => {
     try {
@@ -706,7 +704,7 @@ export default function Home() {
       .catch(() => {});
   }, [isAdmin, tenantId]);
 
-  // LIVE REALTIME LISTENERS & POLLING
+  // Real-Time Listeners & Polling
   useEffect(() => {
     fetchSubscriptionRequests();
     fetchRealApprovals();
@@ -1097,7 +1095,6 @@ export default function Home() {
     setAdminUpiBusy(false);
   };
 
-  // RESTAURANT SUBMITS PAYMENT PROOF (ACCURATELY BINDS TARGET RESTAURANT ID)
   const handleInlineSubmitReference = async () => {
     if (!activeInlinePlan) return;
     if (!inlineRefId.trim()) {
@@ -1144,7 +1141,6 @@ export default function Home() {
         requested_at: new Date().toISOString(),
       };
 
-      // Dispatched once via backend API to prevent duplicates
       const res = await fetch("/api/subscription", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -1176,7 +1172,6 @@ export default function Home() {
       const planName = reqRest?.plan || "Yearly";
       const daysToAdd = getPlanDurationDays(planName);
 
-      // Find target restaurant by matching ID, name, or email
       const targetRestaurant =
         restaurants.find((r) => String(r.id) === String(reqRest?.restaurant_id)) ||
         restaurants.find((r) => r.name === reqRest?.restaurant_name) ||
@@ -1195,7 +1190,6 @@ export default function Home() {
       nextDate.setDate(nextDate.getDate() + daysToAdd);
       const newRenewalStr = nextDate.toISOString().slice(0, 10);
 
-      // Send update to server endpoint
       const res = await fetch("/api/admin/subscriptions", {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
@@ -1219,7 +1213,6 @@ export default function Home() {
           }).eq("id", targetRestaurant.id);
         }
 
-        // Live state update for the active restaurant
         if (
           String(targetRestaurant?.id) === String(tenantId) ||
           targetRestaurant?.name === activeRestaurantName ||
@@ -1627,7 +1620,7 @@ export default function Home() {
         </header>
 
         <main className={"content " + (view === "pos" ? "pos-content" : "")}>
-          {/* 1. OVERVIEW DASHBOARD */}
+          {/* 1. OVERVIEW DASHBOARD (FULL ORIGINAL DASHBOARD RESTORED) */}
           {view === "dashboard" && (
             <>
               <div className="page-head">
@@ -1695,6 +1688,46 @@ export default function Home() {
                     <div className="kpi-foot"><span>{k.note}</span></div>
                   </div>
                 ))}
+              </div>
+
+              {/* Weekly Trend Chart and Top Performing Dishes Ledger */}
+              <div className="analytics-grid">
+                <section className="panel chart-panel">
+                  <div className="panel-header">
+                    <div>
+                      <h2>Revenue & expenses</h2>
+                      <p>Weekly trend breakdown</p>
+                    </div>
+                  </div>
+                  <div className="chart">
+                    <ResponsiveContainer width="100%" height="100%">
+                      <AreaChart data={chart} margin={{ top: 15, right: 8, left: -17, bottom: 0 }}>
+                        <CartesianGrid strokeDasharray="3 5" vertical={false} stroke="var(--chart-grid)" />
+                        <XAxis dataKey="day" tickLine={false} axisLine={false} tick={{ fill: "var(--text-muted)", fontSize: 12 }} dy={12} />
+                        <YAxis tickLine={false} axisLine={false} tick={{ fill: "var(--text-muted)", fontSize: 12 }} tickFormatter={(v) => `${v / 1000}k`} />
+                        <Tooltip formatter={(v) => money(Number(v))} contentStyle={{ background: "var(--panel)", border: "1px solid var(--border)", borderRadius: 12 }} />
+                        <Area type="monotone" dataKey="revenue" stroke="#f59e0b" strokeWidth={3} fillOpacity={0.2} fill="#f59e0b" />
+                        <Area type="monotone" dataKey="expense" stroke="#10b981" strokeWidth={2} fillOpacity={0} />
+                      </AreaChart>
+                    </ResponsiveContainer>
+                  </div>
+                </section>
+                <section className="panel top-dishes">
+                  <div className="panel-header">
+                    <div><h2>Top performing dishes</h2></div>
+                  </div>
+                  {initialDishes.slice(0, 4).map((d, i) => (
+                    <div className="leader-row" key={d.id}>
+                      <span className="leader-rank">0{i + 1}</span>
+                      <span className="dish-thumb">{d.emoji}</span>
+                      <div className="leader-info">
+                        <b>{d.name}</b>
+                        <small>{[82, 67, 54, 42][i]} orders</small>
+                      </div>
+                      <strong>{money([55760, 52930, 28080, 23520][i])}</strong>
+                    </div>
+                  ))}
+                </section>
               </div>
             </>
           )}
@@ -2112,6 +2145,11 @@ export default function Home() {
                             </div>
                           </div>
 
+                          <div className="grid grid-cols-2 gap-4 text-xs">
+                            <div className="p-3 bg-secondary/30 rounded-lg">Total Purchases: <b>{money(billed)}</b></div>
+                            <div className="p-3 bg-secondary/30 rounded-lg">Total Paid: <b>{money(paid)}</b></div>
+                          </div>
+
                           <div className="table-scroll mt-4">
                             <table className="w-full text-left text-xs">
                               <thead>
@@ -2151,7 +2189,7 @@ export default function Home() {
             </>
           )}
 
-          {/* 8. RESTAURANT SUBSCRIPTION (REALTIME SYNCHRONIZED TIER BADGES) */}
+          {/* 8. RESTAURANT SUBSCRIPTION: REAL-TIME SYNCHRONIZED TIER BADGE */}
           {view === "subscription" && (
             <>
               <div className="page-head">
@@ -2472,7 +2510,7 @@ export default function Home() {
             </>
           )}
 
-          {/* 11. ADMIN: APPROVALS (APPROVE & REJECT) */}
+          {/* 11. ADMIN: APPROVALS */}
           {view === "approvals" && isAdmin && (
             <>
               <div className="page-head flex justify-between items-center">
@@ -2896,7 +2934,7 @@ export default function Home() {
         </SheetContent>
       </Sheet>
 
-      {/* PRINTABLE RECEIPT DIALOG */}
+      {/* PRINTABLE THERMAL RECEIPT DIALOG */}
       <Dialog open={!!receipt} onOpenChange={(v) => !v && setReceipt(null)}>
         <DialogContent className="max-w-md p-6 bg-slate-900 border border-slate-800 text-white">
           <DialogHeader className="no-print">
@@ -2961,7 +2999,7 @@ export default function Home() {
 
               <div className="border-b border-dashed border-gray-400 my-2" />
 
-              {/* Monochromatic table with percentage widths */}
+              {/* Monochromatic table with relative column percentages */}
               <table className="w-full text-[10px] font-mono border-collapse table-fixed">
                 <thead>
                   <tr className="border-b border-dashed border-gray-400 text-gray-700 font-bold">
@@ -2987,14 +3025,15 @@ export default function Home() {
 
               <div className="border-b border-dashed border-gray-400 my-2" />
 
+              {/* Financial Breakdown & GST Slabs */}
               <div className="space-y-0.5 text-[10px] font-mono">
                 <div className="flex justify-between">
-                  <span>Subtotal:</span>
+                  <span>Subtotal</span>
                   <span>{money(receipt.subtotal)}</span>
                 </div>
                 {receipt.discount > 0 && (
                   <div className="flex justify-between text-green-700">
-                    <span>Discount:</span>
+                    <span>Discount</span>
                     <span>−{money(receipt.discount)}</span>
                   </div>
                 )}
@@ -3017,6 +3056,7 @@ export default function Home() {
                 </div>
               </div>
 
+              {/* Receipt Footer */}
               <div className="text-center text-[9px] text-gray-500 pt-2 border-t border-dashed border-gray-300">
                 {receipt.business?.receipt_footer || "Thank you for dining with us! Visit again."}
               </div>

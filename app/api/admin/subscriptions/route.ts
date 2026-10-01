@@ -41,7 +41,7 @@ export async function PATCH(request: Request) {
       return NextResponse.json({ success: true, status: 'Rejected' })
     }
 
-    // Default: APPROVE
+    // Mark subscription request as Approved
     const { error: subErr } = await supabase
       .from('subscription_requests')
       .update({ status: 'Approved' })
@@ -51,9 +51,9 @@ export async function PATCH(request: Request) {
       return NextResponse.json({ error: subErr.message }, { status: 400 })
     }
 
-    // Calculate days based on plan name
+    // Determine days to add
     let days = Number(days_to_add)
-    const normalizedPlan = (plan_name || 'Monthly').trim()
+    const normalizedPlan = (plan_name || 'Yearly').trim()
     if (!days || isNaN(days)) {
       if (normalizedPlan.toLowerCase().includes('year')) days = 365
       else if (normalizedPlan.toLowerCase().includes('7')) days = 7
@@ -61,9 +61,9 @@ export async function PATCH(request: Request) {
       else days = 30
     }
 
-    // Find the matching restaurant record
+    // Match restaurant in the database
     let restaurantQuery = supabase.from('restaurants').select('*')
-    if (restaurant_id && restaurant_id !== '1') {
+    if (restaurant_id && restaurant_id !== '1' && restaurant_id !== 'null') {
       restaurantQuery = restaurantQuery.eq('id', restaurant_id)
     } else if (owner_email && owner_email !== 'owner@example.com') {
       restaurantQuery = restaurantQuery.eq('owner_email', owner_email)
@@ -73,7 +73,7 @@ export async function PATCH(request: Request) {
 
     const { data: existingRest } = await restaurantQuery.maybeSingle()
 
-    // Base date: stack onto existing future renewal date if present
+    // Base date: stack onto existing valid future date
     let baseDate = new Date()
     if (existingRest?.renewal_on && existingRest.renewal_on !== '—') {
       const existingRenewal = new Date(existingRest.renewal_on)
@@ -84,9 +84,9 @@ export async function PATCH(request: Request) {
 
     const nextDate = new Date(baseDate.getTime())
     nextDate.setDate(nextDate.getDate() + days)
-    const newRenewalDateStr = nextDate.toISOString().slice(0, 10)
+    const newRenewalDateStr = nextDate.toISOString().slice(0, 10) // YYYY-MM-DD
 
-    // Update restaurant record
+    // Update restaurant
     let updateQuery = supabase.from('restaurants').update({
       status: 'Active',
       plan: normalizedPlan,
@@ -99,12 +99,6 @@ export async function PATCH(request: Request) {
       await updateQuery.eq('id', restaurant_id)
     } else if (restaurant_name) {
       await updateQuery.eq('name', restaurant_name)
-    } else {
-      // Fallback: update the latest restaurant
-      const { data: latest } = await supabase.from('restaurants').select('id').order('created_at', { ascending: false }).limit(1).single()
-      if (latest?.id) {
-        await updateQuery.eq('id', latest.id)
-      }
     }
 
     return NextResponse.json({

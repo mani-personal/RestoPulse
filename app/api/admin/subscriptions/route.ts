@@ -29,9 +29,19 @@ export async function PATCH(request: Request) {
   try {
     const supabase = getSupabase()
     const body = await request.json()
-    const { request_id, restaurant_id, restaurant_name, owner_email, plan_name, days_to_add } = body
+    const { request_id, restaurant_id, restaurant_name, owner_email, plan_name, days_to_add, action } = body
 
-    // 1. Mark subscription request as Approved
+    if (action === 'reject') {
+      const { error: rejErr } = await supabase
+        .from('subscription_requests')
+        .update({ status: 'Rejected' })
+        .eq('id', request_id)
+
+      if (rejErr) return NextResponse.json({ error: rejErr.message }, { status: 400 })
+      return NextResponse.json({ success: true, status: 'Rejected' })
+    }
+
+    // Default action: APPROVE
     const { error: subErr } = await supabase
       .from('subscription_requests')
       .update({ status: 'Approved' })
@@ -44,7 +54,7 @@ export async function PATCH(request: Request) {
     const days = Number(days_to_add) || 30
     const planToSet = plan_name || 'Monthly'
 
-    // 2. Fetch current restaurant record to check existing renewal_on date
+    // Fetch existing restaurant to compute cumulative expiration date
     let restaurantQuery = supabase.from('restaurants').select('*')
     if (restaurant_id) {
       restaurantQuery = restaurantQuery.eq('id', restaurant_id)
@@ -57,7 +67,6 @@ export async function PATCH(request: Request) {
     const { data: existingRest } = await restaurantQuery.maybeSingle()
 
     let baseDate = new Date()
-    // If the restaurant already has an active trial/subscription in the future, add to those days
     if (existingRest?.renewal_on) {
       const existingRenewal = new Date(existingRest.renewal_on)
       if (!isNaN(existingRenewal.getTime()) && existingRenewal > baseDate) {
@@ -65,12 +74,10 @@ export async function PATCH(request: Request) {
       }
     }
 
-    // Add subscription days onto existing validity
     const nextDate = new Date(baseDate.getTime())
     nextDate.setDate(nextDate.getDate() + days)
-    const newRenewalDateStr = nextDate.toISOString().slice(0, 10) // YYYY-MM-DD
+    const newRenewalDateStr = nextDate.toISOString().slice(0, 10)
 
-    // 3. Update restaurant plan and renewal date in the database
     let updateQuery = supabase.from('restaurants').update({
       status: 'Active',
       plan: planToSet,
@@ -89,6 +96,7 @@ export async function PATCH(request: Request) {
 
     return NextResponse.json({
       success: true,
+      status: 'Approved',
       plan: planToSet,
       renewal_on: newRenewalDateStr,
     })

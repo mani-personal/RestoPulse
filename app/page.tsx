@@ -330,7 +330,6 @@ const chart = [
 
 const money = (n: number) => "₹" + Math.round(n).toLocaleString("en-IN");
 
-// All standard restaurant menu items
 const navTenant: { id: View; label: string; icon: typeof LayoutDashboard; allowedRoles?: string[] }[] = [
   { id: "dashboard", label: "Overview", icon: LayoutDashboard },
   { id: "pos", label: "POS Terminal", icon: ShoppingBag, allowedRoles: ["owner", "manager", "staff"] },
@@ -358,7 +357,6 @@ export default function Home() {
   const [loginBusy, setLoginBusy] = useState(false);
   const [tenantId, setTenantId] = useState<string | null>("1");
 
-  // Defaults to owner so all menu items show unless explicitly an employee with restricted scope
   const [currentUserRole, setCurrentUserRole] = useState<string>("owner");
 
   const [tenantInfo, setTenantInfo] = useState<{
@@ -412,7 +410,6 @@ export default function Home() {
   const [wageForm, setWageForm] = useState({ date: new Date().toLocaleDateString("en-CA"), amount: "", note: "" });
   const [selectedStaff, setSelectedStaff] = useState<Staff | null>(null);
 
-  // Print format size
   const [printPaperSize, setPrintPaperSize] = useState<"58mm" | "80mm" | "A4">("80mm");
 
   const [dark, setDark] = useState(false);
@@ -439,7 +436,6 @@ export default function Home() {
   const [form, setForm] = useState<Record<string, string>>({});
   const [dateRange, setDateRange] = useState("This week");
 
-  // Inventory State
   const [inventoryList, setInventoryList] = useState<InventoryItem[]>([
     { id: 1, name: "Basmati Rice", category: "Grains", onHand: 12, unit: "bags", reorderLevel: 5 },
     { id: 2, name: "Refined Cooking Oil", category: "Oils", onHand: 3, unit: "tins", reorderLevel: 6 },
@@ -449,19 +445,16 @@ export default function Home() {
   const [invForm, setInvForm] = useState({ name: "", category: "Grains", onHand: "", unit: "bags", reorderLevel: "5" });
   const [editingInvId, setEditingInvId] = useState<string | number | null>(null);
 
-  // Admin UPI & Subscription States
   const [adminUpiId, setAdminUpiId] = useState<string>("admin-restopulse@upi");
   const [adminUpiBusy, setAdminUpiBusy] = useState(false);
   const [subscriptionUpiId, setSubscriptionUpiId] = useState<string>("admin-restopulse@upi");
 
-  // Subscription cards
   const [activeInlinePlan, setActiveInlinePlan] = useState<Plan | null>(initialPlans[1]);
   const [inlineRefId, setInlineRefId] = useState("");
   const [inlineScreenshotFile, setInlineScreenshotFile] = useState<File | null>(null);
   const [inlineSubmitBusy, setInlineSubmitBusy] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  // Password reset
   const [newPassword, setNewPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [pwdBusy, setPwdBusy] = useState(false);
@@ -476,6 +469,31 @@ export default function Home() {
     }
     return 30;
   };
+
+  // Synchronize and re-fetch real restaurants
+  const fetchAllRestaurants = useCallback(async () => {
+    try {
+      if (db) {
+        const { data, error } = await db.from("restaurants").select("*").order("created_at", { ascending: false });
+        if (!error && data && data.length) {
+          setRestaurants(
+            data.map((x: any) => ({
+              id: x.id,
+              name: x.name,
+              owner: x.owner_name,
+              email: x.owner_email,
+              phone: x.owner_phone,
+              city: x.city,
+              plan: x.plan,
+              status: x.status,
+              renewal: x.renewal_on || "—",
+              initial: x.name.slice(0, 2).toUpperCase(),
+            }))
+          );
+        }
+      }
+    } catch {}
+  }, [db]);
 
   const fetchRealApprovals = useCallback(async () => {
     try {
@@ -647,6 +665,7 @@ export default function Home() {
   useEffect(() => {
     fetchSubscriptionRequests();
     fetchRealApprovals();
+    fetchAllRestaurants();
 
     let channel1: any = null;
     let channel2: any = null;
@@ -655,6 +674,7 @@ export default function Home() {
         .channel("realtime-sub-reqs")
         .on("postgres_changes", { event: "*", schema: "public", table: "subscription_requests" }, () => {
           fetchSubscriptionRequests();
+          fetchAllRestaurants();
         })
         .subscribe();
 
@@ -662,6 +682,7 @@ export default function Home() {
         .channel("realtime-restaurants-approval")
         .on("postgres_changes", { event: "*", schema: "public", table: "restaurants" }, () => {
           fetchRealApprovals();
+          fetchAllRestaurants();
         })
         .subscribe();
     }
@@ -669,6 +690,7 @@ export default function Home() {
     const interval = setInterval(() => {
       fetchSubscriptionRequests();
       fetchRealApprovals();
+      fetchAllRestaurants();
     }, 4000);
 
     return () => {
@@ -676,7 +698,7 @@ export default function Home() {
       if (channel1 && db) db.removeChannel(channel1);
       if (channel2 && db) db.removeChannel(channel2);
     };
-  }, [db, fetchSubscriptionRequests, fetchRealApprovals]);
+  }, [db, fetchSubscriptionRequests, fetchRealApprovals, fetchAllRestaurants]);
 
   useEffect(() => {
     const key = tenantId ? `rp-inventory-list:${tenantId}` : `rp-inventory-list:default`;
@@ -947,7 +969,7 @@ export default function Home() {
         phone: form.phone || "",
       };
       setStaff((old) => (editing !== null ? old.map((x) => (x.id === editing ? person : x)) : [...old, person]));
-      toast.success(editing !== null ? "Employee updated" : "Employee added");
+      toast.success(editing !== null ? "Employee updated" : "Employee added with role permissions");
     }
     setModal(null);
   };
@@ -1025,6 +1047,7 @@ export default function Home() {
     setAdminUpiBusy(false);
   };
 
+  // RESTAURANT SUBMITS PAYMENT REFERENCE
   const handleInlineSubmitReference = async () => {
     if (!activeInlinePlan) return;
     if (!inlineRefId.trim()) {
@@ -1057,9 +1080,11 @@ export default function Home() {
       }
 
       const planName = activeInlinePlan.name;
+      const targetRestId = currentRestaurant?.id || (tenantId !== "1" ? tenantId : null);
+
       const payload = {
-        restaurant_id: tenantId && tenantId !== "1" ? tenantId : currentRestaurant?.id || null,
-        restaurant_name: tenantInfo?.name || currentRestaurant?.name || "The Saffron Table",
+        restaurant_id: targetRestId,
+        restaurant_name: currentRestaurant?.name || tenantInfo?.name || "The Saffron Table",
         owner_name: currentRestaurant?.owner || "Mani Raj",
         owner_email: currentRestaurant?.email || "mani@example.com",
         plan: planName,
@@ -1095,50 +1120,74 @@ export default function Home() {
     }
   };
 
-  const reviewExtensionRequest = async (requestId: string, restId?: string, reqPlanName?: string) => {
+  // ADMIN APPROVES SUBSCRIPTION: ADDS DAYS ONTO EXISTING DATE OR FREE TRIAL
+  const reviewExtensionRequest = async (requestId: string, reqRest: any) => {
     try {
-      const planName = reqPlanName || "Monthly";
+      const planName = reqRest?.plan || "Monthly";
       const daysToAdd = getPlanDurationDays(planName);
 
-      const nextDate = new Date();
-      nextDate.setDate(nextDate.getDate() + daysToAdd);
-      const renewalStr = nextDate.toLocaleDateString("en-CA");
+      // Find target restaurant by ID, name, or email
+      const targetRestaurant =
+        restaurants.find((r) => String(r.id) === String(reqRest?.restaurant_id)) ||
+        restaurants.find((r) => r.name === reqRest?.restaurant_name) ||
+        restaurants.find((r) => r.email === reqRest?.owner_email) ||
+        restaurants[0];
 
-      if (db) {
-        await db.from("subscription_requests").update({ status: "Approved" }).eq("id", requestId);
-        if (restId) {
-          await db.from("restaurants").update({
-            plan: planName,
-            renewal_on: renewalStr,
-            status: "Active"
-          }).eq("id", restId);
+      // Stacking logic: if current renewal date is in the future, add to it
+      let baseDate = new Date();
+      if (targetRestaurant?.renewal && targetRestaurant.renewal !== "—") {
+        const existingRenewal = new Date(targetRestaurant.renewal);
+        if (!isNaN(existingRenewal.getTime()) && existingRenewal > baseDate) {
+          baseDate = existingRenewal;
         }
       }
 
+      const nextDate = new Date(baseDate.getTime());
+      nextDate.setDate(nextDate.getDate() + daysToAdd);
+      const newRenewalStr = nextDate.toISOString().slice(0, 10); // YYYY-MM-DD
+
+      // Update in Supabase
+      if (db) {
+        await db.from("subscription_requests").update({ status: "Approved" }).eq("id", requestId);
+        if (targetRestaurant?.id) {
+          await db.from("restaurants").update({
+            plan: planName,
+            renewal_on: newRenewalStr,
+            status: "Active"
+          }).eq("id", targetRestaurant.id);
+        }
+      }
+
+      // Update via backend API
       await fetch("/api/admin/subscriptions", {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           request_id: requestId,
-          restaurant_id: restId,
+          restaurant_id: targetRestaurant?.id,
+          restaurant_name: targetRestaurant?.name,
+          owner_email: targetRestaurant?.email,
           plan_name: planName,
-          days_to_add: daysToAdd
+          days_to_add: daysToAdd,
         }),
       });
 
+      // Update local state immediately
       setRestaurants((old) =>
         old.map((r) =>
-          String(r.id) === String(restId)
-            ? { ...r, plan: planName, renewal: renewalStr, status: "Active" }
+          String(r.id) === String(targetRestaurant?.id) || r.name === targetRestaurant?.name
+            ? { ...r, plan: planName, renewal: newRenewalStr, status: "Active" }
             : r
         )
       );
 
+      // Remove from request queue
       const existing = JSON.parse(localStorage.getItem("rp-local-sub-requests") || "[]");
       localStorage.setItem("rp-local-sub-requests", JSON.stringify(existing.filter((x: any) => x.id !== requestId)));
 
       setSubscriptionRequests((old) => old.filter((x) => x.id !== requestId));
-      toast.success(`Subscription approved! Plan updated to ${planName} with +${daysToAdd} days.`);
+      toast.success(`Subscription approved! Plan updated to ${planName} with validity extended to ${newRenewalStr}.`);
+      fetchAllRestaurants();
     } catch (err: any) {
       toast.error(err.message || "Failed to approve request");
     }
@@ -1150,7 +1199,7 @@ export default function Home() {
       const daysToAdd = getPlanDurationDays(planName);
       const nextDate = new Date();
       nextDate.setDate(nextDate.getDate() + daysToAdd);
-      const renewalStr = nextDate.toLocaleDateString("en-CA");
+      const renewalStr = nextDate.toISOString().slice(0, 10);
 
       if (db) {
         await db
@@ -1183,6 +1232,7 @@ export default function Home() {
           : "Restaurant registration rejected"
       );
       fetchRealApprovals();
+      fetchAllRestaurants();
     } catch (err: any) {
       toast.error(err.message || "Failed to update restaurant status");
     }
@@ -1285,7 +1335,7 @@ export default function Home() {
   const inlineUpiPayUri = `upi://pay?pa=${encodeURIComponent(subscriptionUpiId)}&pn=${encodeURIComponent("RestoPulse")}&am=${encodeURIComponent(activePlanPrice.toFixed(2))}&cu=INR&tn=${encodeURIComponent(`${currentRestaurant?.name || 'Restaurant'} ${activeInlinePlan?.name || 'Subscription'}`)}`;
   const inlineQrImageUrl = `https://api.qrserver.com/v1/create-qr-code/?size=240x240&data=${encodeURIComponent(inlineUpiPayUri)}`;
 
-  // SAFE ROLE-BASED NAVIGATION: Owner/Admin accounts ALWAYS see all 9 sections
+  // Safe Navigation: Owner & Admin see all items by default
   const normalizedRole = (currentUserRole || "").toLowerCase();
   const isOwnerOrAdmin = normalizedRole === "owner" || normalizedRole === "admin" || !normalizedRole;
   
@@ -1364,7 +1414,7 @@ export default function Home() {
           <ChevronDown size={15} />
         </div>
 
-        {/* RESTAURANT NAVIGATION (RETAINED ALL MENU ITEMS) */}
+        {/* RESTAURANT NAVIGATION */}
         <div className="nav-heading">RESTAURANT</div>
         <nav aria-label="Restaurant navigation">
           {visibleNavTenant.map((item) => (
@@ -1406,7 +1456,8 @@ export default function Home() {
           <div className="trial-note">
             <span className="trial-icon">✦</span>
             <b>Active Plan</b>
-            <p>{currentRestaurant?.plan || "Monthly"} plan active.</p>
+            <p className="font-semibold text-white">{currentRestaurant?.plan || "Monthly"}</p>
+            <p className="text-[11px] text-gray-400 mt-0.5">Expires: {currentRestaurant?.renewal || "—"}</p>
             <button onClick={() => nav(isAdmin ? "pricing" : "subscription")}>
               Manage plan <ArrowUpRight size={14} />
             </button>
@@ -1628,7 +1679,7 @@ export default function Home() {
             </>
           )}
 
-          {/* 2. POS TERMINAL */}
+          {/* 2. POS TERMINAL: CLEAN 2-TIER CART ITEM ALIGNMENT */}
           {view === "pos" && (
             <>
               <div className="page-head pos-head">
@@ -2484,7 +2535,7 @@ export default function Home() {
                           <td>
                             <button
                               className="primary-btn text-xs py-1.5 px-3"
-                              onClick={() => reviewExtensionRequest(req.id, req.restaurant_id, req.plan)}
+                              onClick={() => reviewExtensionRequest(req.id, req)}
                             >
                               Approve Renewal
                             </button>
@@ -2603,7 +2654,7 @@ export default function Home() {
         </DialogContent>
       </Dialog>
 
-      {/* EMPLOYEE ADD / EDIT MODAL - DESIGNATIONS & PAY TYPE */}
+      {/* EMPLOYEE ADD / EDIT MODAL */}
       <Dialog open={modal === "employee"} onOpenChange={(v) => !v && setModal(null)}>
         <DialogContent className="max-w-md">
           <DialogHeader>
@@ -2674,7 +2725,7 @@ export default function Home() {
         </DialogContent>
       </Dialog>
 
-      {/* GLOBAL ENTITY MODAL (DISH, PLAN, SUPPLIER, EXPENSE, PAYMENT) */}
+      {/* GLOBAL ENTITY MODAL */}
       <Dialog open={!!modal && modal !== "inventory" && modal !== "employee"} onOpenChange={(v) => !v && setModal(null)}>
         <DialogContent className="modal-content">
           <DialogHeader>
@@ -2842,7 +2893,7 @@ export default function Home() {
         </SheetContent>
       </Sheet>
 
-      {/* PRINTABLE THERMAL RECEIPT DIALOG - NO SOLID BLACK BAR, PERFECT ALIGNMENT */}
+      {/* FIXED PRINTABLE THERMAL RECEIPT DIALOG (NO BLACK HEADER, CLEAN MONOCHROME) */}
       <Dialog open={!!receipt} onOpenChange={(v) => !v && setReceipt(null)}>
         <DialogContent className="max-w-md p-6 bg-slate-900 border border-slate-800 text-white">
           <DialogHeader className="no-print">

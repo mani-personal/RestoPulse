@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
 import { browserDb } from "@/lib/supabase";
 import {
   LayoutDashboard,
@@ -145,7 +145,7 @@ const initialRestaurants = [
   { id: 4, name: "Mira Kitchen", owner: "Sara Khan", email: "sara@example.com", phone: "+91 98765 43213", city: "Hyderabad", plan: "Starter", status: "Paused", renewal: "18 Oct 2026", initial: "MK" },
 ];
 
-const initialApprovals: { id: number; name: string; city: string; submitted: string; docs: string; status: string }[] = [
+const initialApprovals = [
   { id: 1, name: "Spice Route Bistro", city: "Pune", submitted: "28 Sep 2026", docs: "FSSAI License & GST", status: "Pending" }
 ];
 
@@ -201,13 +201,6 @@ type Wage = {
   amount: number;
   status: "Paid" | "Unpaid";
   note: string;
-};
-
-type ExtensionRequest = {
-  restaurant_id: string;
-  requested_at: string;
-  message: string;
-  status: string;
 };
 
 type BillItem = {
@@ -428,11 +421,39 @@ export default function Home() {
   const [extensionBusy, setExtensionBusy] = useState(false);
   const [showQrModal, setShowQrModal] = useState(false);
   const [selectedPlanForPayment, setSelectedPlanForPayment] = useState<Plan | null>(null);
+  const [subscriptionRequests, setSubscriptionRequests] = useState<Array<any>>([]);
 
   // Password reset state
   const [newPassword, setNewPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [pwdBusy, setPwdBusy] = useState(false);
+
+  // Centralized Request Fetcher for Admin
+  const fetchSubscriptionRequests = useCallback(async () => {
+    try {
+      if (db) {
+        const { data, error } = await db
+          .from("subscription_requests")
+          .select("*")
+          .eq("status", "Pending")
+          .order("requested_at", { ascending: false });
+
+        if (!error && data) {
+          setSubscriptionRequests(data);
+          return;
+        }
+      }
+      const res = await fetch("/api/admin/subscriptions");
+      const json = await res.json();
+      if (json?.requests) {
+        setSubscriptionRequests(json.requests);
+      }
+    } catch {
+      // Fallback local memory array if database schema pending
+      const localReqs = localStorage.getItem("rp-local-sub-requests");
+      if (localReqs) setSubscriptionRequests(JSON.parse(localReqs));
+    }
+  }, [db]);
 
   useEffect(() => {
     if (!db) {
@@ -498,6 +519,7 @@ export default function Home() {
     };
   }, [db, authUser]);
 
+  // Load Admin UPI ID from storage and backend
   useEffect(() => {
     const savedUpi = localStorage.getItem("rp-admin-upi");
     if (savedUpi) {
@@ -515,6 +537,38 @@ export default function Home() {
       })
       .catch(() => {});
   }, [isAdmin, tenantId]);
+
+  // Real-Time Sync & Polling for Admin Console Subscription Requests
+  useEffect(() => {
+    fetchSubscriptionRequests();
+
+    // 1. Supabase Real-time channel listener
+    let channel: any = null;
+    if (db) {
+      channel = db
+        .channel("realtime-subscription-requests")
+        .on(
+          "postgres_changes",
+          { event: "*", schema: "public", table: "subscription_requests" },
+          () => {
+            fetchSubscriptionRequests();
+          }
+        )
+        .subscribe();
+    }
+
+    // 2. Continuous fallback poll every 5 seconds
+    const interval = setInterval(() => {
+      fetchSubscriptionRequests();
+    }, 5000);
+
+    return () => {
+      clearInterval(interval);
+      if (channel && db) {
+        db.removeChannel(channel);
+      }
+    };
+  }, [db, fetchSubscriptionRequests]);
 
   useEffect(() => {
     const key = tenantId ? `rp-inventory-list:${tenantId}` : `rp-inventory-list:default`;
@@ -873,7 +927,6 @@ export default function Home() {
     setAdminUpiBusy(false);
   };
 
-  // Copy UPI Functionality
   const copyUpi = async () => {
     const targetUpi = subscriptionUpiId || adminUpiId || "admin-restopulse@upi";
     try {
@@ -897,15 +950,104 @@ export default function Home() {
     window.location.href = link;
   };
 
+  // Submission with direct Database, API, and Real-Time persistence
   const requestExtension = async () => {
     setExtensionBusy(true);
-    setTimeout(() => {
-      toast.success("Validity extension request and payment proof sent to admin!");
+    try {
+      let screenshotUrl = "";
+      if (extensionFile) {
+        try {
+          if (db) {
+            const path = `subscriptions/${Date.now()}-${extensionFile.name.replace(/\s+/g, "_")}`;
+            const { error: uploadErr } = await db.storage
+              .from("restaurant-media")
+              .upload(path, extensionFile, { contentType: extensionFile.type, upsert: true });
+
+            if (!uploadErr) {
+              const { data: pubData } = db.storage.from("restaurant-media").getPublicUrl(path);
+              screenshotUrl = pubData.publicUrl;
+            }
+          }
+        } catch {
+          // Fallback to local data URI preview if storage bucket is not configured
+          screenshotUrl = await new Promise((resolve) => {
+            const reader = new FileReader();
+            reader.onload = () => resolve(reader.result as string);
+            reader.readAsDataURL(extensionFile);
+          });
+        }
+      }
+
+      const payload = {
+        restaurant_id: tenantId && tenantId !== "1" ? tenantId : null,
+        restaurant_name: tenantInfo?.name || currentRestaurant?.name || "The Saffron Table",
+        owner_name: currentRestaurant?.owner || "Mani Raj",
+        owner_email: currentRestaurant?.email || "mani@example.com",
+        plan: selectedPlanForPayment?.name || currentRestaurant?.plan || "Growth",
+        upi_id: subscriptionUpiId,
+        screenshot_url: screenshotUrl,
+        message: extensionMessage.trim() || `Payment proof uploaded for ${selectedPlanForPayment?.name || 'subscription'}`,
+        status: "Pending",
+        requested_at: new Date().toISOString(),
+      };
+
+      // 1. Write directly to Supabase if table exists
+      if (db) {
+        await db.from("subscription_requests").insert(payload);
+      }
+
+      // 2. Write to backend API endpoint
+      await fetch("/api/subscription", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+
+      // 3. Fallback broadcast via LocalStorage for cross-tab realtime sync
+      const existing = JSON.parse(localStorage.getItem("rp-local-sub-requests") || "[]");
+      const newRecord = { id: `req-${Date.now()}`, ...payload };
+      localStorage.setItem("rp-local-sub-requests", JSON.stringify([newRecord, ...existing]));
+
+      toast.success("Payment proof and subscription request submitted to Admin successfully!");
       setExtensionMessage("");
       setExtensionFile(null);
       setShowQrModal(false);
+
+      // Force immediate refresh
+      fetchSubscriptionRequests();
+    } catch (err: any) {
+      toast.error(err.message || "Failed to submit request");
+    } finally {
       setExtensionBusy(false);
-    }, 600);
+    }
+  };
+
+  const reviewExtensionRequest = async (requestId: string, restId?: string) => {
+    try {
+      if (db) {
+        await db.from("subscription_requests").update({ status: "Approved" }).eq("id", requestId);
+        if (restId) {
+          const newDate = new Date();
+          newDate.setDate(newDate.getDate() + 30);
+          const renewalStr = newDate.toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" });
+          await db.from("restaurants").update({ renewal_on: renewalStr, status: "Active" }).eq("id", restId);
+        }
+      }
+      await fetch("/api/admin/subscriptions", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ request_id: requestId }),
+      });
+
+      // Update local storage backup
+      const existing = JSON.parse(localStorage.getItem("rp-local-sub-requests") || "[]");
+      localStorage.setItem("rp-local-sub-requests", JSON.stringify(existing.filter((x: any) => x.id !== requestId)));
+
+      setSubscriptionRequests((old) => old.filter((x) => x.id !== requestId));
+      toast.success("Subscription approved and extended successfully!");
+    } catch (err: any) {
+      toast.error(err.message || "Failed to approve request");
+    }
   };
 
   const handleResetPassword = async (e: React.FormEvent) => {
@@ -1072,7 +1214,7 @@ export default function Home() {
                   <item.icon size={18} />
                   {item.label}
                   {item.id === "approvals" && (
-                    <span className="nav-count">{approvals.filter((x) => x.status === "Pending").length}</span>
+                    <span className="nav-count">{subscriptionRequests.length || approvals.filter((x) => x.status === "Pending").length}</span>
                   )}
                 </button>
               ))}
@@ -1183,13 +1325,13 @@ export default function Home() {
             <div className="notification-popover">
               <div className="popover-title">
                 <b>Notifications</b>
-                <span>{approvals.filter((x) => x.status === "Pending").length} new</span>
+                <span>{subscriptionRequests.length || approvals.filter((x) => x.status === "Pending").length} new</span>
               </div>
-              <button onClick={() => nav("approvals")}>
+              <button onClick={() => nav(isAdmin ? "restaurants" : "subscription")}>
                 <span className="notif-icon amber">◎</span>
                 <span>
-                  <b>{approvals.filter((x) => x.status === "Pending").length} restaurants awaiting approval</b>
-                  <small>Review registration documents</small>
+                  <b>{subscriptionRequests.length} pending renewal requests</b>
+                  <small>Review uploaded payment proofs</small>
                 </span>
               </button>
             </div>
@@ -1850,18 +1992,99 @@ export default function Home() {
             </>
           )}
 
-          {/* 10. ADMIN: RESTAURANTS DIRECTORY */}
+          {/* 10. ADMIN: RESTAURANTS DIRECTORY & SUBSCRIPTION APPROVALS */}
           {view === "restaurants" && isAdmin && (
             <>
               <div className="page-head">
                 <div>
                   <div className="eyebrow">PLATFORM CONTROL</div>
-                  <h1>Restaurants & Subscriptions</h1>
-                  <p>Manage registered restaurants and approvals.</p>
+                  <h1>Restaurants & Subscription Approvals</h1>
+                  <p>Review restaurant payment proofs and manage registered venues.</p>
                 </div>
                 <button className="primary-btn" onClick={() => open("restaurant")}><Plus size={17} /> Add restaurant</button>
               </div>
+
+              {/* Real-Time Subscription Extension Requests Table */}
+              <section className="panel management-panel mb-6">
+                <div className="panel-header flex justify-between items-center">
+                  <div>
+                    <h2>
+                      Pending Subscription Requests{" "}
+                      <span className="count-pill">{subscriptionRequests.length}</span>
+                    </h2>
+                    <p>Live incoming payment screenshots from restaurant owners.</p>
+                  </div>
+                  <button className="quiet-btn text-xs flex items-center gap-1" onClick={fetchSubscriptionRequests}>
+                    Refresh List
+                  </button>
+                </div>
+                <div className="table-scroll">
+                  <table>
+                    <thead>
+                      <tr>
+                        <th>RESTAURANT</th>
+                        <th>OWNER</th>
+                        <th>PLAN</th>
+                        <th>PAYMENT PROOF</th>
+                        <th>TRANSACTION NOTE</th>
+                        <th>ACTION</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {subscriptionRequests.map((req: any) => (
+                        <tr key={req.id}>
+                          <td className="strong">{req.restaurant_name}</td>
+                          <td>
+                            <div className="owner-cell">
+                              <b>{req.owner_name}</b>
+                              <small>{req.owner_email}</small>
+                            </div>
+                          </td>
+                          <td><span className="status paid">{req.plan}</span></td>
+                          <td>
+                            {req.screenshot_url ? (
+                              <a
+                                href={req.screenshot_url}
+                                target="_blank"
+                                rel="noreferrer"
+                                className="text-indigo-600 dark:text-indigo-400 underline text-xs font-semibold inline-flex items-center gap-1"
+                              >
+                                View Proof <ExternalLink size={12} />
+                              </a>
+                            ) : (
+                              <span className="text-gray-400 text-xs">No screenshot</span>
+                            )}
+                          </td>
+                          <td className="text-sm max-w-xs truncate">{req.message || "—"}</td>
+                          <td>
+                            <button
+                              className="primary-btn text-xs py-1 px-3"
+                              onClick={() => reviewExtensionRequest(req.id, req.restaurant_id)}
+                            >
+                              Approve Renewal
+                            </button>
+                          </td>
+                        </tr>
+                      ))}
+                      {!subscriptionRequests.length && (
+                        <tr>
+                          <td colSpan={6} className="text-center py-6 text-muted-foreground text-sm">
+                            No pending subscription payment proofs right now.
+                          </td>
+                        </tr>
+                      )}
+                    </tbody>
+                  </table>
+                </div>
+              </section>
+
               <div className="panel management-panel">
+                <div className="panel-header">
+                  <div>
+                    <h2>Restaurant Directory</h2>
+                    <p>Registered restaurants on RestoPulse</p>
+                  </div>
+                </div>
                 <div className="table-scroll">
                   <table>
                     <thead>
@@ -1890,8 +2113,8 @@ export default function Home() {
               <div className="page-head">
                 <div>
                   <div className="eyebrow">ONBOARDING PIPELINE</div>
-                  <h1>Pending approvals <span className="heading-count">{approvals.length}</span></h1>
-                  <p>Review businesses before they join the platform.</p>
+                  <h1>Pending Approvals <span className="heading-count">{approvals.length}</span></h1>
+                  <p>Review new business accounts before onboarding.</p>
                 </div>
               </div>
               <div className="approval-grid">

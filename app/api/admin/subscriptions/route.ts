@@ -41,18 +41,16 @@ export async function PATCH(request: Request) {
       return NextResponse.json({ success: true, status: 'Rejected' })
     }
 
-    // Mark subscription request as Approved
-    const { error: subErr } = await supabase
-      .from('subscription_requests')
-      .update({ status: 'Approved' })
-      .eq('id', request_id)
-
-    if (subErr) {
-      return NextResponse.json({ error: subErr.message }, { status: 400 })
+    // 1. Mark subscription request as Approved
+    if (request_id) {
+      await supabase
+        .from('subscription_requests')
+        .update({ status: 'Approved' })
+        .eq('id', request_id)
     }
 
-    // Calculate days based on plan name
-    const normalizedPlan = (plan_name || 'Monthly').trim()
+    // 2. Normalize plan name and calculate days
+    const normalizedPlan = (plan_name || 'Yearly').trim()
     let days = Number(days_to_add)
     if (!days || isNaN(days)) {
       if (normalizedPlan.toLowerCase().includes('year')) days = 365
@@ -61,29 +59,33 @@ export async function PATCH(request: Request) {
       else days = 30
     }
 
-    // Match restaurant
-    let existingRest: any = null
+    // 3. Find matching restaurant record (checks ID, name, email)
+    let targetRest: any = null
+
     if (restaurant_id && restaurant_id !== '1' && restaurant_id !== 'null') {
       const { data } = await supabase.from('restaurants').select('*').eq('id', restaurant_id).maybeSingle()
-      if (data) existingRest = data
-    }
-    if (!existingRest && owner_email) {
-      const { data } = await supabase.from('restaurants').select('*').eq('owner_email', owner_email).maybeSingle()
-      if (data) existingRest = data
-    }
-    if (!existingRest && restaurant_name) {
-      const { data } = await supabase.from('restaurants').select('*').ilike('name', restaurant_name).maybeSingle()
-      if (data) existingRest = data
-    }
-    if (!existingRest) {
-      const { data } = await supabase.from('restaurants').select('*').order('created_at', { ascending: false }).limit(1).maybeSingle()
-      if (data) existingRest = data
+      if (data) targetRest = data
     }
 
-    // Stacking: add onto future expiry date if available
+    if (!targetRest && restaurant_name) {
+      const { data } = await supabase.from('restaurants').select('*').ilike('name', restaurant_name).maybeSingle()
+      if (data) targetRest = data
+    }
+
+    if (!targetRest && owner_email) {
+      const { data } = await supabase.from('restaurants').select('*').eq('owner_email', owner_email).maybeSingle()
+      if (data) targetRest = data
+    }
+
+    if (!targetRest) {
+      const { data } = await supabase.from('restaurants').select('*').order('created_at', { ascending: false }).limit(1).maybeSingle()
+      if (data) targetRest = data
+    }
+
+    // 4. Stacking logic: if renewal_on is in the future, add to it
     let baseDate = new Date()
-    if (existingRest?.renewal_on && existingRest.renewal_on !== '—') {
-      const existingRenewal = new Date(existingRest.renewal_on)
+    if (targetRest?.renewal_on && targetRest.renewal_on !== '—') {
+      const existingRenewal = new Date(targetRest.renewal_on)
       if (!isNaN(existingRenewal.getTime()) && existingRenewal > baseDate) {
         baseDate = existingRenewal
       }
@@ -93,7 +95,8 @@ export async function PATCH(request: Request) {
     nextDate.setDate(nextDate.getDate() + days)
     const newRenewalDateStr = nextDate.toISOString().slice(0, 10) // YYYY-MM-DD
 
-    if (existingRest?.id) {
+    // 5. Update restaurant in Supabase
+    if (targetRest?.id) {
       await supabase
         .from('restaurants')
         .update({
@@ -101,12 +104,13 @@ export async function PATCH(request: Request) {
           plan: normalizedPlan,
           renewal_on: newRenewalDateStr,
         })
-        .eq('id', existingRest.id)
+        .eq('id', targetRest.id)
     }
 
     return NextResponse.json({
       success: true,
       status: 'Approved',
+      restaurant_id: targetRest?.id,
       plan: normalizedPlan,
       renewal_on: newRenewalDateStr,
     })

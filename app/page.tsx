@@ -245,7 +245,7 @@ const initialPlans: Plan[] = [
 ];
 
 const initialRestaurants = [
-  { id: "1", name: "The Saffron Table", owner: "Mani Raj", email: "mani@example.com", phone: "+91 98765 43210", city: "Bengaluru", plan: "Free Trial", status: "Active", renewal: "2026-10-13", initial: "ST" },
+  { id: "1", name: "Mani", owner: "Mani", email: "mani@example.com", phone: "+91 98765 43210", city: "Bengaluru", plan: "Free trial", status: "Active", renewal: "2026-10-13", initial: "MN" },
 ];
 
 const initialStaff: Staff[] = [
@@ -357,9 +357,10 @@ export default function Home() {
 
   const [currentUserRole, setCurrentUserRole] = useState<string>("owner");
 
-  // DYNAMIC CURRENT ACTIVE PLAN STATE (REACTS INSTANTLY TO REALTIME BACKEND UPDATES)
-  const [activePlanName, setActivePlanName] = useState<string>("Free Trial");
+  // DYNAMIC CURRENT ACTIVE PLAN STATE (LINKED TO REAL-TIME BACKEND POLLING)
+  const [activePlanName, setActivePlanName] = useState<string>("Free trial");
   const [activeRenewalDate, setActiveRenewalDate] = useState<string>("2026-10-13");
+  const [activeRestaurantName, setActiveRestaurantName] = useState<string>("Mani");
 
   const [tenantInfo, setTenantInfo] = useState<{
     name: string;
@@ -372,7 +373,7 @@ export default function Home() {
     sgst_percent: number;
     receipt_footer: string;
   }>({
-    name: "The Saffron Table",
+    name: "Mani",
     logo_url: null,
     address: "12 Church Street, Bengaluru",
     business_phone: "+91 98765 43210",
@@ -384,7 +385,7 @@ export default function Home() {
   });
 
   const [storeForm, setStoreForm] = useState({
-    name: "The Saffron Table",
+    name: "Mani",
     phone: "+91 98765 43210",
     address: "12 Church Street, Bengaluru",
     gstin: "29AAAAA0000A1Z5",
@@ -451,7 +452,7 @@ export default function Home() {
   const [adminUpiBusy, setAdminUpiBusy] = useState(false);
   const [subscriptionUpiId, setSubscriptionUpiId] = useState<string>("admin-restopulse@upi");
 
-  const [activeInlinePlan, setActiveInlinePlan] = useState<Plan | null>(initialPlans[2]); // Default selection: Yearly
+  const [activeInlinePlan, setActiveInlinePlan] = useState<Plan | null>(initialPlans[2]); // Default Yearly
   const [inlineRefId, setInlineRefId] = useState("");
   const [inlineScreenshotFile, setInlineScreenshotFile] = useState<File | null>(null);
   const [inlineSubmitBusy, setInlineSubmitBusy] = useState(false);
@@ -473,7 +474,27 @@ export default function Home() {
     return 30;
   };
 
-  // Synchronize all restaurants & refresh active restaurant subscription
+  // SYNC RESTAURANT REALTIME STATUS FROM BACKEND DATABASE
+  const syncRestaurantStatus = useCallback(async () => {
+    try {
+      const url = `/api/subscription?restaurant_id=${encodeURIComponent(tenantId || "")}&email=${encodeURIComponent(loginEmail || "")}&name=${encodeURIComponent(activeRestaurantName || "")}`;
+      const res = await fetch(url);
+      const data = await res.json();
+      if (data?.restaurant) {
+        setActivePlanName(data.restaurant.plan);
+        setActiveRenewalDate(data.restaurant.renewal_on);
+        setActiveRestaurantName(data.restaurant.name);
+        setTenantInfo((prev) => ({
+          ...prev,
+          name: data.restaurant.name,
+        }));
+      }
+      if (data?.upi_id) {
+        setSubscriptionUpiId(data.upi_id);
+      }
+    } catch {}
+  }, [tenantId, loginEmail, activeRestaurantName]);
+
   const fetchAllRestaurants = useCallback(async () => {
     try {
       if (db) {
@@ -489,19 +510,20 @@ export default function Home() {
             plan: x.plan,
             status: x.status,
             renewal: x.renewal_on || "—",
-            initial: x.name.slice(0, 2).toUpperCase(),
+            initial: (x.name || "ST").slice(0, 2).toUpperCase(),
           }));
           setRestaurants(mapped);
 
           // Find current restaurant by tenantId, or fallback to name/email
           const found =
             mapped.find((r: any) => String(r.id) === String(tenantId)) ||
-            mapped.find((r: any) => r.name === tenantInfo?.name) ||
+            mapped.find((r: any) => r.name === activeRestaurantName) ||
             mapped[0];
 
           if (found) {
             setActivePlanName(found.plan);
             setActiveRenewalDate(found.renewal);
+            setActiveRestaurantName(found.name);
             setTenantId(found.id);
             setTenantInfo((prev) => ({
               ...prev,
@@ -513,7 +535,7 @@ export default function Home() {
         }
       }
     } catch {}
-  }, [db, tenantId, tenantInfo?.name]);
+  }, [db, tenantId, activeRestaurantName]);
 
   const fetchRealApprovals = useCallback(async () => {
     try {
@@ -587,11 +609,13 @@ export default function Home() {
     db.auth.getSession().then(({ data }: { data: { session: any } }) => {
       if (live) {
         setAuthUser(data.session?.user.id || null);
+        setLoginEmail(data.session?.user.email || "");
         setAuthLoading(false);
       }
     });
     const { data: { subscription } } = db.auth.onAuthStateChange((_event: string, session: any) => {
       setAuthUser(session?.user.id || null);
+      setLoginEmail(session?.user?.email || "");
       setAuthLoading(false);
     });
     return () => {
@@ -631,7 +655,7 @@ export default function Home() {
             plan: x.plan,
             status: x.status,
             renewal: x.renewal_on || "—",
-            initial: x.name.slice(0, 2).toUpperCase(),
+            initial: (x.name || "ST").slice(0, 2).toUpperCase(),
           }));
           setRestaurants(mapped);
 
@@ -639,6 +663,7 @@ export default function Home() {
           if (found) {
             setActivePlanName(found.plan);
             setActiveRenewalDate(found.renewal);
+            setActiveRestaurantName(found.name);
             setTenantId(found.id);
           }
         }
@@ -669,11 +694,12 @@ export default function Home() {
       .catch(() => {});
   }, [isAdmin, tenantId]);
 
-  // LIVE REALTIME LISTENERS ON BOTH SUBSCRIPTIONS AND RESTAURANTS
+  // LIVE REALTIME LISTENERS & CONTINUOUS SYNC POLLING (EVERY 3 SECONDS)
   useEffect(() => {
     fetchSubscriptionRequests();
     fetchRealApprovals();
     fetchAllRestaurants();
+    syncRestaurantStatus();
 
     let channel1: any = null;
     let channel2: any = null;
@@ -683,6 +709,7 @@ export default function Home() {
         .on("postgres_changes", { event: "*", schema: "public", table: "subscription_requests" }, () => {
           fetchSubscriptionRequests();
           fetchAllRestaurants();
+          syncRestaurantStatus();
         })
         .subscribe();
 
@@ -691,6 +718,7 @@ export default function Home() {
         .on("postgres_changes", { event: "*", schema: "public", table: "restaurants" }, () => {
           fetchRealApprovals();
           fetchAllRestaurants();
+          syncRestaurantStatus();
         })
         .subscribe();
     }
@@ -699,6 +727,7 @@ export default function Home() {
       fetchSubscriptionRequests();
       fetchRealApprovals();
       fetchAllRestaurants();
+      syncRestaurantStatus();
     }, 3000);
 
     return () => {
@@ -706,7 +735,7 @@ export default function Home() {
       if (channel1 && db) db.removeChannel(channel1);
       if (channel2 && db) db.removeChannel(channel2);
     };
-  }, [db, fetchSubscriptionRequests, fetchRealApprovals, fetchAllRestaurants]);
+  }, [db, fetchSubscriptionRequests, fetchRealApprovals, fetchAllRestaurants, syncRestaurantStatus]);
 
   useEffect(() => {
     const key = tenantId ? `rp-inventory-list:${tenantId}` : `rp-inventory-list:default`;
@@ -1055,7 +1084,7 @@ export default function Home() {
     setAdminUpiBusy(false);
   };
 
-  // RESTAURANT SUBMITS PAYMENT REFERENCE (EXACTLY ONCE)
+  // RESTAURANT SUBMITS PAYMENT PROOF (ONLY 1 DISPATCH TO PREVENT DUPLICATES)
   const handleInlineSubmitReference = async () => {
     if (!activeInlinePlan) return;
     if (!inlineRefId.trim()) {
@@ -1091,9 +1120,9 @@ export default function Home() {
 
       const payload = {
         restaurant_id: tenantId && tenantId !== "1" ? tenantId : null,
-        restaurant_name: tenantInfo?.name || "The Saffron Table",
-        owner_name: "Mani Raj",
-        owner_email: "mani@example.com",
+        restaurant_name: activeRestaurantName || tenantInfo?.name || "Mani",
+        owner_name: "Mani",
+        owner_email: loginEmail || "mani@example.com",
         plan: planName,
         upi_id: subscriptionUpiId,
         screenshot_url: screenshotUrl,
@@ -1102,7 +1131,6 @@ export default function Home() {
         requested_at: new Date().toISOString(),
       };
 
-      // Dispatched once via backend API to prevent duplicates
       const res = await fetch("/api/subscription", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -1134,14 +1162,12 @@ export default function Home() {
       const planName = reqRest?.plan || "Yearly";
       const daysToAdd = getPlanDurationDays(planName);
 
-      // Find matching target restaurant
       const targetRestaurant =
         restaurants.find((r) => String(r.id) === String(reqRest?.restaurant_id)) ||
         restaurants.find((r) => r.name === reqRest?.restaurant_name) ||
         restaurants.find((r) => r.email === reqRest?.owner_email) ||
         restaurants[0];
 
-      // Stacking logic: if already has valid trial in the future, add onto it
       let baseDate = new Date();
       if (targetRestaurant?.renewal && targetRestaurant.renewal !== "—") {
         const existingRenewal = new Date(targetRestaurant.renewal);
@@ -1154,15 +1180,15 @@ export default function Home() {
       nextDate.setDate(nextDate.getDate() + daysToAdd);
       const newRenewalStr = nextDate.toISOString().slice(0, 10);
 
-      // Send to backend API
+      // Call API endpoint
       const res = await fetch("/api/admin/subscriptions", {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           request_id: requestId,
           restaurant_id: targetRestaurant?.id,
-          restaurant_name: targetRestaurant?.name,
-          owner_email: targetRestaurant?.email,
+          restaurant_name: targetRestaurant?.name || reqRest?.restaurant_name,
+          owner_email: targetRestaurant?.email || reqRest?.owner_email,
           plan_name: planName,
           days_to_add: daysToAdd,
           action: action,
@@ -1170,7 +1196,6 @@ export default function Home() {
       });
 
       if (action === "approve") {
-        // Direct write to Supabase
         if (db && targetRestaurant?.id) {
           await db.from("restaurants").update({
             plan: planName,
@@ -1191,13 +1216,14 @@ export default function Home() {
           )
         );
 
-        toast.success(`Subscription approved! Plan updated to ${planName} and extended to ${newRenewalStr}.`);
+        toast.success(`Subscription approved! ${planName} active with validity up to ${newRenewalStr}.`);
       } else {
         toast.info("Subscription payment request was rejected.");
       }
 
       setSubscriptionRequests((old) => old.filter((x) => x.id !== requestId));
       fetchAllRestaurants();
+      syncRestaurantStatus();
     } catch (err: any) {
       toast.error(err.message || "Failed to process request");
     }
@@ -1243,6 +1269,7 @@ export default function Home() {
       );
       fetchRealApprovals();
       fetchAllRestaurants();
+      syncRestaurantStatus();
     } catch (err: any) {
       toast.error(err.message || "Failed to update restaurant status");
     }
@@ -1342,7 +1369,7 @@ export default function Home() {
     );
 
   const activePlanPrice = activeInlinePlan ? activeInlinePlan.price : 29999;
-  const inlineUpiPayUri = `upi://pay?pa=${encodeURIComponent(subscriptionUpiId)}&pn=${encodeURIComponent("RestoPulse")}&am=${encodeURIComponent(activePlanPrice.toFixed(2))}&cu=INR&tn=${encodeURIComponent(`${tenantInfo?.name || 'Restaurant'} ${activeInlinePlan?.name || 'Subscription'}`)}`;
+  const inlineUpiPayUri = `upi://pay?pa=${encodeURIComponent(subscriptionUpiId)}&pn=${encodeURIComponent("RestoPulse")}&am=${encodeURIComponent(activePlanPrice.toFixed(2))}&cu=INR&tn=${encodeURIComponent(`${activeRestaurantName} ${activeInlinePlan?.name || 'Subscription'}`)}`;
   const inlineQrImageUrl = `https://api.qrserver.com/v1/create-qr-code/?size=240x240&data=${encodeURIComponent(inlineUpiPayUri)}`;
 
   const normalizedRole = (currentUserRole || "").toLowerCase();
@@ -1417,7 +1444,7 @@ export default function Home() {
             {tenantInfo?.logo_url ? <img src={tenantInfo.logo_url} alt="Restaurant logo" /> : "ST"}
           </span>
           <div>
-            <b>{tenantInfo?.name || "The Saffron Table"}</b>
+            <b>{activeRestaurantName}</b>
             <small>{currentUserRole.toUpperCase()} · {accountRole === "admin" ? "Platform console" : "Restaurant"}</small>
           </div>
           <ChevronDown size={15} />
@@ -1461,12 +1488,12 @@ export default function Home() {
           </>
         )}
 
-        {/* DYNAMIC ACTIVE PLAN CARD AT BOTTOM LEFT (REFLECTS LIVE UPGRADES INSTANTLY) */}
+        {/* DYNAMIC ACTIVE PLAN CARD: UPDATES IN REAL TIME TO REFLECT APPROVED PLAN */}
         <div className="sidebar-bottom">
           <div className="trial-note">
             <span className="trial-icon">✦</span>
             <b>Active Plan</b>
-            <p className="font-semibold text-white">{activePlanName}</p>
+            <p className="font-semibold text-white capitalize">{activePlanName}</p>
             <p className="text-[11px] text-gray-400 mt-0.5">Expires: {activeRenewalDate}</p>
             <button onClick={() => nav(isAdmin ? "pricing" : "subscription")}>
               Manage plan <ArrowUpRight size={14} />
@@ -1586,7 +1613,7 @@ export default function Home() {
                 <div>
                   <div className="eyebrow">OVERVIEW</div>
                   <h1>Good afternoon, Mani</h1>
-                  <p>Here’s what’s happening at {tenantInfo?.name || "your restaurant"}.</p>
+                  <p>Here’s what’s happening at {activeRestaurantName}.</p>
                 </div>
                 <div className="head-actions">
                   <select aria-label="Date range" value={dateRange} onChange={(e) => setDateRange(e.target.value)}>
@@ -2169,7 +2196,7 @@ export default function Home() {
             </>
           )}
 
-          {/* 8. RESTAURANT SUBSCRIPTION (CURRENT TIER REFLECTED LIVE) */}
+          {/* 8. RESTAURANT SUBSCRIPTION (DYNAMIC ACTIVE TIER BADGE) */}
           {view === "subscription" && (
             <>
               <div className="page-head">
@@ -2183,7 +2210,7 @@ export default function Home() {
               {/* Grid of Plans */}
               <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
                 {plans.map((p) => {
-                  const isCurrentActive = activePlanName.toLowerCase() === p.name.toLowerCase();
+                  const isCurrentActive = activePlanName.toLowerCase().trim() === p.name.toLowerCase().trim();
                   const isSelected = activeInlinePlan?.id === p.id;
                   return (
                     <div
@@ -2222,7 +2249,7 @@ export default function Home() {
                         </button>
                       ) : (
                         <div className="text-center py-2 text-xs font-semibold text-gray-400">
-                          Trial Tier
+                          {isCurrentActive ? "Currently on trial" : "Trial Tier"}
                         </div>
                       )}
                     </div>
@@ -2469,7 +2496,7 @@ export default function Home() {
                         <tr key={r.id}>
                           <td><b>{r.name}</b></td>
                           <td>{r.owner}</td>
-                          <td><span className="font-semibold text-indigo-500">{r.plan}</span></td>
+                          <td><span className="font-semibold text-indigo-500 capitalize">{r.plan}</span></td>
                           <td>
                             <span className={"status " + (r.status === "Active" ? "paid" : "trial")}>
                               {r.status}
@@ -2485,7 +2512,7 @@ export default function Home() {
             </>
           )}
 
-          {/* 11. ADMIN: APPROVALS (APPROVE & REJECT) */}
+          {/* 11. ADMIN: APPROVALS */}
           {view === "approvals" && isAdmin && (
             <>
               <div className="page-head flex justify-between items-center">
@@ -2947,7 +2974,7 @@ export default function Home() {
               {/* Receipt Header */}
               <div className="text-center space-y-0.5">
                 <div className="text-sm font-extrabold uppercase tracking-wide">
-                  {receipt.business?.name || "The Saffron Table"}
+                  {receipt.business?.name || activeRestaurantName}
                 </div>
                 <div className="text-[10px] text-gray-600 leading-tight">
                   {receipt.business?.address}
@@ -3002,12 +3029,12 @@ export default function Home() {
 
               <div className="space-y-0.5 text-[10px] font-mono">
                 <div className="flex justify-between">
-                  <span>Subtotal:</span>
+                  <span>Subtotal</span>
                   <span>{money(receipt.subtotal)}</span>
                 </div>
                 {receipt.discount > 0 && (
                   <div className="flex justify-between text-green-700">
-                    <span>Discount:</span>
+                    <span>Discount</span>
                     <span>−{money(receipt.discount)}</span>
                   </div>
                 )}

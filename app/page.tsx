@@ -42,6 +42,7 @@ import {
   AlertTriangle,
   KeyRound,
   RefreshCw,
+  Clock,
 } from "lucide-react";
 import {
   AreaChart,
@@ -135,12 +136,12 @@ type RestaurantApproval = {
 };
 
 const initialDishes: Dish[] = [
-  { id: 1, name: "Truffle Mushroom Risotto", category: "Mains", price: 680, cost: 240, stock: true, emoji: "🍄", diet: "Vegetarian", time: 22 },
+  { id: 1, name: "Burrata & Heirloom Tomato", category: "Appetizers", price: 520, cost: 210, stock: true, emoji: "🍅", diet: "Vegetarian", time: 12 },
   { id: 2, name: "Grilled Salmon Bowl", category: "Mains", price: 790, cost: 330, stock: true, emoji: "🥗", diet: "Gluten-free", time: 18 },
-  { id: 3, name: "Burrata & Heirloom Tomato", category: "Appetizers", price: 520, cost: 210, stock: true, emoji: "🍅", diet: "Vegetarian", time: 12 },
-  { id: 4, name: "Smoked Chicken Tacos", category: "Mains", price: 560, cost: 185, stock: true, emoji: "🌮", diet: "", time: 16 },
-  { id: 5, name: "Citrus Mint Cooler", category: "Drinks", price: 240, cost: 65, stock: true, emoji: "🍹", diet: "Vegan", time: 5 },
-  { id: 6, name: "Dark Chocolate Fondant", category: "Desserts", price: 390, cost: 130, stock: true, emoji: "🍫", diet: "Vegetarian", time: 14 },
+  { id: 3, name: "Dark Chocolate Fondant", category: "Desserts", price: 390, cost: 130, stock: true, emoji: "🍫", diet: "Vegetarian", time: 14 },
+  { id: 4, name: "Truffle Mushroom Risotto", category: "Mains", price: 680, cost: 240, stock: true, emoji: "🍄", diet: "Vegetarian", time: 22 },
+  { id: 5, name: "Smoked Chicken Tacos", category: "Mains", price: 560, cost: 185, stock: true, emoji: "🌮", diet: "", time: 16 },
+  { id: 6, name: "Citrus Mint Cooler", category: "Drinks", price: 240, cost: 65, stock: true, emoji: "🍹", diet: "Vegan", time: 5 },
   { id: 7, name: "Crispy Calamari", category: "Appetizers", price: 490, cost: 210, stock: false, emoji: "🍤", diet: "", time: 15 },
   { id: 8, name: "Margherita Flatbread", category: "Mains", price: 470, cost: 155, stock: true, emoji: "🍕", diet: "Vegetarian", time: 17 },
 ];
@@ -353,7 +354,7 @@ export default function Home() {
   const [loginBusy, setLoginBusy] = useState(false);
   const [tenantId, setTenantId] = useState<string | null>("1");
 
-  // Settings State with complete GST breakdown
+  // Settings state with complete GST details
   const [tenantInfo, setTenantInfo] = useState<{
     name: string;
     logo_url: string | null;
@@ -405,7 +406,7 @@ export default function Home() {
   const [wageForm, setWageForm] = useState({ date: new Date().toLocaleDateString("en-CA"), amount: "", note: "" });
   const [selectedStaff, setSelectedStaff] = useState<Staff | null>(null);
 
-  // Print paper sizing: 58mm, 80mm, A4
+  // Print paper format: 58mm, 80mm, A4
   const [printPaperSize, setPrintPaperSize] = useState<"58mm" | "80mm" | "A4">("80mm");
 
   const [dark, setDark] = useState(false);
@@ -448,7 +449,7 @@ export default function Home() {
   const [subscriptionUpiId, setSubscriptionUpiId] = useState<string>("admin-restopulse@upi");
 
   // Inline Subscription Cards Section
-  const [activeInlinePlan, setActiveInlinePlan] = useState<Plan | null>(null);
+  const [activeInlinePlan, setActiveInlinePlan] = useState<Plan | null>(initialPlans[1]); // default to Monthly
   const [inlineRefId, setInlineRefId] = useState("");
   const [inlineScreenshotFile, setInlineScreenshotFile] = useState<File | null>(null);
   const [inlineSubmitBusy, setInlineSubmitBusy] = useState(false);
@@ -1004,7 +1005,7 @@ export default function Home() {
     setAdminUpiBusy(false);
   };
 
-  // INLINE SUBSCRIPTION PAYMENT REFERENCE SUBMISSION (MATCHING REFERENCE IMAGE)
+  // INLINE SUBSCRIPTION PAYMENT REFERENCE SUBMISSION
   const handleInlineSubmitReference = async () => {
     if (!activeInlinePlan) return;
     if (!inlineRefId.trim()) {
@@ -1274,22 +1275,22 @@ export default function Home() {
         @media print {
           @page {
             size: ${printPaperSize === "A4" ? "A4" : printPaperSize === "58mm" ? "58mm auto" : "80mm auto"};
-            margin: ${printPaperSize === "A4" ? "12mm" : "0mm"};
+            margin: ${printPaperSize === "A4" ? "10mm" : "0mm"};
           }
           body * {
-            visibility: hidden;
+            visibility: hidden !important;
           }
           #printable-receipt-card, #printable-receipt-card * {
-            visibility: visible;
+            visibility: visible !important;
           }
           #printable-receipt-card {
-            position: absolute;
-            left: 0;
-            top: 0;
-            width: ${printPaperSize === "A4" ? "190mm" : printPaperSize === "58mm" ? "52mm" : "74mm"} !important;
-            max-width: ${printPaperSize === "A4" ? "190mm" : printPaperSize === "58mm" ? "52mm" : "74mm"} !important;
+            position: absolute !important;
+            left: 0 !important;
+            top: 0 !important;
+            width: ${printPaperSize === "A4" ? "100%" : printPaperSize === "58mm" ? "48mm" : "72mm"} !important;
+            max-width: ${printPaperSize === "A4" ? "100%" : printPaperSize === "58mm" ? "48mm" : "72mm"} !important;
             margin: 0 auto !important;
-            padding: 4mm !important;
+            padding: ${printPaperSize === "A4" ? "8mm" : "3mm"} !important;
             background: #ffffff !important;
             color: #000000 !important;
             font-family: 'Courier New', Courier, monospace !important;
@@ -1374,7 +1375,7 @@ export default function Home() {
           <div className="trial-note">
             <span className="trial-icon">✦</span>
             <b>Active Plan</b>
-            <p>{currentRestaurant?.plan || "Growth"} plan active.</p>
+            <p>{currentRestaurant?.plan || "Monthly"} plan active.</p>
             <button onClick={() => nav(isAdmin ? "pricing" : "subscription")}>
               Manage plan <ArrowUpRight size={14} />
             </button>
@@ -1596,7 +1597,7 @@ export default function Home() {
             </>
           )}
 
-          {/* 2. POS TERMINAL - WITH PADDING AND BUTTON CENTERING FIX */}
+          {/* 2. POS TERMINAL: EXACT ALIGNMENT FIX FOR IMAGE 1 */}
           {view === "pos" && (
             <>
               <div className="page-head pos-head">
@@ -1640,7 +1641,7 @@ export default function Home() {
                   </div>
                 </section>
 
-                <aside className="order-panel flex flex-col justify-between p-4 bg-card border rounded-2xl">
+                <aside className="order-panel flex flex-col justify-between p-4 bg-card border rounded-2xl shadow-sm">
                   <div>
                     <div className="order-head flex justify-between items-center mb-4 pb-2 border-b">
                       <h2 className="text-base font-bold">Current order</h2>
@@ -1649,25 +1650,63 @@ export default function Home() {
                       </span>
                     </div>
 
-                    <div className="cart-items space-y-2 max-h-[460px] overflow-y-auto pr-1">
+                    {/* REDESIGNED CART ITEMS: 2-TIER CLEAN ROW WITH PROPER ALIGNMENT & PADDING */}
+                    <div className="cart-items space-y-3 max-h-[460px] overflow-y-auto pr-1">
                       {cart.map((l) => {
                         const d = dishes.find((x) => x.id === l.id)!;
                         return (
-                          <div className="cart-item flex items-center justify-between p-2 rounded-xl border bg-background" key={l.id}>
-                            <div className="flex items-center gap-2">
-                              <span className="text-xl">{d.emoji}</span>
-                              <div>
-                                <b className="text-xs block leading-tight">{d.name}</b>
-                                <small className="text-[11px] text-muted-foreground">{money(l.override ?? d.price)} each</small>
+                          <div
+                            key={l.id}
+                            className="p-3 rounded-2xl border bg-background/80 hover:bg-background transition-all space-y-2.5 shadow-sm"
+                          >
+                            {/* Top Tier: Emoji, Name, and Total Price */}
+                            <div className="flex items-start justify-between gap-2">
+                              <div className="flex items-center gap-2.5 min-w-0">
+                                <span className="text-xl flex-shrink-0">{d.emoji}</span>
+                                <div className="min-w-0">
+                                  <h4 className="font-bold text-xs leading-snug truncate text-foreground">
+                                    {d.name}
+                                  </h4>
+                                  <span className="text-[11px] text-muted-foreground block">
+                                    {money(l.override ?? d.price)} each
+                                  </span>
+                                </div>
                               </div>
+                              <span className="font-extrabold text-xs text-foreground flex-shrink-0">
+                                {money(((l.override ?? d.price) - l.discount) * l.qty)}
+                              </span>
                             </div>
-                            <div className="flex items-center gap-2">
-                              <div className="cart-controls flex items-center border rounded-lg bg-secondary/30">
-                                <button className="p-1 hover:bg-secondary rounded-l" onClick={() => qty(l.id, -1)}><Minus size={12} /></button>
-                                <span className="px-2 text-xs font-bold">{l.qty}</span>
-                                <button className="p-1 hover:bg-secondary rounded-r" onClick={() => qty(l.id, 1)}><Plus size={12} /></button>
+
+                            {/* Bottom Tier: Quantity Stepper Controls */}
+                            <div className="flex items-center justify-between pt-1 border-t border-border/40">
+                              <div className="text-[10px] text-muted-foreground">
+                                {l.discount > 0 ? (
+                                  <span className="text-emerald-500 font-semibold">
+                                    Disc: -{money(l.discount * l.qty)}
+                                  </span>
+                                ) : (
+                                  <span>Quantity</span>
+                                )}
                               </div>
-                              <strong className="text-xs w-16 text-right">{money(((l.override ?? d.price) - l.discount) * l.qty)}</strong>
+                              <div className="cart-controls flex items-center border rounded-lg bg-secondary/40 overflow-hidden">
+                                <button
+                                  className="px-2.5 py-1 hover:bg-secondary rounded-l transition-colors"
+                                  onClick={() => qty(l.id, -1)}
+                                  aria-label="Decrease quantity"
+                                >
+                                  <Minus size={11} />
+                                </button>
+                                <span className="px-2.5 text-xs font-bold font-mono min-w-[20px] text-center">
+                                  {l.qty}
+                                </span>
+                                <button
+                                  className="px-2.5 py-1 hover:bg-secondary rounded-r transition-colors"
+                                  onClick={() => qty(l.id, 1)}
+                                  aria-label="Increase quantity"
+                                >
+                                  <Plus size={11} />
+                                </button>
+                              </div>
                             </div>
                           </div>
                         );
@@ -1680,15 +1719,15 @@ export default function Home() {
                     </div>
                   </div>
 
-                  {/* PROPERLY PADDED & CENTERED TOTAL DUE AND CHARGE BUTTON */}
+                  {/* PROPERLY PADDED & CENTERED CHARGE FOOTER */}
                   <div className="cart-footer mt-4 pt-3 border-t space-y-3">
                     <div className="flex justify-between items-center px-1">
                       <span className="text-xs font-medium text-muted-foreground">Total due</span>
-                      <strong className="text-lg font-bold">{money(total)}</strong>
+                      <strong className="text-lg font-extrabold">{money(total)}</strong>
                     </div>
 
                     <button
-                      className="w-full flex items-center justify-center gap-2 py-3 px-4 rounded-xl font-bold text-sm bg-amber-500 hover:bg-amber-600 text-white transition-all shadow-md active:scale-[0.99] disabled:opacity-50 disabled:cursor-not-allowed"
+                      className="w-full flex items-center justify-center gap-2 py-3.5 px-4 rounded-xl font-bold text-sm bg-amber-500 hover:bg-amber-600 text-white transition-all shadow-md active:scale-[0.99] disabled:opacity-50 disabled:cursor-not-allowed"
                       disabled={!cart.length}
                       onClick={checkout}
                     >
@@ -1793,80 +1832,100 @@ export default function Home() {
             </>
           )}
 
-          {/* 5. TEAM & PAYROLL - FULLY RESTORED WITH EMPLOYEE DETAILS SHEET */}
+          {/* 5. TEAM & PAYROLL - POLISHED SaaS CARDS (MATCHING IMAGE 2) */}
           {view === "staff" && (
             <>
               <div className="page-head flex justify-between items-center">
                 <div>
-                  <div className="eyebrow">YOUR PEOPLE</div>
-                  <h1>Team & payroll</h1>
-                  <p>Profiles, shifts, and compensation in one place.</p>
+                  <div className="eyebrow text-amber-500 font-bold uppercase tracking-wider text-[11px]">YOUR PEOPLE</div>
+                  <h1 className="text-2xl font-black">Team & payroll</h1>
+                  <p className="text-xs text-muted-foreground mt-0.5">Profiles, shifts, and compensation in one place.</p>
                 </div>
-                <button className="primary-btn" onClick={() => open("employee")}>
-                  <Plus size={17} /> Add employee
+                <button
+                  className="bg-amber-500 hover:bg-amber-600 text-white font-bold text-xs py-2 px-4 rounded-xl flex items-center gap-1.5 transition-all shadow-md active:scale-95"
+                  onClick={() => open("employee")}
+                >
+                  <Plus size={15} /> Add employee
                 </button>
               </div>
 
-              <div className="staff-grid grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mt-6">
+              {/* Polished Employee Cards Grid */}
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mt-6">
                 {staff.map((s, i) => (
                   <div
-                    className="staff-card p-5 rounded-2xl border bg-card hover:border-indigo-500 cursor-pointer transition-all space-y-3"
                     key={s.name}
+                    className="p-5 rounded-2xl border bg-card/60 hover:bg-card border-border/70 hover:border-indigo-500/80 transition-all cursor-pointer shadow-sm relative group flex flex-col justify-between"
                     onClick={() => openStaff(s)}
                   >
-                    <div className="flex justify-between items-start">
-                      <span className="w-10 h-10 rounded-full bg-indigo-100 text-indigo-700 font-bold flex items-center justify-center">
-                        {s.initial}
-                      </span>
-                      <div className="flex gap-1" onClick={(e) => e.stopPropagation()}>
-                        <button className="p-1 hover:bg-muted rounded" onClick={() => open("employee", s.id)}>
-                          <Pencil size={14} />
-                        </button>
-                        <button className="p-1 hover:bg-red-50 text-red-600 rounded" onClick={() => setStaff(old => old.filter(x => x.id !== s.id))}>
-                          <Trash2 size={14} />
-                        </button>
-                      </div>
-                    </div>
                     <div>
-                      <div className="font-bold text-sm">{s.name}</div>
-                      <div className="text-xs text-muted-foreground">{s.role}</div>
-                    </div>
-                    <div className="pt-2 border-t text-xs space-y-1">
-                      <div className="flex justify-between">
-                        <span className="text-muted-foreground">Shift</span>
-                        <b>{s.shift}</b>
+                      {/* Top Header: Avatar & Top-Right Action Controls */}
+                      <div className="flex justify-between items-start mb-3">
+                        <span className="w-10 h-10 rounded-full bg-indigo-100 dark:bg-indigo-950 text-indigo-700 dark:text-indigo-300 font-bold text-xs flex items-center justify-center border border-indigo-200 dark:border-indigo-900 shadow-inner">
+                          {s.initial}
+                        </span>
+                        <div
+                          className="flex items-center gap-1 opacity-70 group-hover:opacity-100 transition-opacity"
+                          onClick={(e) => e.stopPropagation()}
+                        >
+                          <button
+                            className="p-1.5 text-muted-foreground hover:text-foreground hover:bg-muted/80 rounded-lg transition-colors"
+                            onClick={() => open("employee", s.id)}
+                            title="Edit Employee"
+                          >
+                            <Pencil size={13} />
+                          </button>
+                          <button
+                            className="p-1.5 text-muted-foreground hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-950/40 rounded-lg transition-colors"
+                            onClick={() => setStaff(old => old.filter(x => x.id !== s.id))}
+                            title="Delete Employee"
+                          >
+                            <Trash2 size={13} />
+                          </button>
+                        </div>
                       </div>
-                      <div className="flex justify-between">
+
+                      {/* Name & Role */}
+                      <div className="mb-4">
+                        <div className="font-bold text-sm text-foreground leading-tight">{s.name}</div>
+                        <div className="text-[11px] text-muted-foreground mt-0.5">{s.role}</div>
+                      </div>
+                    </div>
+
+                    {/* Footer Shift & Base Pay Details */}
+                    <div className="pt-3 border-t border-border/50 text-[11px] space-y-1.5">
+                      <div className="flex justify-between items-center">
+                        <span className="text-muted-foreground">Shift</span>
+                        <b className="font-mono text-foreground font-semibold">{s.shift}</b>
+                      </div>
+                      <div className="flex justify-between items-center">
                         <span className="text-muted-foreground">Base pay</span>
-                        <b>{money(s.dailyRate)} / day</b>
+                        <b className="font-mono text-foreground font-semibold">{money(s.dailyRate)} / day</b>
                       </div>
                     </div>
                   </div>
                 ))}
               </div>
 
+              {/* Payroll overview bar */}
               <div className="panel pay-note mt-6 p-4 rounded-xl border bg-secondary/30 flex items-center gap-3">
-                <Wallet size={20} className="text-indigo-600" />
-                <div className="text-xs">
-                  <b>Payroll overview:</b> {money(wages.filter((w) => w.status === "Paid").reduce((sum, w) => sum + w.amount, 0))} paid ·{" "}
+                <Wallet size={19} className="text-indigo-500 flex-shrink-0" />
+                <div className="text-xs text-foreground/90">
+                  <b className="font-bold">Payroll overview:</b> {money(wages.filter((w) => w.status === "Paid").reduce((sum, w) => sum + w.amount, 0))} paid ·{" "}
                   {money(wages.filter((w) => w.status === "Unpaid").reduce((sum, w) => sum + w.amount, 0))} due across recorded daily wages.
                 </div>
               </div>
             </>
           )}
 
-          {/* 6. EXPENSES - FULLY RESTORED WITH CATEGORY DROPDOWN & SUMMARY */}
+          {/* 6. EXPENSES */}
           {view === "expenses" && (
             <>
               <div className="page-head flex justify-between items-center">
                 <div>
-                  <div className="eyebrow">COST CONTROL</div>
+                  <div className="eyebrow">FINANCE</div>
                   <h1>Expenses</h1>
-                  <p>Every operational cost accounted for.</p>
                 </div>
-                <button className="primary-btn" onClick={() => open("expense")}>
-                  <Plus size={17} /> Log expense
-                </button>
+                <button className="primary-btn" onClick={() => open("expense")}><Plus size={17} /> Log expense</button>
               </div>
 
               <div className="platform-stats grid grid-cols-3 gap-4 my-6">
@@ -1880,30 +1939,23 @@ export default function Home() {
                 </div>
                 <div className="p-4 bg-card rounded-xl border">
                   <strong>{expenses.length ? [...expenses].sort((a, b) => b.amount - a.amount)[0].category : "—"}</strong>
-                  <span>Largest Expense Category</span>
+                  <span>Largest Category</span>
                 </div>
               </div>
 
-              <div className="panel management-panel bg-card border rounded-xl p-4">
+              <div className="panel management-panel">
                 <div className="table-scroll">
-                  <table className="w-full text-left">
+                  <table>
                     <thead>
-                      <tr className="border-b text-xs text-muted-foreground">
-                        <th className="p-3">DESCRIPTION</th>
-                        <th className="p-3">CATEGORY</th>
-                        <th className="p-3">VENDOR</th>
-                        <th className="p-3">DATE</th>
-                        <th className="p-3">AMOUNT</th>
-                      </tr>
+                      <tr><th>DESCRIPTION</th><th>CATEGORY</th><th>VENDOR</th><th>AMOUNT</th></tr>
                     </thead>
                     <tbody>
                       {expenses.map((e) => (
-                        <tr key={e.id} className="border-b hover:bg-muted/40 text-xs">
-                          <td className="p-3 font-semibold">{e.name}</td>
-                          <td className="p-3"><span className="px-2 py-0.5 rounded bg-secondary text-[11px] font-medium">{e.category}</span></td>
-                          <td className="p-3 text-muted-foreground">{e.vendor}</td>
-                          <td className="p-3 font-mono">{e.date}</td>
-                          <td className="p-3 font-bold">{money(e.amount)}</td>
+                        <tr key={e.id}>
+                          <td className="strong">{e.name}</td>
+                          <td><span className="px-2 py-0.5 rounded bg-secondary text-[11px]">{e.category}</span></td>
+                          <td>{e.vendor}</td>
+                          <td className="strong">{money(e.amount)}</td>
                         </tr>
                       ))}
                     </tbody>
@@ -1913,14 +1965,13 @@ export default function Home() {
             </>
           )}
 
-          {/* 7. SUPPLIERS - FULLY RESTORED WITH DETAILED LEDGER */}
+          {/* 7. SUPPLIERS */}
           {view === "suppliers" && (
             <>
               <div className="page-head flex justify-between items-center">
                 <div>
                   <div className="eyebrow">ACCOUNTS</div>
                   <h1>Suppliers</h1>
-                  <p>Track purchases, payments, and balances due for each supplier.</p>
                 </div>
                 <div className="flex gap-2">
                   <button className="quiet-btn flex items-center gap-1.5" onClick={() => open("payment")}>
@@ -2026,7 +2077,7 @@ export default function Home() {
             </>
           )}
 
-          {/* 8. RESTAURANT SUBSCRIPTION (MATCHING REFERENCE ATTACHED SCREENSHOT) */}
+          {/* 8. RESTAURANT SUBSCRIPTION (EXACT LAYOUT FROM REFERENCE IMAGE) */}
           {view === "subscription" && (
             <>
               <div className="page-head">
@@ -2079,7 +2130,7 @@ export default function Home() {
                 })}
               </div>
 
-              {/* DYNAMIC QR AND PROOF BOX UNDER CARDS[cite: 4] */}
+              {/* DYNAMIC PAYMENT BOX UNDER CARDS */}
               {activeInlinePlan && activeInlinePlan.price > 0 && (
                 <div
                   className="max-w-md mx-auto rounded-2xl p-6 border text-center shadow-lg my-8"
@@ -2153,7 +2204,7 @@ export default function Home() {
             </>
           )}
 
-          {/* 9. SETTINGS - WITH GST, CGST, SGST & PASSWORD RESET */}
+          {/* 9. SETTINGS WITH FULL GST BREAKDOWN & PASSWORD RESET */}
           {view === "settings" && (
             <>
               <div className="page-head">
@@ -2191,7 +2242,7 @@ export default function Home() {
                       />
                     </label>
 
-                    {/* COMPLETE GST BREAKDOWN FIELDS */}
+                    {/* COMPLETE GST BREAKDOWN */}
                     <div className="pt-2 border-t space-y-2">
                       <label className="block space-y-1">
                         <span className="text-xs font-medium text-muted-foreground">GSTIN (GST Number)</span>
@@ -2336,7 +2387,7 @@ export default function Home() {
             </>
           )}
 
-          {/* 11. ADMIN: APPROVALS QUEUE */}
+          {/* 11. ADMIN: APPROVALS */}
           {view === "approvals" && isAdmin && (
             <>
               <div className="page-head flex justify-between items-center">
@@ -2489,7 +2540,7 @@ export default function Home() {
 
       {mobileNav && <button className="nav-backdrop" aria-label="Close navigation" onClick={() => setMobileNav(false)} />}
 
-      {/* MODAL: INVENTORY ADD / EDIT */}
+      {/* INVENTORY ADD / EDIT MODAL */}
       <Dialog open={modal === "inventory"} onOpenChange={(v) => !v && setModal(null)}>
         <DialogContent className="max-w-md">
           <DialogHeader>
@@ -2522,7 +2573,7 @@ export default function Home() {
         </DialogContent>
       </Dialog>
 
-      {/* MODAL: GENERAL ENTITY ADD / EDIT */}
+      {/* GLOBAL ENTITY MODAL (DISH, PLAN, SUPPLIER, EMPLOYEE, EXPENSE, PAYMENT) */}
       <Dialog open={!!modal && modal !== "inventory"} onOpenChange={(v) => !v && setModal(null)}>
         <DialogContent className="modal-content">
           <DialogHeader>
@@ -2532,7 +2583,6 @@ export default function Home() {
                 : modal === "supplier" ? (editing ? "Edit Supplier" : "Add Supplier")
                 : modal === "employee" ? (editing ? "Edit Employee" : "Add Employee")
                 : modal === "expense" ? "Log Expense"
-                : modal === "restaurant" ? "Add Restaurant"
                 : "Record Payment"}
             </DialogTitle>
           </DialogHeader>
@@ -2541,7 +2591,7 @@ export default function Home() {
               <>
                 <label>Plan name<input value={form.name || ""} onChange={(e) => setForm({ ...form, name: e.target.value })} /></label>
                 <label>Price (₹)<input type="number" value={form.price || ""} onChange={(e) => setForm({ ...form, price: e.target.value })} /></label>
-                <label>Period (7 days / 30 days / 365 days)<input value={form.period || ""} onChange={(e) => setForm({ ...form, period: e.target.value })} /></label>
+                <label>Period (7 days / 30 days / 365 days)<input value={form.period || ""} onChange={(e) => setForm({ ...form, period: e.target.value })} placeholder="30 days" /></label>
                 <label>Features<input value={form.features || ""} onChange={(e) => setForm({ ...form, features: e.target.value })} /></label>
               </>
             )}
@@ -2619,7 +2669,7 @@ export default function Home() {
           {selectedStaff && (
             <div className="space-y-4 py-4 text-xs">
               <div className="flex items-center gap-3 p-3 bg-secondary/30 rounded-xl">
-                <span className="w-10 h-10 rounded-full bg-indigo-200 text-indigo-800 font-bold flex items-center justify-center">
+                <span className="w-10 h-10 rounded-full bg-indigo-200 dark:bg-indigo-900 text-indigo-800 dark:text-indigo-200 font-bold flex items-center justify-center">
                   {selectedStaff.initial}
                 </span>
                 <div>
@@ -2694,25 +2744,27 @@ export default function Home() {
         </SheetContent>
       </Sheet>
 
-      {/* PRINTABLE RECEIPT DIALOG - FIXED ALIGNMENT WITH 58mm, 80mm & A4 SELECTION */}
+      {/* STRUCTURED PRINTABLE THERMAL RECEIPT WITH 58MM, 80MM & A4 FORMAT SELECTOR */}
       <Dialog open={!!receipt} onOpenChange={(v) => !v && setReceipt(null)}>
         <DialogContent className="max-w-md p-6 bg-slate-900 border border-slate-800 text-white">
           <DialogHeader className="no-print">
             <DialogTitle className="text-base font-bold">Bill Details & Receipt</DialogTitle>
-            <DialogDescription className="text-xs text-muted-foreground">Select print format size and print</DialogDescription>
+            <DialogDescription className="text-xs text-muted-foreground">
+              Select paper format and print receipt
+            </DialogDescription>
           </DialogHeader>
 
-          {/* Paper Size Selector (58mm, 80mm, A4) */}
-          <div className="no-print flex items-center justify-between p-2.5 mb-2 rounded-xl bg-slate-800/80 border border-slate-700 text-xs">
+          {/* Paper Format Selector: 58mm, 80mm, A4 */}
+          <div className="no-print flex items-center justify-between p-2.5 mb-2 rounded-xl bg-slate-800 border border-slate-700 text-xs">
             <span className="font-semibold text-gray-300">Format:</span>
             <div className="flex gap-1.5">
               {(["58mm", "80mm", "A4"] as const).map((sz) => (
                 <button
                   key={sz}
                   onClick={() => setPrintPaperSize(sz)}
-                  className={`px-2.5 py-1 rounded-lg text-xs font-bold transition-all ${
+                  className={`px-3 py-1 rounded-lg text-xs font-bold transition-all ${
                     printPaperSize === sz
-                      ? "bg-amber-500 text-white"
+                      ? "bg-amber-500 text-white shadow-sm"
                       : "bg-slate-700 text-gray-300 hover:bg-slate-600"
                   }`}
                 >
@@ -2727,12 +2779,13 @@ export default function Home() {
               id="printable-receipt-card"
               className="p-5 bg-white text-black rounded-xl font-mono text-xs space-y-2 border shadow-lg"
             >
+              {/* Receipt Header */}
               <div className="text-center space-y-0.5">
                 <div className="text-sm font-extrabold uppercase tracking-wide">
                   {receipt.business?.name || "The Saffron Table"}
                 </div>
                 <div className="text-[10px] text-gray-600 leading-tight">
-                  {receipt.business?.address}
+                  {receipt.business?.address || "12 Church Street, Bengaluru"}
                 </div>
                 {receipt.business?.business_phone && (
                   <div className="text-[10px] text-gray-600">
@@ -2740,7 +2793,7 @@ export default function Home() {
                   </div>
                 )}
                 {receipt.business?.gstin && (
-                  <div className="text-[10px] font-bold text-gray-700">
+                  <div className="text-[10px] font-bold text-gray-800">
                     GSTIN: {receipt.business.gstin}
                   </div>
                 )}
@@ -2748,57 +2801,75 @@ export default function Home() {
 
               <div className="border-b border-dashed border-gray-400 my-1.5" />
 
+              {/* Order Meta */}
               <div className="flex justify-between text-[11px] font-bold">
                 <span>Bill: {receipt.id}</span>
-                <span>{receipt.type}</span>
+                <span>{receipt.type} {receipt.table ? `(${receipt.table})` : ''}</span>
               </div>
               <div className="text-[10px] text-gray-500">{receipt.issuedAt}</div>
 
               <div className="border-b border-dashed border-gray-400 my-1.5" />
 
-              {/* Items List */}
-              <div className="space-y-1 text-[11px]">
-                {receipt.items.map((item, idx) => (
-                  <div key={idx} className="flex justify-between items-start">
-                    <span className="flex-1 pr-2 truncate">
-                      {item.qty}x {item.name}
-                    </span>
-                    <span className="font-semibold">{money(item.qty * item.unitPrice)}</span>
-                  </div>
-                ))}
-              </div>
+              {/* Tabular Item Rows with Proper Column Alignment */}
+              <table className="w-full text-[10px] font-mono border-collapse">
+                <thead>
+                  <tr className="border-b border-dashed border-gray-400 text-left">
+                    <th className="py-1">ITEM</th>
+                    <th className="py-1 text-center">QTY</th>
+                    <th className="py-1 text-right">PRICE</th>
+                    <th className="py-1 text-right">TOTAL</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {receipt.items.map((item, idx) => (
+                    <tr key={idx} className="border-b border-dotted border-gray-200">
+                      <td className="py-1 pr-1 max-w-[120px] truncate">{item.name}</td>
+                      <td className="py-1 text-center">{item.qty}</td>
+                      <td className="py-1 text-right">{money(item.unitPrice)}</td>
+                      <td className="py-1 text-right font-semibold">
+                        {money(item.qty * (item.unitPrice - item.discount))}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
 
               <div className="border-b border-dashed border-gray-400 my-1.5" />
 
-              {/* Totals & GST Slabs */}
-              <div className="space-y-0.5 text-[11px]">
+              {/* Financial Breakdown & GST Slabs */}
+              <div className="space-y-0.5 text-[10px] font-mono">
                 <div className="flex justify-between">
-                  <span>Subtotal:</span>
+                  <span>Subtotal</span>
                   <span>{money(receipt.subtotal)}</span>
                 </div>
                 {receipt.discount > 0 && (
                   <div className="flex justify-between text-green-700">
-                    <span>Discount:</span>
+                    <span>Discount</span>
                     <span>−{money(receipt.discount)}</span>
                   </div>
                 )}
                 <div className="flex justify-between text-gray-600 text-[10px]">
-                  <span>CGST ({tenantInfo.cgst_percent}%):</span>
+                  <span>CGST ({tenantInfo.cgst_percent}%)</span>
                   <span>{money(receipt.cgst)}</span>
                 </div>
                 <div className="flex justify-between text-gray-600 text-[10px]">
-                  <span>SGST ({tenantInfo.sgst_percent}%):</span>
+                  <span>SGST ({tenantInfo.sgst_percent}%)</span>
                   <span>{money(receipt.sgst)}</span>
                 </div>
-                <div className="border-b border-solid border-gray-800 my-1" />
-                <div className="flex justify-between text-sm font-extrabold pt-0.5">
-                  <span>Total:</span>
+                <div className="border-b border-solid border-gray-900 my-1" />
+                <div className="flex justify-between text-xs font-black pt-0.5">
+                  <span>TOTAL DUE</span>
                   <span>{money(receipt.total)}</span>
+                </div>
+                <div className="flex justify-between text-[9px] text-gray-500 pt-0.5">
+                  <span>Payment Mode</span>
+                  <span>{receipt.payment}</span>
                 </div>
               </div>
 
-              <div className="text-center text-[10px] text-gray-500 pt-2 border-t border-dashed border-gray-300">
-                {receipt.business?.receipt_footer || "Thank you for dining with us!"}
+              {/* Receipt Footer */}
+              <div className="text-center text-[9px] text-gray-500 pt-2 border-t border-dashed border-gray-300">
+                {receipt.business?.receipt_footer || "Thank you for dining with us! Visit again."}
               </div>
             </div>
           )}

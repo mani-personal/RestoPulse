@@ -13,9 +13,9 @@ export async function GET(request: Request) {
     const { searchParams } = new URL(request.url)
     const restaurant_id = searchParams.get('restaurant_id')
     const email = searchParams.get('email')
-    const name = searchParams.get('name')
+    const user_id = searchParams.get('user_id')
 
-    // 1. Get current Admin UPI
+    // 1. Fetch active Admin UPI
     const { data: settingData } = await supabase
       .from('settings')
       .select('value, upi_id')
@@ -24,19 +24,34 @@ export async function GET(request: Request) {
 
     const upi_id = settingData?.upi_id || settingData?.value || 'admin-restopulse@upi'
 
-    // 2. Fetch live restaurant status if requested
+    // 2. Fetch the target restaurant
     let restaurant: any = null
-    if (restaurant_id || email || name) {
-      let query = supabase.from('restaurants').select('*')
-      if (restaurant_id && restaurant_id !== '1' && restaurant_id !== 'null') {
-        query = query.eq('id', restaurant_id)
-      } else if (email) {
-        query = query.eq('owner_email', email)
-      } else if (name) {
-        query = query.eq('name', name)
+
+    if (user_id) {
+      const { data: membership } = await supabase
+        .from('memberships')
+        .select('restaurant_id')
+        .eq('user_id', user_id)
+        .maybeSingle()
+
+      if (membership?.restaurant_id) {
+        const { data: restData } = await supabase
+          .from('restaurants')
+          .select('*')
+          .eq('id', membership.restaurant_id)
+          .maybeSingle()
+        if (restData) restaurant = restData
       }
-      const { data } = await query.maybeSingle()
-      restaurant = data
+    }
+
+    if (!restaurant && restaurant_id && restaurant_id !== '1' && restaurant_id !== 'null') {
+      const { data } = await supabase.from('restaurants').select('*').eq('id', restaurant_id).maybeSingle()
+      if (data) restaurant = data
+    }
+
+    if (!restaurant && email) {
+      const { data } = await supabase.from('restaurants').select('*').eq('owner_email', email).maybeSingle()
+      if (data) restaurant = data
     }
 
     return NextResponse.json({
@@ -48,10 +63,11 @@ export async function GET(request: Request) {
             plan: restaurant.plan || 'Free trial',
             renewal_on: restaurant.renewal_on || '—',
             status: restaurant.status || 'Active',
+            owner_email: restaurant.owner_email,
           }
         : null,
     })
-  } catch (err: any) {
+  } catch {
     return NextResponse.json({ upi_id: 'admin-restopulse@upi', restaurant: null })
   }
 }

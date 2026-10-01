@@ -245,78 +245,6 @@ const initialPlans: Plan[] = [
   { id: 3, name: "Yearly", price: 29999, period: "365 days", features: "Full platform access, priority support, unlimited staff accounts.", active: true },
 ];
 
-const initialRestaurants = [
-  { id: "1", name: "Restaurant", owner: "Owner", email: "owner@example.com", phone: "+91 98765 43210", city: "Bengaluru", plan: "Free trial", status: "Active", renewal: "2026-10-13", initial: "RS" },
-];
-
-const initialStaff: Staff[] = [
-  { id: 1, name: "Ananya Rao", role: "Manager", initial: "AR", shift: "09:00 – 18:00", payType: "Monthly", monthlySalary: 45000, dailyRate: 1800, email: "ananya@restopulse.demo", phone: "+91 98765 43210" },
-  { id: 2, name: "Rohan Mehta", role: "Accountant", initial: "RM", shift: "10:00 – 19:00", payType: "Monthly", monthlySalary: 28000, dailyRate: 900, email: "rohan@restopulse.demo", phone: "+91 98765 43211" },
-  { id: 3, name: "Priya Nair", role: "Storekeeper", initial: "PN", shift: "08:00 – 17:00", payType: "Monthly", monthlySalary: 26000, dailyRate: 900, email: "priya@restopulse.demo", phone: "+91 98765 43212" },
-  { id: 4, name: "Arjun Das", role: "Staff", initial: "AD", shift: "12:00 – 21:00", payType: "Daily", monthlySalary: 0, dailyRate: 750, email: "arjun@restopulse.demo", phone: "+91 98765 43213" },
-];
-
-const initialWages: Wage[] = [
-  { id: 1, staffId: 1, date: "2026-09-25", amount: 1800, status: "Paid", note: "Day shift" },
-  { id: 2, staffId: 1, date: "2026-09-24", amount: 1800, status: "Paid", note: "Regular" },
-  { id: 3, staffId: 2, date: "2026-09-25", amount: 900, status: "Paid", note: "Day shift" },
-  { id: 4, staffId: 2, date: "2026-09-26", amount: 900, status: "Unpaid", note: "Evening cover" },
-  { id: 5, staffId: 3, date: "2026-09-25", amount: 900, status: "Paid", note: "Regular" },
-  { id: 6, staffId: 4, date: "2026-09-25", amount: 750, status: "Paid", note: "Regular" },
-];
-
-const initialExpenses: Expense[] = [
-  { id: 1, name: "Fresh produce delivery", category: "Inventory", vendor: "Green Acres Co.", amount: 4850, date: "2026-09-26", supplierId: "sp-1" },
-  { id: 2, name: "Monthly electricity", category: "Utilities", vendor: "BESCOM", amount: 12400, date: "2026-09-25", supplierId: null },
-  { id: 3, name: "Kitchen equipment service", category: "Maintenance", vendor: "ProChef Services", amount: 3200, date: "2026-09-24", supplierId: "sp-2" },
-  { id: 4, name: "Social media campaign", category: "Marketing", vendor: "Studio North", amount: 6500, date: "2026-09-22", supplierId: null },
-];
-
-function seededSale(
-  id: string,
-  time: string,
-  type: string,
-  status: string,
-  items: BillItem[],
-  tax: number,
-  table: string,
-  payment: string
-): Sale {
-  const subtotal = items.reduce((n, i) => n + i.unitPrice * i.qty, 0);
-  const discount = items.reduce((n, i) => n + i.discount * i.qty, 0);
-  const total = subtotal - discount + tax;
-  const halfTax = Math.round(tax / 2);
-  return {
-    id,
-    time,
-    placedAt: "2026-09-26T12:00:00+05:30",
-    type,
-    status,
-    amount: total,
-    bill: {
-      id,
-      issuedAt: `26 Sep 2026, ${time}`,
-      items,
-      subtotal,
-      discount,
-      tax,
-      cgst: halfTax,
-      sgst: halfTax,
-      total,
-      type,
-      table,
-      payment,
-      status,
-    },
-  };
-}
-
-const initialSales: Sale[] = [
-  seededSale("RP-10842", "12:42 PM", "Dine-in", "Paid", [{ name: "Truffle Mushroom Risotto", qty: 2, unitPrice: 680, discount: 0 }, { name: "Citrus Mint Cooler", qty: 2, unitPrice: 240, discount: 0 }], 92, "T04", "UPI"),
-  seededSale("RP-10841", "12:18 PM", "Takeaway", "Paid", [{ name: "Margherita Flatbread", qty: 2, unitPrice: 470, discount: 0 }, { name: "Citrus Mint Cooler", qty: 1, unitPrice: 240, discount: 0 }], 59, "", "Card"),
-  seededSale("RP-10840", "11:55 AM", "Dine-in", "Paid", [{ name: "Grilled Salmon Bowl", qty: 2, unitPrice: 790, discount: 0 }, { name: "Burrata & Heirloom Tomato", qty: 2, unitPrice: 520, discount: 0 }], 131, "T02", "Cash"),
-];
-
 const chart = [
   { day: "Mon", revenue: 38000, expense: 19000 },
   { day: "Tue", revenue: 44000, expense: 21000 },
@@ -358,12 +286,13 @@ export default function Home() {
 
   const [currentUserRole, setCurrentUserRole] = useState<string>("owner");
 
-  // DYNAMIC CURRENT ACTIVE PLAN STATE (LINKED TO REAL-TIME BACKEND POLLING)
-  const [activePlanName, setActivePlanName] = useState<string>("Free trial");
-  const [activeRenewalDate, setActiveRenewalDate] = useState<string>("2026-10-13");
-  const [activeRestaurantName, setActiveRestaurantName] = useState<string>("Restaurant");
+  // DYNAMIC STATE POPULATED FROM DATABASE (NO HARDCODED DUMMY CONSTANTS)
+  const [activePlanName, setActivePlanName] = useState<string>("");
+  const [activeRenewalDate, setActiveRenewalDate] = useState<string>("");
+  const [activeRestaurantName, setActiveRestaurantName] = useState<string>("");
 
   const [tenantInfo, setTenantInfo] = useState<{
+    id?: string;
     name: string;
     logo_url: string | null;
     address: string;
@@ -374,11 +303,11 @@ export default function Home() {
     sgst_percent: number;
     receipt_footer: string;
   }>({
-    name: "Restaurant",
+    name: "",
     logo_url: null,
-    address: "12 Church Street, Bengaluru",
-    business_phone: "+91 98765 43210",
-    gstin: "29AAAAA0000A1Z5",
+    address: "",
+    business_phone: "",
+    gstin: "",
     gst_percent: 5,
     cgst_percent: 2.5,
     sgst_percent: 2.5,
@@ -386,10 +315,10 @@ export default function Home() {
   });
 
   const [storeForm, setStoreForm] = useState({
-    name: "Restaurant",
-    phone: "+91 98765 43210",
-    address: "12 Church Street, Bengaluru",
-    gstin: "29AAAAA0000A1Z5",
+    name: "",
+    phone: "",
+    address: "",
+    gstin: "",
     gst_percent: "5",
     cgst_percent: "2.5",
     sgst_percent: "2.5",
@@ -409,8 +338,8 @@ export default function Home() {
   const [view, setView] = useState<View>("dashboard");
   const [profileMenu, setProfileMenu] = useState(false);
   const [accountRole, setAccountRole] = useState<"admin" | "restaurant">("restaurant");
-  const [staff, setStaff] = useState<Staff[]>(initialStaff);
-  const [wages, setWages] = useState<Wage[]>(initialWages);
+  const [staff, setStaff] = useState<Staff[]>([]);
+  const [wages, setWages] = useState<Wage[]>([]);
   const [wageForm, setWageForm] = useState({ date: new Date().toLocaleDateString("en-CA"), amount: "", note: "" });
   const [selectedStaff, setSelectedStaff] = useState<Staff | null>(null);
 
@@ -421,31 +350,26 @@ export default function Home() {
   const [notifications, setNotifications] = useState(false);
   const [dishes, setDishes] = useState<Dish[]>(initialDishes);
   const [plans, setPlans] = useState<Plan[]>(initialPlans);
-  const [restaurants, setRestaurants] = useState<any[]>(initialRestaurants);
+  const [restaurants, setRestaurants] = useState<any[]>([]);
   const [approvals, setApprovals] = useState<RestaurantApproval[]>([]);
   const [subscriptionRequests, setSubscriptionRequests] = useState<Array<any>>([]);
-  const [expenses, setExpenses] = useState<Expense[]>(initialExpenses);
+  const [expenses, setExpenses] = useState<Expense[]>([]);
   const [cart, setCart] = useState<CartLine[]>([]);
   const [category, setCategory] = useState("All items");
   const [query, setQuery] = useState("");
   const [orderType, setOrderType] = useState("Dine-in");
-  const [table, setTable] = useState("T04");
+  const [table, setTable] = useState("T01");
   const [orderDiscount, setOrderDiscount] = useState(0);
   const [payment, setPayment] = useState("UPI");
   const [sound, setSound] = useState(false);
   const [receipt, setReceipt] = useState<Bill | null>(null);
-  const [orders, setOrders] = useState<Sale[]>(initialSales);
+  const [orders, setOrders] = useState<Sale[]>([]);
   const [modal, setModal] = useState<"plan" | "dish" | "expense" | "restaurant" | "extend" | "employee" | "supplier" | "payment" | "inventory" | null>(null);
   const [editing, setEditing] = useState<number | string | null>(null);
   const [form, setForm] = useState<Record<string, string>>({});
   const [dateRange, setDateRange] = useState("This week");
 
-  const [inventoryList, setInventoryList] = useState<InventoryItem[]>([
-    { id: 1, name: "Basmati Rice", category: "Grains", onHand: 12, unit: "bags", reorderLevel: 5 },
-    { id: 2, name: "Refined Cooking Oil", category: "Oils", onHand: 3, unit: "tins", reorderLevel: 6 },
-    { id: 3, name: "Whole Wheat Flour", category: "Grains", onHand: 18, unit: "bags", reorderLevel: 10 },
-    { id: 4, name: "Fresh Paneer", category: "Dairy", onHand: 0, unit: "kg", reorderLevel: 4 },
-  ]);
+  const [inventoryList, setInventoryList] = useState<InventoryItem[]>([]);
   const [invForm, setInvForm] = useState({ name: "", category: "Grains", onHand: "", unit: "bags", reorderLevel: "5" });
   const [editingInvId, setEditingInvId] = useState<string | number | null>(null);
 
@@ -475,22 +399,39 @@ export default function Home() {
     return 30;
   };
 
-  // Synchronize Live Subscription from Database (bypasses RLS)
+  // Live Subscription Status Synchronization from Database via Service Role API
   const syncLiveSubscriptionStatus = useCallback(async () => {
     try {
       const url = `/api/subscription?restaurant_id=${encodeURIComponent(tenantId || "")}&user_id=${encodeURIComponent(authUser || "")}&email=${encodeURIComponent(loginEmail || "")}`;
       const res = await fetch(url);
       const data = await res.json();
       if (data?.restaurant) {
-        setActivePlanName(data.restaurant.plan);
-        setActiveRenewalDate(data.restaurant.renewal_on);
+        setActivePlanName(data.restaurant.plan || "Free trial");
+        setActiveRenewalDate(data.restaurant.renewal_on || "—");
         setActiveRestaurantName(data.restaurant.name);
         if (data.restaurant.id) {
           setTenantId(data.restaurant.id);
         }
         setTenantInfo((prev) => ({
           ...prev,
+          id: data.restaurant.id,
           name: data.restaurant.name,
+          address: data.restaurant.address || prev.address,
+          business_phone: data.restaurant.owner_phone || prev.business_phone,
+          gstin: data.restaurant.gstin || prev.gstin,
+          gst_percent: data.restaurant.gst_percent || prev.gst_percent,
+          cgst_percent: data.restaurant.cgst_percent || prev.cgst_percent,
+          sgst_percent: data.restaurant.sgst_percent || prev.sgst_percent,
+        }));
+        setStoreForm((prev) => ({
+          ...prev,
+          name: data.restaurant.name,
+          address: data.restaurant.address || prev.address,
+          phone: data.restaurant.owner_phone || prev.phone,
+          gstin: data.restaurant.gstin || prev.gstin,
+          gst_percent: String(data.restaurant.gst_percent || 5),
+          cgst_percent: String(data.restaurant.cgst_percent || 2.5),
+          sgst_percent: String(data.restaurant.sgst_percent || 2.5),
         }));
       }
       if (data?.upi_id) {
@@ -524,12 +465,13 @@ export default function Home() {
             mapped[0];
 
           if (found) {
-            setActivePlanName(found.plan);
-            setActiveRenewalDate(found.renewal);
+            setActivePlanName(found.plan || "Free trial");
+            setActiveRenewalDate(found.renewal || "—");
             setActiveRestaurantName(found.name);
             setTenantId(found.id);
             setTenantInfo((prev) => ({
               ...prev,
+              id: found.id,
               name: found.name,
               address: found.city ? `${found.name}, ${found.city}` : prev.address,
               business_phone: found.phone || prev.business_phone,
@@ -542,69 +484,23 @@ export default function Home() {
 
   const fetchRealApprovals = useCallback(async () => {
     try {
-      if (db) {
-        const { data, error } = await db
-          .from("restaurants")
-          .select("*")
-          .eq("status", "Pending")
-          .order("created_at", { ascending: false });
-
-        if (!error && data) {
-          setApprovals(
-            data.map((r: any) => ({
-              id: r.id,
-              name: r.name,
-              city: r.city || "Not specified",
-              submitted: r.created_at
-                ? new Date(r.created_at).toLocaleDateString("en-IN", {
-                    day: "numeric",
-                    month: "short",
-                    year: "numeric",
-                  })
-                : "Recent",
-              docs: r.gstin ? `GSTIN: ${r.gstin}` : "Registration Docs",
-              status: "Pending",
-              owner: r.owner_name,
-              email: r.owner_email,
-              phone: r.owner_phone,
-              plan: r.plan || "Free trial",
-            }))
-          );
-          return;
-        }
-      }
       const res = await fetch("/api/admin/approvals");
       const json = await res.json();
       if (json?.approvals) {
         setApprovals(json.approvals);
       }
     } catch {}
-  }, [db]);
+  }, []);
 
   const fetchSubscriptionRequests = useCallback(async () => {
     try {
-      if (db) {
-        const { data, error } = await db
-          .from("subscription_requests")
-          .select("*")
-          .eq("status", "Pending")
-          .order("requested_at", { ascending: false });
-
-        if (!error && data) {
-          setSubscriptionRequests(data);
-          return;
-        }
-      }
       const res = await fetch("/api/admin/subscriptions");
       const json = await res.json();
       if (json?.requests) {
         setSubscriptionRequests(json.requests);
       }
-    } catch {
-      const localReqs = localStorage.getItem("rp-local-sub-requests");
-      if (localReqs) setSubscriptionRequests(JSON.parse(localReqs));
-    }
-  }, [db]);
+    } catch {}
+  }, []);
 
   useEffect(() => {
     if (!db) {
@@ -671,8 +567,8 @@ export default function Home() {
             mapped[0];
 
           if (found) {
-            setActivePlanName(found.plan);
-            setActiveRenewalDate(found.renewal);
+            setActivePlanName(found.plan || "Free trial");
+            setActiveRenewalDate(found.renewal || "—");
             setActiveRestaurantName(found.name);
             setTenantId(found.id);
           }
@@ -704,34 +600,12 @@ export default function Home() {
       .catch(() => {});
   }, [isAdmin, tenantId]);
 
-  // Real-Time Listeners & Polling
+  // LIVE 3-SECOND REAL-TIME POLLING
   useEffect(() => {
     fetchSubscriptionRequests();
     fetchRealApprovals();
     fetchAllRestaurants();
     syncLiveSubscriptionStatus();
-
-    let channel1: any = null;
-    let channel2: any = null;
-    if (db) {
-      channel1 = db
-        .channel("realtime-sub-reqs")
-        .on("postgres_changes", { event: "*", schema: "public", table: "subscription_requests" }, () => {
-          fetchSubscriptionRequests();
-          fetchAllRestaurants();
-          syncLiveSubscriptionStatus();
-        })
-        .subscribe();
-
-      channel2 = db
-        .channel("realtime-restaurants-approval")
-        .on("postgres_changes", { event: "*", schema: "public", table: "restaurants" }, () => {
-          fetchRealApprovals();
-          fetchAllRestaurants();
-          syncLiveSubscriptionStatus();
-        })
-        .subscribe();
-    }
 
     const interval = setInterval(() => {
       fetchSubscriptionRequests();
@@ -742,10 +616,8 @@ export default function Home() {
 
     return () => {
       clearInterval(interval);
-      if (channel1 && db) db.removeChannel(channel1);
-      if (channel2 && db) db.removeChannel(channel2);
     };
-  }, [db, fetchSubscriptionRequests, fetchRealApprovals, fetchAllRestaurants, syncLiveSubscriptionStatus]);
+  }, [fetchSubscriptionRequests, fetchRealApprovals, fetchAllRestaurants, syncLiveSubscriptionStatus]);
 
   useEffect(() => {
     if (!tenantId) return;
@@ -1095,6 +967,7 @@ export default function Home() {
     setAdminUpiBusy(false);
   };
 
+  // RESTAURANT SUBMITS PAYMENT PROOF (ONLY ONCE)
   const handleInlineSubmitReference = async () => {
     if (!activeInlinePlan) return;
     if (!inlineRefId.trim()) {
@@ -1172,65 +1045,28 @@ export default function Home() {
       const planName = reqRest?.plan || "Yearly";
       const daysToAdd = getPlanDurationDays(planName);
 
-      const targetRestaurant =
-        restaurants.find((r) => String(r.id) === String(reqRest?.restaurant_id)) ||
-        restaurants.find((r) => r.name === reqRest?.restaurant_name) ||
-        restaurants.find((r) => r.email === reqRest?.owner_email) ||
-        restaurants[0];
-
-      let baseDate = new Date();
-      if (targetRestaurant?.renewal && targetRestaurant.renewal !== "—") {
-        const existingRenewal = new Date(targetRestaurant.renewal);
-        if (!isNaN(existingRenewal.getTime()) && existingRenewal > baseDate) {
-          baseDate = existingRenewal;
-        }
-      }
-
-      const nextDate = new Date(baseDate.getTime());
-      nextDate.setDate(nextDate.getDate() + daysToAdd);
-      const newRenewalStr = nextDate.toISOString().slice(0, 10);
-
       const res = await fetch("/api/admin/subscriptions", {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           request_id: requestId,
-          restaurant_id: targetRestaurant?.id,
-          restaurant_name: targetRestaurant?.name || reqRest?.restaurant_name,
-          owner_email: targetRestaurant?.email || reqRest?.owner_email,
+          restaurant_id: reqRest?.restaurant_id,
+          restaurant_name: reqRest?.restaurant_name,
+          owner_email: reqRest?.owner_email,
           plan_name: planName,
           days_to_add: daysToAdd,
           action: action,
         }),
       });
 
+      const resData = await res.json();
+
       if (action === "approve") {
-        if (db && targetRestaurant?.id) {
-          await db.from("restaurants").update({
-            plan: planName,
-            renewal_on: newRenewalStr,
-            status: "Active",
-          }).eq("id", targetRestaurant.id);
-        }
+        const renewalDate = resData?.renewal_on || "—";
+        setActivePlanName(planName);
+        setActiveRenewalDate(renewalDate);
 
-        if (
-          String(targetRestaurant?.id) === String(tenantId) ||
-          targetRestaurant?.name === activeRestaurantName ||
-          targetRestaurant?.email === loginEmail
-        ) {
-          setActivePlanName(planName);
-          setActiveRenewalDate(newRenewalStr);
-        }
-
-        setRestaurants((old) =>
-          old.map((r) =>
-            String(r.id) === String(targetRestaurant?.id) || r.name === targetRestaurant?.name
-              ? { ...r, plan: planName, renewal: newRenewalStr, status: "Active" }
-              : r
-          )
-        );
-
-        toast.success(`Subscription approved! Plan updated to ${planName} and extended to ${newRenewalStr}.`);
+        toast.success(`Subscription approved! Plan updated to ${planName} with validity extended to ${renewalDate}.`);
       } else {
         toast.info("Subscription payment request was rejected.");
       }
@@ -1251,16 +1087,6 @@ export default function Home() {
       nextDate.setDate(nextDate.getDate() + daysToAdd);
       const renewalStr = nextDate.toISOString().slice(0, 10);
 
-      if (db) {
-        await db
-          .from("restaurants")
-          .update({
-            status: action === "approve" ? "Active" : "Rejected",
-            plan: planName,
-            renewal_on: renewalStr
-          })
-          .eq("id", approvalId);
-      }
       await fetch("/api/admin/approvals", {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
@@ -1268,14 +1094,6 @@ export default function Home() {
       });
 
       setApprovals((old) => old.filter((x) => x.id !== approvalId));
-      setRestaurants((old) =>
-        old.map((r) =>
-          String(r.id) === String(approvalId)
-            ? { ...r, status: action === "approve" ? "Active" : "Rejected", plan: planName, renewal: renewalStr }
-            : r
-        )
-      );
-
       toast.success(
         action === "approve"
           ? `Restaurant approved! ${planName} active with +${daysToAdd} days.`
@@ -1286,6 +1104,51 @@ export default function Home() {
       syncLiveSubscriptionStatus();
     } catch (err: any) {
       toast.error(err.message || "Failed to update restaurant status");
+    }
+  };
+
+  // PERSIST RESTAURANT SETTINGS DIRECTLY TO THE DATABASE
+  const handleSaveRestaurantSettings = async () => {
+    try {
+      const payload = {
+        id: tenantId || tenantInfo.id,
+        name: storeForm.name.trim(),
+        phone: storeForm.phone.trim(),
+        address: storeForm.address.trim(),
+        gstin: storeForm.gstin.trim(),
+        gst_percent: Number(storeForm.gst_percent) || 5,
+        cgst_percent: Number(storeForm.cgst_percent) || 2.5,
+        sgst_percent: Number(storeForm.sgst_percent) || 2.5,
+      };
+
+      const res = await fetch("/api/restaurant", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+
+      const resData = await res.json();
+      if (!res.ok) {
+        toast.error(resData.error || "Failed to save restaurant settings");
+        return;
+      }
+
+      setActiveRestaurantName(payload.name);
+      setTenantInfo((prev) => ({
+        ...prev,
+        name: payload.name,
+        address: payload.address,
+        business_phone: payload.phone,
+        gstin: payload.gstin,
+        gst_percent: payload.gst_percent,
+        cgst_percent: payload.cgst_percent,
+        sgst_percent: payload.sgst_percent,
+      }));
+
+      toast.success("Restaurant details & GST settings saved permanently!");
+      syncLiveSubscriptionStatus();
+    } catch (err: any) {
+      toast.error(err.message || "Failed to save settings");
     }
   };
 
@@ -1455,10 +1318,10 @@ export default function Home() {
         </div>
         <div className="store-selector">
           <span className="store-avatar">
-            {tenantInfo?.logo_url ? <img src={tenantInfo.logo_url} alt="Restaurant logo" /> : "RS"}
+            {activeRestaurantName ? activeRestaurantName.slice(0, 2).toUpperCase() : "RS"}
           </span>
           <div>
-            <b>{activeRestaurantName}</b>
+            <b>{activeRestaurantName || "Restaurant"}</b>
             <small>{currentUserRole.toUpperCase()} · {accountRole === "admin" ? "Platform console" : "Restaurant"}</small>
           </div>
           <ChevronDown size={15} />
@@ -1502,13 +1365,13 @@ export default function Home() {
           </>
         )}
 
-        {/* DYNAMIC ACTIVE PLAN CARD: INSTANTLY REFLECTS LIVE UPGRADED STATUS */}
+        {/* DYNAMIC ACTIVE PLAN CARD */}
         <div className="sidebar-bottom">
           <div className="trial-note">
             <span className="trial-icon">✦</span>
             <b>Active Plan</b>
-            <p className="font-semibold text-white capitalize">{activePlanName}</p>
-            <p className="text-[11px] text-gray-400 mt-0.5">Expires: {activeRenewalDate}</p>
+            <p className="font-semibold text-white capitalize">{activePlanName || "Free trial"}</p>
+            <p className="text-[11px] text-gray-400 mt-0.5">Expires: {activeRenewalDate || "—"}</p>
             <button onClick={() => nav(isAdmin ? "pricing" : "subscription")}>
               Manage plan <ArrowUpRight size={14} />
             </button>
@@ -1518,9 +1381,9 @@ export default function Home() {
             onClick={() => setProfileMenu(!profileMenu)}
             aria-label="Open profile menu"
           >
-            <span className="profile-avatar">MR</span>
+            <span className="profile-avatar">{activeRestaurantName ? activeRestaurantName.slice(0, 2).toUpperCase() : "MR"}</span>
             <div>
-              <b>{authUser?.slice(0, 8) || "Mani Raj"}</b>
+              <b>{authUser?.slice(0, 8) || "Account"}</b>
               <small>{currentUserRole}</small>
             </div>
             <MoreHorizontal size={19} />
@@ -1578,14 +1441,14 @@ export default function Home() {
                 setNotifications(false);
               }}
             >
-              MR
+              {activeRestaurantName ? activeRestaurantName.slice(0, 2).toUpperCase() : "MR"}
             </button>
           </div>
 
           {profileMenu && (
             <div className="profile-popover">
               <div className="profile-popover-head">
-                <b>{authUser?.slice(0, 8) || "Mani Raj"}</b>
+                <b>{authUser?.slice(0, 8) || "Account"}</b>
                 <small>{currentUserRole}</small>
               </div>
               <button onClick={() => nav("settings")}>
@@ -1611,7 +1474,7 @@ export default function Home() {
                   <span className="notif-icon amber">◎</span>
                   <span>
                     <b>{approvals.length + subscriptionRequests.length} pending items</b>
-                    <small>Review restaurant applications & payment proofs</small>
+                    <small>Review applications & proofs</small>
                   </span>
                 </button>
               )}
@@ -1620,14 +1483,14 @@ export default function Home() {
         </header>
 
         <main className={"content " + (view === "pos" ? "pos-content" : "")}>
-          {/* 1. OVERVIEW DASHBOARD (FULL ORIGINAL DASHBOARD RESTORED) */}
+          {/* 1. OVERVIEW DASHBOARD */}
           {view === "dashboard" && (
             <>
               <div className="page-head">
                 <div>
                   <div className="eyebrow">OVERVIEW</div>
-                  <h1>Good afternoon, Mani</h1>
-                  <p>Here’s what’s happening at {activeRestaurantName}.</p>
+                  <h1>Good afternoon, {activeRestaurantName || "Owner"}</h1>
+                  <p>Here’s what’s happening at {activeRestaurantName || "your restaurant"}.</p>
                 </div>
                 <div className="head-actions">
                   <select aria-label="Date range" value={dateRange} onChange={(e) => setDateRange(e.target.value)}>
@@ -1690,7 +1553,7 @@ export default function Home() {
                 ))}
               </div>
 
-              {/* Weekly Trend Chart and Top Performing Dishes Ledger */}
+              {/* Weekly Trend Chart and Top Dishes */}
               <div className="analytics-grid">
                 <section className="panel chart-panel">
                   <div className="panel-header">
@@ -2055,6 +1918,21 @@ export default function Home() {
                 <button className="primary-btn" onClick={() => open("expense")}><Plus size={17} /> Log expense</button>
               </div>
 
+              <div className="platform-stats grid grid-cols-3 gap-4 my-6">
+                <div className="p-4 bg-card rounded-xl border">
+                  <strong>{money(expenses.reduce((a, x) => a + x.amount, 0))}</strong>
+                  <span>Total Recorded Expenses</span>
+                </div>
+                <div className="p-4 bg-card rounded-xl border">
+                  <strong>{expenses.length}</strong>
+                  <span>Transactions Logged</span>
+                </div>
+                <div className="p-4 bg-card rounded-xl border">
+                  <strong>{expenses.length ? [...expenses].sort((a, b) => b.amount - a.amount)[0].category : "—"}</strong>
+                  <span>Largest Category</span>
+                </div>
+              </div>
+
               <div className="panel management-panel mt-6">
                 <div className="table-scroll">
                   <table>
@@ -2189,7 +2067,7 @@ export default function Home() {
             </>
           )}
 
-          {/* 8. RESTAURANT SUBSCRIPTION: REAL-TIME SYNCHRONIZED TIER BADGE */}
+          {/* 8. RESTAURANT SUBSCRIPTION: DYNAMICALLY REFLECTS APPROVED TIER LIVE */}
           {view === "subscription" && (
             <>
               <div className="page-head">
@@ -2329,7 +2207,7 @@ export default function Home() {
             </>
           )}
 
-          {/* 9. SETTINGS WITH FULL GST BREAKDOWN & PASSWORD RESET */}
+          {/* 9. SETTINGS - PERSISTENT DATABASE SAVING (NO DUMMY RESETS) */}
           {view === "settings" && (
             <>
               <div className="page-head">
@@ -2347,6 +2225,7 @@ export default function Home() {
                       <input
                         value={storeForm.name}
                         onChange={(e) => setStoreForm({ ...storeForm, name: e.target.value })}
+                        placeholder="e.g. Mani"
                         className="w-full p-2 border rounded-lg text-xs bg-background"
                       />
                     </label>
@@ -2355,6 +2234,7 @@ export default function Home() {
                       <input
                         value={storeForm.phone}
                         onChange={(e) => setStoreForm({ ...storeForm, phone: e.target.value })}
+                        placeholder="+91 98765 43210"
                         className="w-full p-2 border rounded-lg text-xs bg-background"
                       />
                     </label>
@@ -2363,6 +2243,7 @@ export default function Home() {
                       <input
                         value={storeForm.address}
                         onChange={(e) => setStoreForm({ ...storeForm, address: e.target.value })}
+                        placeholder="Street, City, State"
                         className="w-full p-2 border rounded-lg text-xs bg-background"
                       />
                     </label>
@@ -2411,21 +2292,9 @@ export default function Home() {
 
                   <button
                     className="primary-btn w-full mt-2"
-                    onClick={() => {
-                      setTenantInfo({
-                        ...tenantInfo,
-                        name: storeForm.name,
-                        address: storeForm.address,
-                        business_phone: storeForm.phone,
-                        gstin: storeForm.gstin,
-                        gst_percent: Number(storeForm.gst_percent) || 5,
-                        cgst_percent: Number(storeForm.cgst_percent) || 2.5,
-                        sgst_percent: Number(storeForm.sgst_percent) || 2.5,
-                      });
-                      toast.success("Restaurant & GST settings saved!");
-                    }}
+                    onClick={handleSaveRestaurantSettings}
                   >
-                    Save Details
+                    Save Details to Database
                   </button>
                 </section>
 
@@ -2934,7 +2803,7 @@ export default function Home() {
         </SheetContent>
       </Sheet>
 
-      {/* PRINTABLE THERMAL RECEIPT DIALOG */}
+      {/* PRINTABLE RECEIPT DIALOG */}
       <Dialog open={!!receipt} onOpenChange={(v) => !v && setReceipt(null)}>
         <DialogContent className="max-w-md p-6 bg-slate-900 border border-slate-800 text-white">
           <DialogHeader className="no-print">
@@ -2972,7 +2841,7 @@ export default function Home() {
               {/* Receipt Header */}
               <div className="text-center space-y-0.5">
                 <div className="text-sm font-extrabold uppercase tracking-wide">
-                  {receipt.business?.name || activeRestaurantName}
+                  {receipt.business?.name || activeRestaurantName || "Restaurant"}
                 </div>
                 <div className="text-[10px] text-gray-600 leading-tight">
                   {receipt.business?.address}
@@ -2999,7 +2868,7 @@ export default function Home() {
 
               <div className="border-b border-dashed border-gray-400 my-2" />
 
-              {/* Monochromatic table with relative column percentages */}
+              {/* Monochromatic table with percentage widths */}
               <table className="w-full text-[10px] font-mono border-collapse table-fixed">
                 <thead>
                   <tr className="border-b border-dashed border-gray-400 text-gray-700 font-bold">

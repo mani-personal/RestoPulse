@@ -286,10 +286,10 @@ export default function Home() {
 
   const [currentUserRole, setCurrentUserRole] = useState<string>("owner");
 
-  // DYNAMIC SUBSCRIPTION STATE - SYNCS TO REAL DATABASE RECORD
+  // Dynamic state populated directly by the database
   const [activePlanName, setActivePlanName] = useState<string>("Free trial");
   const [activeRenewalDate, setActiveRenewalDate] = useState<string>("—");
-  const [activeRestaurantName, setActiveRestaurantName] = useState<string>("Mani");
+  const [activeRestaurantName, setActiveRestaurantName] = useState<string>("Restaurant");
 
   const [tenantInfo, setTenantInfo] = useState<{
     id?: string;
@@ -303,7 +303,7 @@ export default function Home() {
     sgst_percent: number;
     receipt_footer: string;
   }>({
-    name: "Mani",
+    name: "",
     logo_url: null,
     address: "",
     business_phone: "",
@@ -315,7 +315,7 @@ export default function Home() {
   });
 
   const [storeForm, setStoreForm] = useState({
-    name: "Mani",
+    name: "",
     phone: "",
     address: "",
     gstin: "",
@@ -326,9 +326,14 @@ export default function Home() {
   });
 
   const [isAdmin, setIsAdmin] = useState(false);
-  const [suppliers, setSuppliers] = useState<Supplier[]>([]);
-  const [supplierPayments, setSupplierPayments] = useState<SupplierPayment[]>([]);
-  const [supplierDetail, setSupplierDetail] = useState<string | null>(null);
+  const [suppliers, setSuppliers] = useState<Supplier[]>([
+    { id: "sp-1", name: "Green Acres Co.", contact: "Vikram Shah", phone: "+91 98765 00001", email: "vikram@greenacres.in" },
+    { id: "sp-2", name: "ProChef Supplies", contact: "Sunita Roy", phone: "+91 98765 00002", email: "sunita@prochef.in" }
+  ]);
+  const [supplierPayments, setSupplierPayments] = useState<SupplierPayment[]>([
+    { id: "pay-1", supplierId: "sp-1", amount: 2500, date: "2026-09-26", method: "UPI", note: "Weekly vegetables" }
+  ]);
+  const [supplierDetail, setSupplierDetail] = useState<string | null>("sp-1");
 
   const [view, setView] = useState<View>("dashboard");
   const [profileMenu, setProfileMenu] = useState(false);
@@ -394,10 +399,10 @@ export default function Home() {
     return 30;
   };
 
-  // SYNC LIVE SUBSCRIPTION DIRECTLY FROM DATABASE VIA SERVICE ROLE API
+  // Live Subscription Status Synchronization from Database via Service Role API
   const syncLiveSubscriptionStatus = useCallback(async () => {
     try {
-      const url = `/api/subscription?restaurant_id=${encodeURIComponent(tenantId || "")}&user_id=${encodeURIComponent(authUser || "")}&name=${encodeURIComponent(activeRestaurantName || "Mani")}&email=${encodeURIComponent(loginEmail || "")}`;
+      const url = `/api/subscription?restaurant_id=${encodeURIComponent(tenantId || "")}&user_id=${encodeURIComponent(authUser || "")}&email=${encodeURIComponent(loginEmail || "")}`;
       const res = await fetch(url);
       const data = await res.json();
       if (data?.restaurant) {
@@ -427,7 +432,7 @@ export default function Home() {
         setSubscriptionUpiId(data.upi_id);
       }
     } catch {}
-  }, [tenantId, authUser, activeRestaurantName, loginEmail]);
+  }, [tenantId, authUser, loginEmail]);
 
   const fetchAllRestaurants = useCallback(async () => {
     try {
@@ -450,7 +455,6 @@ export default function Home() {
 
           const found =
             mapped.find((r: any) => String(r.id) === String(tenantId)) ||
-            mapped.find((r: any) => r.name === activeRestaurantName) ||
             mapped.find((r: any) => r.email === loginEmail) ||
             mapped[0];
 
@@ -459,11 +463,18 @@ export default function Home() {
             setActiveRenewalDate(found.renewal || "—");
             setActiveRestaurantName(found.name);
             setTenantId(found.id);
+            setTenantInfo((prev) => ({
+              ...prev,
+              id: found.id,
+              name: found.name,
+              address: found.city ? `${found.name}, ${found.city}` : prev.address,
+              business_phone: found.phone || prev.business_phone,
+            }));
           }
         }
       }
     } catch {}
-  }, [db, tenantId, activeRestaurantName, loginEmail]);
+  }, [db, tenantId, loginEmail]);
 
   const fetchRealApprovals = useCallback(async () => {
     try {
@@ -549,7 +560,7 @@ export default function Home() {
 
           const found =
             mapped.find((item: any) => String(item.id) === String(m?.data?.restaurant_id)) ||
-            mapped.find((item: any) => item.name === "Mani") ||
+            mapped.find((item: any) => item.email === loginEmail) ||
             mapped[0];
 
           if (found) {
@@ -566,7 +577,7 @@ export default function Home() {
     return () => {
       live = false;
     };
-  }, [db, authUser]);
+  }, [db, authUser, loginEmail]);
 
   useEffect(() => {
     const savedUpi = localStorage.getItem("rp-admin-upi");
@@ -586,7 +597,7 @@ export default function Home() {
       .catch(() => {});
   }, [isAdmin, tenantId]);
 
-  // LIVE 2-SECOND POLLING FOR REALTIME SYNC ACROSS TABS AND SESSIONS
+  // LIVE 2-SECOND POLLING FOR REALTIME SYNC
   useEffect(() => {
     fetchSubscriptionRequests();
     fetchRealApprovals();
@@ -1093,12 +1104,12 @@ export default function Home() {
     }
   };
 
-  // PERSIST RESTAURANT SETTINGS SAFELY TO DATABASE & LOCAL STORAGE
+  // PERSIST RESTAURANT SETTINGS SAFELY TO DATABASE (WITHOUT NON-EXISTENT COLUMNS)
   const handleSaveRestaurantSettings = async () => {
     try {
       const payload = {
         id: tenantId || tenantInfo.id,
-        name: storeForm.name.trim() || activeRestaurantName,
+        name: storeForm.name.trim(),
         phone: storeForm.phone.trim(),
         address: storeForm.address.trim(),
         gstin: storeForm.gstin.trim(),
@@ -1107,23 +1118,6 @@ export default function Home() {
         sgst_percent: Number(storeForm.sgst_percent) || 2.5,
       };
 
-      // 1. Immediately persist to state and localStorage (ensures no data loss regardless of RLS)
-      setActiveRestaurantName(payload.name);
-      setTenantInfo((prev) => ({
-        ...prev,
-        name: payload.name,
-        address: payload.address,
-        business_phone: payload.phone,
-        gstin: payload.gstin,
-        gst_percent: payload.gst_percent,
-        cgst_percent: payload.cgst_percent,
-        sgst_percent: payload.sgst_percent,
-      }));
-
-      localStorage.setItem(`rp-store-${payload.name}`, JSON.stringify(payload));
-      localStorage.setItem("rp-active-name", payload.name);
-
-      // 2. Transmit to server
       const res = await fetch("/api/restaurant", {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
@@ -1132,20 +1126,9 @@ export default function Home() {
 
       const resData = await res.json();
       if (!res.ok) {
-        if (resData.error?.includes("SUPABASE_SERVICE_ROLE_KEY")) {
-          toast.warning("Saved locally. Add SUPABASE_SERVICE_ROLE_KEY in Vercel to sync with database.");
-        } else {
-          toast.error(resData.error || "Failed to update database.");
-        }
+        toast.error(resData.error || "Failed to save restaurant settings");
         return;
       }
-
-      toast.success("Restaurant details & GST settings saved successfully!");
-      syncLiveSubscriptionStatus();
-    } catch (err: any) {
-      toast.error(err.message || "Failed to save settings");
-    }
-  };
 
       setActiveRestaurantName(payload.name);
       setTenantInfo((prev) => ({
@@ -1379,7 +1362,7 @@ export default function Home() {
           </>
         )}
 
-        {/* DYNAMIC ACTIVE PLAN CARD: LIVE SYNCS ON EVERY APPROVAL */}
+        {/* DYNAMIC ACTIVE PLAN CARD */}
         <div className="sidebar-bottom">
           <div className="trial-note">
             <span className="trial-icon">✦</span>
@@ -1833,6 +1816,13 @@ export default function Home() {
                           </tr>
                         );
                       })}
+                      {!inventoryList.length && (
+                        <tr>
+                          <td colSpan={5} className="text-center py-6 text-muted-foreground text-xs">
+                            No inventory items found. Add items to track stock.
+                          </td>
+                        </tr>
+                      )}
                     </tbody>
                   </table>
                 </div>
@@ -1918,6 +1908,14 @@ export default function Home() {
                   </div>
                 ))}
               </div>
+
+              <div className="panel pay-note mt-6 p-4 rounded-xl border bg-secondary/30 flex items-center gap-3">
+                <Wallet size={19} className="text-indigo-500 flex-shrink-0" />
+                <div className="text-xs text-foreground/90">
+                  <b className="font-bold">Payroll overview:</b> {money(wages.filter((w) => w.status === "Paid").reduce((sum, w) => sum + w.amount, 0))} paid ·{" "}
+                  {money(wages.filter((w) => w.status === "Unpaid").reduce((sum, w) => sum + w.amount, 0))} due across recorded daily wages.
+                </div>
+              </div>
             </>
           )}
 
@@ -1930,6 +1928,21 @@ export default function Home() {
                   <h1>Expenses</h1>
                 </div>
                 <button className="primary-btn" onClick={() => open("expense")}><Plus size={17} /> Log expense</button>
+              </div>
+
+              <div className="platform-stats grid grid-cols-3 gap-4 my-6">
+                <div className="p-4 bg-card rounded-xl border">
+                  <strong>{money(expenses.reduce((a, x) => a + x.amount, 0))}</strong>
+                  <span>Total Recorded Expenses</span>
+                </div>
+                <div className="p-4 bg-card rounded-xl border">
+                  <strong>{expenses.length}</strong>
+                  <span>Transactions Logged</span>
+                </div>
+                <div className="p-4 bg-card rounded-xl border">
+                  <strong>{expenses.length ? [...expenses].sort((a, b) => b.amount - a.amount)[0].category : "—"}</strong>
+                  <span>Largest Category</span>
+                </div>
               </div>
 
               <div className="panel management-panel mt-6">
@@ -2216,7 +2229,7 @@ export default function Home() {
             </>
           )}
 
-          {/* 9. SETTINGS WITH DATABASE PERSISTENCE */}
+          {/* 9. SETTINGS - DATABASE PERSISTED */}
           {view === "settings" && (
             <>
               <div className="page-head">
@@ -2850,7 +2863,7 @@ export default function Home() {
               {/* Receipt Header */}
               <div className="text-center space-y-0.5">
                 <div className="text-sm font-extrabold uppercase tracking-wide">
-                  {receipt.business?.name || activeRestaurantName}
+                  {receipt.business?.name || activeRestaurantName || "Restaurant"}
                 </div>
                 <div className="text-[10px] text-gray-600 leading-tight">
                   {receipt.business?.address}

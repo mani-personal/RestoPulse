@@ -42,7 +42,6 @@ import {
   AlertTriangle,
   KeyRound,
   RefreshCw,
-  ShieldCheck,
 } from "lucide-react";
 import {
   AreaChart,
@@ -135,7 +134,6 @@ type RestaurantApproval = {
   plan?: string;
 };
 
-// Designation & Role-based Access Types
 type EmployeeRole = "Storekeeper" | "Accountant" | "Manager" | "Staff";
 
 type Staff = {
@@ -332,16 +330,17 @@ const chart = [
 
 const money = (n: number) => "₹" + Math.round(n).toLocaleString("en-IN");
 
+// All standard restaurant menu items
 const navTenant: { id: View; label: string; icon: typeof LayoutDashboard; allowedRoles?: string[] }[] = [
   { id: "dashboard", label: "Overview", icon: LayoutDashboard },
-  { id: "pos", label: "POS Terminal", icon: ShoppingBag, allowedRoles: ["Owner", "Manager", "Staff"] },
-  { id: "menu", label: "Menu & dishes", icon: UtensilsCrossed, allowedRoles: ["Owner", "Manager"] },
-  { id: "inventory", label: "Inventory", icon: Package, allowedRoles: ["Owner", "Manager", "Storekeeper"] },
-  { id: "staff", label: "Team & payroll", icon: Users, allowedRoles: ["Owner", "Manager", "Accountant"] },
-  { id: "expenses", label: "Expenses", icon: ReceiptText, allowedRoles: ["Owner", "Accountant", "Manager"] },
-  { id: "suppliers", label: "Suppliers", icon: Building2, allowedRoles: ["Owner", "Accountant", "Storekeeper"] },
-  { id: "subscription", label: "Subscription", icon: CreditCard, allowedRoles: ["Owner"] },
-  { id: "settings", label: "Settings", icon: Settings, allowedRoles: ["Owner"] },
+  { id: "pos", label: "POS Terminal", icon: ShoppingBag, allowedRoles: ["owner", "manager", "staff"] },
+  { id: "menu", label: "Menu & dishes", icon: UtensilsCrossed, allowedRoles: ["owner", "manager"] },
+  { id: "inventory", label: "Inventory", icon: Package, allowedRoles: ["owner", "manager", "storekeeper"] },
+  { id: "staff", label: "Team & payroll", icon: Users, allowedRoles: ["owner", "manager", "accountant"] },
+  { id: "expenses", label: "Expenses", icon: ReceiptText, allowedRoles: ["owner", "accountant", "manager"] },
+  { id: "suppliers", label: "Suppliers", icon: Building2, allowedRoles: ["owner", "accountant", "storekeeper"] },
+  { id: "subscription", label: "Subscription", icon: CreditCard, allowedRoles: ["owner"] },
+  { id: "settings", label: "Settings", icon: Settings, allowedRoles: ["owner"] },
 ];
 
 const navPlatform: { id: View; label: string; icon: typeof Building2 }[] = [
@@ -359,10 +358,9 @@ export default function Home() {
   const [loginBusy, setLoginBusy] = useState(false);
   const [tenantId, setTenantId] = useState<string | null>("1");
 
-  // Current logged in user access level
-  const [currentUserRole, setCurrentUserRole] = useState<string>("Owner");
+  // Defaults to owner so all menu items show unless explicitly an employee with restricted scope
+  const [currentUserRole, setCurrentUserRole] = useState<string>("owner");
 
-  // Settings State with complete GST breakdown
   const [tenantInfo, setTenantInfo] = useState<{
     name: string;
     logo_url: string | null;
@@ -414,7 +412,7 @@ export default function Home() {
   const [wageForm, setWageForm] = useState({ date: new Date().toLocaleDateString("en-CA"), amount: "", note: "" });
   const [selectedStaff, setSelectedStaff] = useState<Staff | null>(null);
 
-  // Print paper sizing format: 58mm, 80mm, A4
+  // Print format size
   const [printPaperSize, setPrintPaperSize] = useState<"58mm" | "80mm" | "A4">("80mm");
 
   const [dark, setDark] = useState(false);
@@ -456,14 +454,14 @@ export default function Home() {
   const [adminUpiBusy, setAdminUpiBusy] = useState(false);
   const [subscriptionUpiId, setSubscriptionUpiId] = useState<string>("admin-restopulse@upi");
 
-  // Inline Subscription Cards Section
+  // Subscription cards
   const [activeInlinePlan, setActiveInlinePlan] = useState<Plan | null>(initialPlans[1]);
   const [inlineRefId, setInlineRefId] = useState("");
   const [inlineScreenshotFile, setInlineScreenshotFile] = useState<File | null>(null);
   const [inlineSubmitBusy, setInlineSubmitBusy] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  // Password Reset
+  // Password reset
   const [newPassword, setNewPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [pwdBusy, setPwdBusy] = useState(false);
@@ -598,7 +596,7 @@ export default function Home() {
         setIsAdmin(platform);
         setAccountRole(platform ? "admin" : "restaurant");
         if (m?.data?.role) {
-          setCurrentUserRole(m.data.role);
+          setCurrentUserRole(m.data.role.toLowerCase());
         }
         if (r?.data?.length) {
           setRestaurants(
@@ -777,7 +775,6 @@ export default function Home() {
   const lineDiscount = cart.reduce((sum, l) => sum + l.discount * l.qty, 0);
   const totalDiscount = Math.min(subtotal, lineDiscount + orderDiscount);
   
-  // Tax calculation with CGST and SGST
   const effectiveGst = tenantInfo.gst_percent || 5;
   const tax = Math.round((subtotal - totalDiscount) * (effectiveGst / 100));
   const cgstAmount = Math.round(tax / 2);
@@ -928,8 +925,6 @@ export default function Home() {
       setSupplierPayments((old) => [newPay, ...old]);
       toast.success("Payment recorded");
     }
-
-    // EMPLOYEE: DESIGNATION & MONTHLY SALARY + DAILY WAGE
     if (modal === "employee") {
       if (!form.name?.trim()) {
         toast.error("Enter employee name");
@@ -952,7 +947,7 @@ export default function Home() {
         phone: form.phone || "",
       };
       setStaff((old) => (editing !== null ? old.map((x) => (x.id === editing ? person : x)) : [...old, person]));
-      toast.success(editing !== null ? "Employee updated" : "Employee added with role permissions");
+      toast.success(editing !== null ? "Employee updated" : "Employee added");
     }
     setModal(null);
   };
@@ -1290,16 +1285,20 @@ export default function Home() {
   const inlineUpiPayUri = `upi://pay?pa=${encodeURIComponent(subscriptionUpiId)}&pn=${encodeURIComponent("RestoPulse")}&am=${encodeURIComponent(activePlanPrice.toFixed(2))}&cu=INR&tn=${encodeURIComponent(`${currentRestaurant?.name || 'Restaurant'} ${activeInlinePlan?.name || 'Subscription'}`)}`;
   const inlineQrImageUrl = `https://api.qrserver.com/v1/create-qr-code/?size=240x240&data=${encodeURIComponent(inlineUpiPayUri)}`;
 
-  // Filtered Navigation based on Role Access
-  const visibleNavTenant = navTenant.filter(
-    (item) => !item.allowedRoles || item.allowedRoles.includes(currentUserRole)
-  );
+  // SAFE ROLE-BASED NAVIGATION: Owner/Admin accounts ALWAYS see all 9 sections
+  const normalizedRole = (currentUserRole || "").toLowerCase();
+  const isOwnerOrAdmin = normalizedRole === "owner" || normalizedRole === "admin" || !normalizedRole;
+  
+  const visibleNavTenant = navTenant.filter((item) => {
+    if (isOwnerOrAdmin) return true;
+    return !item.allowedRoles || item.allowedRoles.includes(normalizedRole);
+  });
 
   return (
     <div className="app-shell">
       <Toaster richColors position="top-right" />
 
-      {/* DYNAMIC PRINT ENGINE WITHOUT OVERFLOW & NO SOLID BLACK BARS */}
+      {/* DYNAMIC THERMAL & A4 PRINT RULES */}
       <style jsx global>{`
         @media print {
           @page {
@@ -1316,8 +1315,8 @@ export default function Home() {
             position: absolute !important;
             left: 0 !important;
             top: 0 !important;
-            width: ${printPaperSize === "A4" ? "100%" : printPaperSize === "58mm" ? "50mm" : "72mm"} !important;
-            max-width: ${printPaperSize === "A4" ? "100%" : printPaperSize === "58mm" ? "50mm" : "72mm"} !important;
+            width: ${printPaperSize === "A4" ? "100%" : printPaperSize === "58mm" ? "48mm" : "72mm"} !important;
+            max-width: ${printPaperSize === "A4" ? "100%" : printPaperSize === "58mm" ? "48mm" : "72mm"} !important;
             margin: 0 auto !important;
             padding: ${printPaperSize === "A4" ? "8mm" : "2mm 3mm"} !important;
             background: #ffffff !important;
@@ -1360,12 +1359,12 @@ export default function Home() {
           </span>
           <div>
             <b>{tenantInfo?.name || "The Saffron Table"}</b>
-            <small>{currentUserRole} · {accountRole === "admin" ? "Platform console" : "Restaurant"}</small>
+            <small>{currentUserRole.toUpperCase()} · {accountRole === "admin" ? "Platform console" : "Restaurant"}</small>
           </div>
           <ChevronDown size={15} />
         </div>
 
-        {/* RESTAURANT NAVIGATION (FILTERED BY ROLE ACCESS) */}
+        {/* RESTAURANT NAVIGATION (RETAINED ALL MENU ITEMS) */}
         <div className="nav-heading">RESTAURANT</div>
         <nav aria-label="Restaurant navigation">
           {visibleNavTenant.map((item) => (
@@ -1860,7 +1859,7 @@ export default function Home() {
             </>
           )}
 
-          {/* 5. TEAM & PAYROLL - DESIGNATIONS, MONTHLY SALARIES & ROLE ACCESS */}
+          {/* 5. TEAM & PAYROLL */}
           {view === "staff" && (
             <>
               <div className="page-head flex justify-between items-center">
@@ -1877,7 +1876,6 @@ export default function Home() {
                 </button>
               </div>
 
-              {/* Polished Employee Cards Grid */}
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mt-6">
                 {staff.map((s) => (
                   <div
@@ -1886,7 +1884,6 @@ export default function Home() {
                     onClick={() => openStaff(s)}
                   >
                     <div>
-                      {/* Avatar & Action controls */}
                       <div className="flex justify-between items-start mb-3">
                         <span className="w-10 h-10 rounded-full bg-indigo-100 dark:bg-indigo-950 text-indigo-700 dark:text-indigo-300 font-bold text-xs flex items-center justify-center border border-indigo-200 dark:border-indigo-900 shadow-inner">
                           {s.initial}
@@ -1923,7 +1920,6 @@ export default function Home() {
                       </div>
                     </div>
 
-                    {/* Pay details */}
                     <div className="pt-3 border-t border-border/50 text-[11px] space-y-1.5">
                       <div className="flex justify-between items-center">
                         <span className="text-muted-foreground">Shift</span>
@@ -2621,16 +2617,16 @@ export default function Home() {
             </label>
 
             <label className="block space-y-1">
-              <span className="font-semibold text-muted-foreground">Designation & Access Level</span>
+              <span className="font-semibold text-muted-foreground">Designation & Access Role</span>
               <select
                 value={form.role || "Staff"}
                 onChange={(e) => setForm({ ...form, role: e.target.value })}
                 className="w-full p-2 border rounded-lg bg-background font-medium"
               >
-                <option value="Manager">Manager (Full operational access: POS, Menu, Inventory, Staff)</option>
+                <option value="Manager">Manager (Operational access: POS, Menu, Inventory, Staff)</option>
                 <option value="Accountant">Accountant (Financial access: Expenses, Suppliers, Payroll)</option>
                 <option value="Storekeeper">Storekeeper (Warehouse access: Inventory, Suppliers)</option>
-                <option value="Staff">Staff (POS cashier access only)</option>
+                <option value="Staff">Staff (POS cashier terminal access only)</option>
               </select>
             </label>
 
@@ -2846,7 +2842,7 @@ export default function Home() {
         </SheetContent>
       </Sheet>
 
-      {/* PRINTABLE THERMAL RECEIPT DIALOG - NO SOLID BLACK HEADER, CLEAN THERMAL MONOCHROME */}
+      {/* PRINTABLE THERMAL RECEIPT DIALOG - NO SOLID BLACK BAR, PERFECT ALIGNMENT */}
       <Dialog open={!!receipt} onOpenChange={(v) => !v && setReceipt(null)}>
         <DialogContent className="max-w-md p-6 bg-slate-900 border border-slate-800 text-white">
           <DialogHeader className="no-print">

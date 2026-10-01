@@ -43,6 +43,7 @@ import {
   KeyRound,
   RefreshCw,
   Clock,
+  X,
 } from "lucide-react";
 import {
   AreaChart,
@@ -245,7 +246,7 @@ const initialPlans: Plan[] = [
 ];
 
 const initialRestaurants = [
-  { id: "1", name: "Mani", owner: "Mani", email: "mani@example.com", phone: "+91 98765 43210", city: "Bengaluru", plan: "Free trial", status: "Active", renewal: "2026-10-13", initial: "MN" },
+  { id: "1", name: "Restaurant", owner: "Owner", email: "owner@example.com", phone: "+91 98765 43210", city: "Bengaluru", plan: "Free trial", status: "Active", renewal: "2026-10-13", initial: "RS" },
 ];
 
 const initialStaff: Staff[] = [
@@ -357,10 +358,10 @@ export default function Home() {
 
   const [currentUserRole, setCurrentUserRole] = useState<string>("owner");
 
-  // DYNAMIC CURRENT ACTIVE PLAN STATE (LINKED TO REAL-TIME BACKEND POLLING)
+  // Dynamic state populated directly by the database
   const [activePlanName, setActivePlanName] = useState<string>("Free trial");
   const [activeRenewalDate, setActiveRenewalDate] = useState<string>("2026-10-13");
-  const [activeRestaurantName, setActiveRestaurantName] = useState<string>("Mani");
+  const [activeRestaurantName, setActiveRestaurantName] = useState<string>("Restaurant");
 
   const [tenantInfo, setTenantInfo] = useState<{
     name: string;
@@ -373,7 +374,7 @@ export default function Home() {
     sgst_percent: number;
     receipt_footer: string;
   }>({
-    name: "Mani",
+    name: "Restaurant",
     logo_url: null,
     address: "12 Church Street, Bengaluru",
     business_phone: "+91 98765 43210",
@@ -385,7 +386,7 @@ export default function Home() {
   });
 
   const [storeForm, setStoreForm] = useState({
-    name: "Mani",
+    name: "Restaurant",
     phone: "+91 98765 43210",
     address: "12 Church Street, Bengaluru",
     gstin: "29AAAAA0000A1Z5",
@@ -452,7 +453,7 @@ export default function Home() {
   const [adminUpiBusy, setAdminUpiBusy] = useState(false);
   const [subscriptionUpiId, setSubscriptionUpiId] = useState<string>("admin-restopulse@upi");
 
-  const [activeInlinePlan, setActiveInlinePlan] = useState<Plan | null>(initialPlans[2]); // Default Yearly
+  const [activeInlinePlan, setActiveInlinePlan] = useState<Plan | null>(initialPlans[2]);
   const [inlineRefId, setInlineRefId] = useState("");
   const [inlineScreenshotFile, setInlineScreenshotFile] = useState<File | null>(null);
   const [inlineSubmitBusy, setInlineSubmitBusy] = useState(false);
@@ -474,16 +475,19 @@ export default function Home() {
     return 30;
   };
 
-  // SYNC RESTAURANT REALTIME STATUS FROM BACKEND DATABASE
-  const syncRestaurantStatus = useCallback(async () => {
+  // MULTI-TENANT LIVE STATUS SYNC: FETCHES BY ACTIVE USER OR TENANT ID
+  const syncLiveSubscriptionStatus = useCallback(async () => {
     try {
-      const url = `/api/subscription?restaurant_id=${encodeURIComponent(tenantId || "")}&email=${encodeURIComponent(loginEmail || "")}&name=${encodeURIComponent(activeRestaurantName || "")}`;
+      const url = `/api/subscription?restaurant_id=${encodeURIComponent(tenantId || "")}&user_id=${encodeURIComponent(authUser || "")}&email=${encodeURIComponent(loginEmail || "")}`;
       const res = await fetch(url);
       const data = await res.json();
       if (data?.restaurant) {
         setActivePlanName(data.restaurant.plan);
         setActiveRenewalDate(data.restaurant.renewal_on);
         setActiveRestaurantName(data.restaurant.name);
+        if (data.restaurant.id) {
+          setTenantId(data.restaurant.id);
+        }
         setTenantInfo((prev) => ({
           ...prev,
           name: data.restaurant.name,
@@ -493,7 +497,7 @@ export default function Home() {
         setSubscriptionUpiId(data.upi_id);
       }
     } catch {}
-  }, [tenantId, loginEmail, activeRestaurantName]);
+  }, [tenantId, authUser, loginEmail]);
 
   const fetchAllRestaurants = useCallback(async () => {
     try {
@@ -510,13 +514,14 @@ export default function Home() {
             plan: x.plan,
             status: x.status,
             renewal: x.renewal_on || "—",
-            initial: (x.name || "ST").slice(0, 2).toUpperCase(),
+            initial: (x.name || "RS").slice(0, 2).toUpperCase(),
           }));
           setRestaurants(mapped);
 
-          // Find current restaurant by tenantId, or fallback to name/email
+          // Find current restaurant by tenantId, or fallback to user's restaurant
           const found =
             mapped.find((r: any) => String(r.id) === String(tenantId)) ||
+            mapped.find((r: any) => r.email === loginEmail) ||
             mapped.find((r: any) => r.name === activeRestaurantName) ||
             mapped[0];
 
@@ -535,7 +540,7 @@ export default function Home() {
         }
       }
     } catch {}
-  }, [db, tenantId, activeRestaurantName]);
+  }, [db, tenantId, loginEmail, activeRestaurantName]);
 
   const fetchRealApprovals = useCallback(async () => {
     try {
@@ -597,7 +602,10 @@ export default function Home() {
       if (json?.requests) {
         setSubscriptionRequests(json.requests);
       }
-    } catch {}
+    } catch {
+      const localReqs = localStorage.getItem("rp-local-sub-requests");
+      if (localReqs) setSubscriptionRequests(JSON.parse(localReqs));
+    }
   }, [db]);
 
   useEffect(() => {
@@ -609,7 +617,7 @@ export default function Home() {
     db.auth.getSession().then(({ data }: { data: { session: any } }) => {
       if (live) {
         setAuthUser(data.session?.user.id || null);
-        setLoginEmail(data.session?.user.email || "");
+        setLoginEmail(data.session?.user?.email || "");
         setAuthLoading(false);
       }
     });
@@ -655,11 +663,15 @@ export default function Home() {
             plan: x.plan,
             status: x.status,
             renewal: x.renewal_on || "—",
-            initial: (x.name || "ST").slice(0, 2).toUpperCase(),
+            initial: (x.name || "RS").slice(0, 2).toUpperCase(),
           }));
           setRestaurants(mapped);
 
-          const found = mapped.find((item: any) => String(item.id) === String(m?.data?.restaurant_id)) || mapped[0];
+          const found =
+            mapped.find((item: any) => String(item.id) === String(m?.data?.restaurant_id)) ||
+            mapped.find((item: any) => item.email === loginEmail) ||
+            mapped[0];
+
           if (found) {
             setActivePlanName(found.plan);
             setActiveRenewalDate(found.renewal);
@@ -674,7 +686,7 @@ export default function Home() {
     return () => {
       live = false;
     };
-  }, [db, authUser]);
+  }, [db, authUser, loginEmail]);
 
   useEffect(() => {
     const savedUpi = localStorage.getItem("rp-admin-upi");
@@ -694,12 +706,12 @@ export default function Home() {
       .catch(() => {});
   }, [isAdmin, tenantId]);
 
-  // LIVE REALTIME LISTENERS & CONTINUOUS SYNC POLLING (EVERY 3 SECONDS)
+  // LIVE REALTIME LISTENERS & POLLING
   useEffect(() => {
     fetchSubscriptionRequests();
     fetchRealApprovals();
     fetchAllRestaurants();
-    syncRestaurantStatus();
+    syncLiveSubscriptionStatus();
 
     let channel1: any = null;
     let channel2: any = null;
@@ -709,7 +721,7 @@ export default function Home() {
         .on("postgres_changes", { event: "*", schema: "public", table: "subscription_requests" }, () => {
           fetchSubscriptionRequests();
           fetchAllRestaurants();
-          syncRestaurantStatus();
+          syncLiveSubscriptionStatus();
         })
         .subscribe();
 
@@ -718,7 +730,7 @@ export default function Home() {
         .on("postgres_changes", { event: "*", schema: "public", table: "restaurants" }, () => {
           fetchRealApprovals();
           fetchAllRestaurants();
-          syncRestaurantStatus();
+          syncLiveSubscriptionStatus();
         })
         .subscribe();
     }
@@ -727,7 +739,7 @@ export default function Home() {
       fetchSubscriptionRequests();
       fetchRealApprovals();
       fetchAllRestaurants();
-      syncRestaurantStatus();
+      syncLiveSubscriptionStatus();
     }, 3000);
 
     return () => {
@@ -735,20 +747,21 @@ export default function Home() {
       if (channel1 && db) db.removeChannel(channel1);
       if (channel2 && db) db.removeChannel(channel2);
     };
-  }, [db, fetchSubscriptionRequests, fetchRealApprovals, fetchAllRestaurants, syncRestaurantStatus]);
+  }, [db, fetchSubscriptionRequests, fetchRealApprovals, fetchAllRestaurants, syncLiveSubscriptionStatus]);
 
   useEffect(() => {
-    const key = tenantId ? `rp-inventory-list:${tenantId}` : `rp-inventory-list:default`;
+    if (!tenantId) return;
     try {
-      const raw = localStorage.getItem(key);
+      const raw = localStorage.getItem(`rp-inventory-list:${tenantId}`);
       if (raw) setInventoryList(JSON.parse(raw));
     } catch {}
   }, [tenantId]);
 
   const saveInventoryToStorage = (updated: InventoryItem[]) => {
     setInventoryList(updated);
-    const key = tenantId ? `rp-inventory-list:${tenantId}` : `rp-inventory-list:default`;
-    localStorage.setItem(key, JSON.stringify(updated));
+    if (tenantId) {
+      localStorage.setItem(`rp-inventory-list:${tenantId}`, JSON.stringify(updated));
+    }
   };
 
   const handleAddOrEditInventory = () => {
@@ -1084,7 +1097,7 @@ export default function Home() {
     setAdminUpiBusy(false);
   };
 
-  // RESTAURANT SUBMITS PAYMENT PROOF (ONLY 1 DISPATCH TO PREVENT DUPLICATES)
+  // RESTAURANT SUBMITS PAYMENT PROOF (ACCURATELY BINDS TARGET RESTAURANT ID)
   const handleInlineSubmitReference = async () => {
     if (!activeInlinePlan) return;
     if (!inlineRefId.trim()) {
@@ -1120,9 +1133,9 @@ export default function Home() {
 
       const payload = {
         restaurant_id: tenantId && tenantId !== "1" ? tenantId : null,
-        restaurant_name: activeRestaurantName || tenantInfo?.name || "Mani",
-        owner_name: "Mani",
-        owner_email: loginEmail || "mani@example.com",
+        restaurant_name: activeRestaurantName || tenantInfo?.name || "Restaurant",
+        owner_name: activeRestaurantName || "Owner",
+        owner_email: loginEmail || "owner@example.com",
         plan: planName,
         upi_id: subscriptionUpiId,
         screenshot_url: screenshotUrl,
@@ -1131,6 +1144,7 @@ export default function Home() {
         requested_at: new Date().toISOString(),
       };
 
+      // Dispatched once via backend API to prevent duplicates
       const res = await fetch("/api/subscription", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -1162,6 +1176,7 @@ export default function Home() {
       const planName = reqRest?.plan || "Yearly";
       const daysToAdd = getPlanDurationDays(planName);
 
+      // Find target restaurant by matching ID, name, or email
       const targetRestaurant =
         restaurants.find((r) => String(r.id) === String(reqRest?.restaurant_id)) ||
         restaurants.find((r) => r.name === reqRest?.restaurant_name) ||
@@ -1180,7 +1195,7 @@ export default function Home() {
       nextDate.setDate(nextDate.getDate() + daysToAdd);
       const newRenewalStr = nextDate.toISOString().slice(0, 10);
 
-      // Call API endpoint
+      // Send update to server endpoint
       const res = await fetch("/api/admin/subscriptions", {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
@@ -1204,9 +1219,15 @@ export default function Home() {
           }).eq("id", targetRestaurant.id);
         }
 
-        // Live UI state update
-        setActivePlanName(planName);
-        setActiveRenewalDate(newRenewalStr);
+        // Live state update for the active restaurant
+        if (
+          String(targetRestaurant?.id) === String(tenantId) ||
+          targetRestaurant?.name === activeRestaurantName ||
+          targetRestaurant?.email === loginEmail
+        ) {
+          setActivePlanName(planName);
+          setActiveRenewalDate(newRenewalStr);
+        }
 
         setRestaurants((old) =>
           old.map((r) =>
@@ -1216,14 +1237,14 @@ export default function Home() {
           )
         );
 
-        toast.success(`Subscription approved! ${planName} active with validity up to ${newRenewalStr}.`);
+        toast.success(`Subscription approved! Plan updated to ${planName} and extended to ${newRenewalStr}.`);
       } else {
         toast.info("Subscription payment request was rejected.");
       }
 
       setSubscriptionRequests((old) => old.filter((x) => x.id !== requestId));
       fetchAllRestaurants();
-      syncRestaurantStatus();
+      syncLiveSubscriptionStatus();
     } catch (err: any) {
       toast.error(err.message || "Failed to process request");
     }
@@ -1269,7 +1290,7 @@ export default function Home() {
       );
       fetchRealApprovals();
       fetchAllRestaurants();
-      syncRestaurantStatus();
+      syncLiveSubscriptionStatus();
     } catch (err: any) {
       toast.error(err.message || "Failed to update restaurant status");
     }
@@ -1441,7 +1462,7 @@ export default function Home() {
         </div>
         <div className="store-selector">
           <span className="store-avatar">
-            {tenantInfo?.logo_url ? <img src={tenantInfo.logo_url} alt="Restaurant logo" /> : "ST"}
+            {tenantInfo?.logo_url ? <img src={tenantInfo.logo_url} alt="Restaurant logo" /> : "RS"}
           </span>
           <div>
             <b>{activeRestaurantName}</b>
@@ -1488,7 +1509,7 @@ export default function Home() {
           </>
         )}
 
-        {/* DYNAMIC ACTIVE PLAN CARD: UPDATES IN REAL TIME TO REFLECT APPROVED PLAN */}
+        {/* DYNAMIC ACTIVE PLAN CARD: INSTANTLY REFLECTS LIVE UPGRADED STATUS */}
         <div className="sidebar-bottom">
           <div className="trial-note">
             <span className="trial-icon">✦</span>
@@ -1674,44 +1695,6 @@ export default function Home() {
                     <div className="kpi-foot"><span>{k.note}</span></div>
                   </div>
                 ))}
-              </div>
-              <div className="analytics-grid">
-                <section className="panel chart-panel">
-                  <div className="panel-header">
-                    <div>
-                      <h2>Revenue & expenses</h2>
-                      <p>Weekly trend breakdown</p>
-                    </div>
-                  </div>
-                  <div className="chart">
-                    <ResponsiveContainer width="100%" height="100%">
-                      <AreaChart data={chart} margin={{ top: 15, right: 8, left: -17, bottom: 0 }}>
-                        <CartesianGrid strokeDasharray="3 5" vertical={false} stroke="var(--chart-grid)" />
-                        <XAxis dataKey="day" tickLine={false} axisLine={false} tick={{ fill: "var(--text-muted)", fontSize: 12 }} dy={12} />
-                        <YAxis tickLine={false} axisLine={false} tick={{ fill: "var(--text-muted)", fontSize: 12 }} tickFormatter={(v) => `${v / 1000}k`} />
-                        <Tooltip formatter={(v) => money(Number(v))} contentStyle={{ background: "var(--panel)", border: "1px solid var(--border)", borderRadius: 12 }} />
-                        <Area type="monotone" dataKey="revenue" stroke="#f59e0b" strokeWidth={3} fillOpacity={0.2} fill="#f59e0b" />
-                        <Area type="monotone" dataKey="expense" stroke="#10b981" strokeWidth={2} fillOpacity={0} />
-                      </AreaChart>
-                    </ResponsiveContainer>
-                  </div>
-                </section>
-                <section className="panel top-dishes">
-                  <div className="panel-header">
-                    <div><h2>Top performing dishes</h2></div>
-                  </div>
-                  {initialDishes.slice(0, 4).map((d, i) => (
-                    <div className="leader-row" key={d.id}>
-                      <span className="leader-rank">0{i + 1}</span>
-                      <span className="dish-thumb">{d.emoji}</span>
-                      <div className="leader-info">
-                        <b>{d.name}</b>
-                        <small>{[82, 67, 54, 42][i]} orders</small>
-                      </div>
-                      <strong>{money([55760, 52930, 28080, 23520][i])}</strong>
-                    </div>
-                  ))}
-                </section>
               </div>
             </>
           )}
@@ -2025,14 +2008,6 @@ export default function Home() {
                   </div>
                 ))}
               </div>
-
-              <div className="panel pay-note mt-6 p-4 rounded-xl border bg-secondary/30 flex items-center gap-3">
-                <Wallet size={19} className="text-indigo-500 flex-shrink-0" />
-                <div className="text-xs text-foreground/90">
-                  <b className="font-bold">Payroll overview:</b> {money(wages.filter((w) => w.status === "Paid").reduce((sum, w) => sum + w.amount, 0))} paid ·{" "}
-                  {money(wages.filter((w) => w.status === "Unpaid").reduce((sum, w) => sum + w.amount, 0))} due across recorded daily wages.
-                </div>
-              </div>
             </>
           )}
 
@@ -2047,22 +2022,7 @@ export default function Home() {
                 <button className="primary-btn" onClick={() => open("expense")}><Plus size={17} /> Log expense</button>
               </div>
 
-              <div className="platform-stats grid grid-cols-3 gap-4 my-6">
-                <div className="p-4 bg-card rounded-xl border">
-                  <strong>{money(expenses.reduce((a, x) => a + x.amount, 0))}</strong>
-                  <span>Total Recorded Expenses</span>
-                </div>
-                <div className="p-4 bg-card rounded-xl border">
-                  <strong>{expenses.length}</strong>
-                  <span>Transactions Logged</span>
-                </div>
-                <div className="p-4 bg-card rounded-xl border">
-                  <strong>{expenses.length ? [...expenses].sort((a, b) => b.amount - a.amount)[0].category : "—"}</strong>
-                  <span>Largest Category</span>
-                </div>
-              </div>
-
-              <div className="panel management-panel">
+              <div className="panel management-panel mt-6">
                 <div className="table-scroll">
                   <table>
                     <thead>
@@ -2152,11 +2112,6 @@ export default function Home() {
                             </div>
                           </div>
 
-                          <div className="grid grid-cols-2 gap-4 text-xs">
-                            <div className="p-3 bg-secondary/30 rounded-lg">Total Purchases: <b>{money(billed)}</b></div>
-                            <div className="p-3 bg-secondary/30 rounded-lg">Total Paid: <b>{money(paid)}</b></div>
-                          </div>
-
                           <div className="table-scroll mt-4">
                             <table className="w-full text-left text-xs">
                               <thead>
@@ -2196,7 +2151,7 @@ export default function Home() {
             </>
           )}
 
-          {/* 8. RESTAURANT SUBSCRIPTION (DYNAMIC ACTIVE TIER BADGE) */}
+          {/* 8. RESTAURANT SUBSCRIPTION (REALTIME SYNCHRONIZED TIER BADGES) */}
           {view === "subscription" && (
             <>
               <div className="page-head">
@@ -2210,7 +2165,12 @@ export default function Home() {
               {/* Grid of Plans */}
               <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
                 {plans.map((p) => {
-                  const isCurrentActive = activePlanName.toLowerCase().trim() === p.name.toLowerCase().trim();
+                  const normalizedCurrent = (activePlanName || "").toLowerCase().trim();
+                  const isCurrentActive =
+                    normalizedCurrent === p.name.toLowerCase().trim() ||
+                    (normalizedCurrent.includes("year") && p.name.toLowerCase().includes("year")) ||
+                    (normalizedCurrent.includes("month") && p.name.toLowerCase().includes("month"));
+
                   const isSelected = activeInlinePlan?.id === p.id;
                   return (
                     <div
@@ -2225,7 +2185,7 @@ export default function Home() {
                         <div className="flex justify-between items-center mb-2">
                           <span className="text-sm font-semibold text-gray-300">{p.name}</span>
                           {isCurrentActive && (
-                            <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-sky-950 text-sky-400 border border-sky-800">
+                            <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-sky-950 text-sky-400 border border-sky-800 shadow-sm animate-pulse">
                               Active Tier
                             </span>
                           )}
@@ -2249,7 +2209,7 @@ export default function Home() {
                         </button>
                       ) : (
                         <div className="text-center py-2 text-xs font-semibold text-gray-400">
-                          {isCurrentActive ? "Currently on trial" : "Trial Tier"}
+                          {isCurrentActive ? "Active trial tier" : "Trial Tier"}
                         </div>
                       )}
                     </div>
@@ -2512,7 +2472,7 @@ export default function Home() {
             </>
           )}
 
-          {/* 11. ADMIN: APPROVALS */}
+          {/* 11. ADMIN: APPROVALS (APPROVE & REJECT) */}
           {view === "approvals" && isAdmin && (
             <>
               <div className="page-head flex justify-between items-center">
@@ -3029,12 +2989,12 @@ export default function Home() {
 
               <div className="space-y-0.5 text-[10px] font-mono">
                 <div className="flex justify-between">
-                  <span>Subtotal</span>
+                  <span>Subtotal:</span>
                   <span>{money(receipt.subtotal)}</span>
                 </div>
                 {receipt.discount > 0 && (
                   <div className="flex justify-between text-green-700">
-                    <span>Discount</span>
+                    <span>Discount:</span>
                     <span>−{money(receipt.discount)}</span>
                   </div>
                 )}

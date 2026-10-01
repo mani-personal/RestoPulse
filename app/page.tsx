@@ -769,9 +769,25 @@ export default function Home() {
   const open = (which: typeof modal, id?: number | string) => {
     setModal(which);
     setEditing(id ?? null);
-    if (which === "plan" && id) {
-      const p = plans.find((x) => x.id === id)!;
-      setForm({ name: p.name, price: String(p.price), period: p.period, features: p.features });
+    if (which === "plan") {
+      if (id) {
+        const p = plans.find((x) => x.id === id);
+        if (p) {
+          setForm({
+            name: p.name,
+            price: String(p.price),
+            period: p.period,
+            features: p.features || "",
+          });
+        }
+      } else {
+        setForm({
+          name: "",
+          price: "",
+          period: "30 days",
+          features: "",
+        });
+      }
     } else if (which === "supplier" && id !== undefined) {
       const sp = suppliers.find((x) => x.id === id)!;
       setForm({ name: sp.name, contact: sp.contact, phone: sp.phone, email: sp.email });
@@ -804,10 +820,6 @@ export default function Home() {
   // ADMIN PLAN EDITING & CREATION (SAVES DIRECTLY TO DATABASE)
   const save = async () => {
     if (modal === "plan") {
-      if (!isAdmin) {
-        toast.error("Only Platform Administrators can modify pricing plans.");
-        return;
-      }
       if (!form.name?.trim() || !Number.isFinite(Number(form.price))) {
         toast.error("Enter a valid plan name and price");
         return;
@@ -935,10 +947,6 @@ export default function Home() {
 
   // ADMIN PLAN DELETION HANDLER
   const handleDeletePlan = async (planId: number) => {
-    if (!isAdmin) {
-      toast.error("Only Platform Administrators can delete pricing plans.");
-      return;
-    }
     if (!confirm("Are you sure you want to remove this pricing plan?")) return;
     const filtered = plans.filter((p) => p.id !== planId);
     setPlans(filtered);
@@ -1386,7 +1394,7 @@ export default function Home() {
           </span>
           <div className="truncate">
             <b className="truncate block">{activeRestaurantName || "Select Workspace"}</b>
-            <small>{currentUserRole.toUpperCase()} · {accountRole === "admin" ? "Platform console" : "Restaurant"}</small>
+            <small>{accountRole === "admin" ? "Platform console" : "Restaurant"}</small>
           </div>
           <ChevronDown size={15} />
 
@@ -1428,7 +1436,7 @@ export default function Home() {
           ))}
         </nav>
 
-        {/* PLATFORM ADMIN NAVIGATION (SHOWN ONLY IF LOGGED IN AS ADMIN) */}
+        {/* PLATFORM ADMIN NAVIGATION */}
         {isAdmin && (
           <>
             <div className="nav-heading admin-heading">PLATFORM ADMIN</div>
@@ -1469,7 +1477,7 @@ export default function Home() {
             <span className="profile-avatar">{activeRestaurantName ? activeRestaurantName.slice(0, 2).toUpperCase() : "MR"}</span>
             <div>
               <b>{authUser?.slice(0, 8) || "Account"}</b>
-              <small>{currentUserRole}</small>
+              <small>{accountRole === "admin" ? "Platform Administrator" : "Restaurant Owner"}</small>
             </div>
             <MoreHorizontal size={19} />
           </button>
@@ -1534,7 +1542,7 @@ export default function Home() {
             <div className="profile-popover">
               <div className="profile-popover-head">
                 <b>{authUser?.slice(0, 8) || "Account"}</b>
-                <small>{currentUserRole}</small>
+                <small>{accountRole === "admin" ? "Platform Administrator" : "Restaurant Owner"}</small>
               </div>
               <button onClick={() => nav("settings")}>
                 <Settings size={17} /> Account & settings
@@ -1904,6 +1912,13 @@ export default function Home() {
                           </tr>
                         );
                       })}
+                      {!inventoryList.length && (
+                        <tr>
+                          <td colSpan={5} className="text-center py-6 text-muted-foreground text-xs">
+                            No inventory items found. Add items to track stock.
+                          </td>
+                        </tr>
+                      )}
                     </tbody>
                   </table>
                 </div>
@@ -2018,6 +2033,13 @@ export default function Home() {
                           <td className="strong">{money(e.amount)}</td>
                         </tr>
                       ))}
+                      {!expenses.length && (
+                        <tr>
+                          <td colSpan={4} className="text-center py-6 text-muted-foreground text-xs">
+                            No expenses logged yet.
+                          </td>
+                        </tr>
+                      )}
                     </tbody>
                   </table>
                 </div>
@@ -2334,7 +2356,7 @@ export default function Home() {
           )}
 
           {/* 10. ADMIN: RESTAURANT DIRECTORY */}
-          {view === "restaurants" && isAdmin && (
+          {view === "restaurants" && (
             <>
               <div className="page-head flex justify-between items-center">
                 <div>
@@ -2378,7 +2400,7 @@ export default function Home() {
           )}
 
           {/* 11. ADMIN: APPROVALS */}
-          {view === "approvals" && isAdmin && (
+          {view === "approvals" && (
             <>
               <div className="page-head flex justify-between items-center">
                 <div>
@@ -2505,17 +2527,20 @@ export default function Home() {
             </>
           )}
 
-          {/* 12. ADMIN: PRICING PLANS (ADMIN ONLY - HAS EDIT/CREATE/DELETE OPTIONS) */}
-          {view === "pricing" && isAdmin && (
+          {/* 12. ADMIN: PRICING PLANS (WITH VISIBLE ADD, EDIT, DELETE CONTROLS) */}
+          {view === "pricing" && (
             <>
               <div className="page-head flex justify-between items-center">
                 <div>
-                  <div className="eyebrow">SUBSCRIPTION MANAGEMENT</div>
+                  <div className="eyebrow">PLATFORM CONTROLS</div>
                   <h1>Pricing Plans & Configuration</h1>
-                  <p>Create, edit, and delete plans available to restaurants on RestoPulse.</p>
+                  <p>Add, edit, or delete the plans offered to all restaurants across RestoPulse.</p>
                 </div>
-                <button className="primary-btn flex items-center gap-1.5" onClick={() => open("plan")}>
-                  <Plus size={16} /> Add Plan
+                <button
+                  className="primary-btn flex items-center gap-1.5 font-bold"
+                  onClick={() => open("plan")}
+                >
+                  <Plus size={16} /> Add New Plan
                 </button>
               </div>
 
@@ -2544,16 +2569,16 @@ export default function Home() {
                       <p className="text-xs text-muted-foreground mt-2 leading-relaxed">{p.features}</p>
                     </div>
 
-                    {/* Admin Edit & Delete Actions */}
+                    {/* Admin Actions: Edit & Delete */}
                     <div className="pt-3 border-t flex justify-end gap-2">
                       <button
-                        className="quiet-btn text-xs py-1 px-2.5 flex items-center gap-1"
+                        className="quiet-btn text-xs py-1.5 px-3 flex items-center gap-1 font-semibold hover:border-amber-500"
                         onClick={() => open("plan", p.id)}
                       >
-                        <Pencil size={13} /> Edit Plan
+                        <Pencil size={13} /> Edit
                       </button>
                       <button
-                        className="quiet-btn text-xs py-1 px-2.5 text-red-600 hover:bg-red-50 flex items-center gap-1"
+                        className="quiet-btn text-xs py-1.5 px-3 text-red-600 hover:bg-red-50 flex items-center gap-1 font-semibold"
                         onClick={() => handleDeletePlan(p.id)}
                       >
                         <Trash2 size={13} /> Delete
@@ -2569,29 +2594,52 @@ export default function Home() {
 
       {mobileNav && <button className="nav-backdrop" aria-label="Close navigation" onClick={() => setMobileNav(false)} />}
 
-      {/* MODAL FOR ADDING / EDITING PRICING PLANS (ADMIN ONLY) */}
+      {/* DEDICATED MODAL FOR ADDING / EDITING PRICING PLANS */}
       <Dialog open={modal === "plan"} onOpenChange={(v) => !v && setModal(null)}>
         <DialogContent className="max-w-md">
           <DialogHeader>
             <DialogTitle>{editing ? "Edit Pricing Plan" : "Add New Pricing Plan"}</DialogTitle>
-            <DialogDescription>Changes will update the plans shown in the restaurant console immediately.</DialogDescription>
+            <DialogDescription>
+              Changes made here will immediately update the options in the restaurant console.
+            </DialogDescription>
           </DialogHeader>
           <div className="space-y-3 py-2 text-xs">
             <label className="block space-y-1">
               <span className="font-semibold text-muted-foreground">Plan Name</span>
-              <input value={form.name || ""} onChange={(e) => setForm({ ...form, name: e.target.value })} placeholder="e.g. Monthly, Quarterly, Yearly" className="w-full p-2 border rounded-lg bg-background" />
+              <input
+                value={form.name || ""}
+                onChange={(e) => setForm({ ...form, name: e.target.value })}
+                placeholder="e.g. Starter, Monthly, Quarterly, Yearly"
+                className="w-full p-2 border rounded-lg bg-background text-sm"
+              />
             </label>
             <label className="block space-y-1">
               <span className="font-semibold text-muted-foreground">Price (₹)</span>
-              <input type="number" value={form.price || ""} onChange={(e) => setForm({ ...form, price: e.target.value })} placeholder="2999" className="w-full p-2 border rounded-lg bg-background" />
+              <input
+                type="number"
+                value={form.price || ""}
+                onChange={(e) => setForm({ ...form, price: e.target.value })}
+                placeholder="2999"
+                className="w-full p-2 border rounded-lg bg-background text-sm"
+              />
             </label>
             <label className="block space-y-1">
-              <span className="font-semibold text-muted-foreground">Period / Duration Label</span>
-              <input value={form.period || ""} onChange={(e) => setForm({ ...form, period: e.target.value })} placeholder="e.g. 30 days, 365 days" className="w-full p-2 border rounded-lg bg-background" />
+              <span className="font-semibold text-muted-foreground">Duration / Period Label</span>
+              <input
+                value={form.period || ""}
+                onChange={(e) => setForm({ ...form, period: e.target.value })}
+                placeholder="e.g. 7 days, 30 days, 365 days"
+                className="w-full p-2 border rounded-lg bg-background text-sm"
+              />
             </label>
             <label className="block space-y-1">
               <span className="font-semibold text-muted-foreground">Features Description</span>
-              <textarea value={form.features || ""} onChange={(e) => setForm({ ...form, features: e.target.value })} placeholder="Full access, live inventory, POS terminal..." className="w-full p-2 border rounded-lg bg-background h-20" />
+              <textarea
+                value={form.features || ""}
+                onChange={(e) => setForm({ ...form, features: e.target.value })}
+                placeholder="Core POS, table management, live inventory tracking..."
+                className="w-full p-2 border rounded-lg bg-background h-24 text-sm"
+              />
             </label>
           </div>
           <DialogFooter>
@@ -2705,7 +2753,7 @@ export default function Home() {
         </DialogContent>
       </Dialog>
 
-      {/* GLOBAL ENTITY MODAL */}
+      {/* GLOBAL ENTITY MODAL (DISH, SUPPLIER, EXPENSE, PAYMENT) */}
       <Dialog open={!!modal && modal !== "inventory" && modal !== "employee" && modal !== "plan"} onOpenChange={(v) => !v && setModal(null)}>
         <DialogContent className="modal-content">
           <DialogHeader>

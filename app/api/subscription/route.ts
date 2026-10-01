@@ -16,7 +16,7 @@ export async function GET(request: Request) {
     const user_id = searchParams.get('user_id')
     const name = searchParams.get('name')
 
-    // 1. Fetch current Admin UPI setting
+    // 1. Fetch Admin UPI
     const { data: settingData } = await supabase
       .from('settings')
       .select('value, upi_id')
@@ -25,10 +25,9 @@ export async function GET(request: Request) {
 
     const upi_id = settingData?.upi_id || settingData?.value || 'admin-restopulse@upi'
 
-    // 2. Fetch live restaurant record
+    // 2. Fetch live restaurant
     let restaurant: any = null
 
-    // Check membership link if user_id passed
     if (user_id) {
       const { data: membership } = await supabase
         .from('memberships')
@@ -61,15 +60,14 @@ export async function GET(request: Request) {
       if (data) restaurant = data
     }
 
-    // Fallback: fetch the active restaurant
     if (!restaurant) {
-      const { data } = await supabase
+      const { data: latest } = await supabase
         .from('restaurants')
         .select('*')
         .order('created_at', { ascending: false })
         .limit(1)
         .maybeSingle()
-      if (data) restaurant = data
+      if (latest) restaurant = latest
     }
 
     return NextResponse.json({
@@ -81,7 +79,14 @@ export async function GET(request: Request) {
             plan: restaurant.plan || 'Free trial',
             renewal_on: restaurant.renewal_on || '—',
             status: restaurant.status || 'Active',
-            owner_email: restaurant.owner_email,
+            owner_name: restaurant.owner_name || 'Owner',
+            owner_email: restaurant.owner_email || email || '',
+            owner_phone: restaurant.owner_phone || '',
+            address: restaurant.address || '',
+            gstin: restaurant.gstin || '',
+            gst_percent: restaurant.gst_percent || 5,
+            cgst_percent: restaurant.cgst_percent || 2.5,
+            sgst_percent: restaurant.sgst_percent || 2.5,
           }
         : null,
     })

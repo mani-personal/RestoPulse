@@ -42,7 +42,7 @@ import {
   AlertTriangle,
   KeyRound,
   RefreshCw,
-  Clock,
+  ShieldCheck,
 } from "lucide-react";
 import {
   AreaChart,
@@ -135,29 +135,30 @@ type RestaurantApproval = {
   plan?: string;
 };
 
-const initialDishes: Dish[] = [
-  { id: 1, name: "Burrata & Heirloom Tomato", category: "Appetizers", price: 520, cost: 210, stock: true, emoji: "🍅", diet: "Vegetarian", time: 12 },
-  { id: 2, name: "Grilled Salmon Bowl", category: "Mains", price: 790, cost: 330, stock: true, emoji: "🥗", diet: "Gluten-free", time: 18 },
-  { id: 3, name: "Dark Chocolate Fondant", category: "Desserts", price: 390, cost: 130, stock: true, emoji: "🍫", diet: "Vegetarian", time: 14 },
-  { id: 4, name: "Truffle Mushroom Risotto", category: "Mains", price: 680, cost: 240, stock: true, emoji: "🍄", diet: "Vegetarian", time: 22 },
-  { id: 5, name: "Smoked Chicken Tacos", category: "Mains", price: 560, cost: 185, stock: true, emoji: "🌮", diet: "", time: 16 },
-  { id: 6, name: "Citrus Mint Cooler", category: "Drinks", price: 240, cost: 65, stock: true, emoji: "🍹", diet: "Vegan", time: 5 },
-  { id: 7, name: "Crispy Calamari", category: "Appetizers", price: 490, cost: 210, stock: false, emoji: "🍤", diet: "", time: 15 },
-  { id: 8, name: "Margherita Flatbread", category: "Mains", price: 470, cost: 155, stock: true, emoji: "🍕", diet: "Vegetarian", time: 17 },
-];
+// Designation & Role-based Access Types
+type EmployeeRole = "Storekeeper" | "Accountant" | "Manager" | "Staff";
 
-const initialPlans: Plan[] = [
-  { id: 1, name: "Free trial", price: 0, period: "7 days", features: "Explore core POS, menu items, inventory, and reports.", active: true },
-  { id: 2, name: "Monthly", price: 2999, period: "30 days", features: "Full access, table management, live inventory tracking, POS checkout.", active: true },
-  { id: 3, name: "Yearly", price: 29999, period: "365 days", features: "Full platform access, priority support, unlimited staff accounts.", active: true },
-];
+type Staff = {
+  id: number | string;
+  name: string;
+  role: EmployeeRole;
+  initial: string;
+  shift: string;
+  payType: "Monthly" | "Daily";
+  monthlySalary: number;
+  dailyRate: number;
+  email: string;
+  phone: string;
+};
 
-const initialRestaurants = [
-  { id: 1, name: "The Saffron Table", owner: "Mani Raj", email: "mani@example.com", phone: "+91 98765 43210", city: "Bengaluru", plan: "Monthly", status: "Active", renewal: "2026-10-12", initial: "ST" },
-  { id: 2, name: "Ambur Biriyani", owner: "Ambur", email: "ambur@example.com", phone: "+91 98765 43211", city: "Chennai", plan: "Monthly", status: "Trial", renewal: "2026-10-13", initial: "AB" },
-  { id: 3, name: "Giri Restaurant", owner: "Giri", email: "giri@example.com", phone: "+91 98765 43212", city: "Bengaluru", plan: "Free trial", status: "Trial", renewal: "2026-10-13", initial: "GR" },
-  { id: 4, name: "Mani", owner: "Mani", email: "mani.rest@example.com", phone: "+91 98765 43213", city: "Madurai", plan: "Free trial", status: "Trial", renewal: "2026-10-13", initial: "MN" },
-];
+type Wage = {
+  id: number | string;
+  staffId: number | string;
+  date: string;
+  amount: number;
+  status: "Paid" | "Unpaid";
+  note: string;
+};
 
 type Expense = {
   id: number | string;
@@ -183,33 +184,6 @@ type SupplierPayment = {
   amount: number;
   date: string;
   method: string;
-  note: string;
-};
-
-const initialExpenses: Expense[] = [
-  { id: 1, name: "Fresh produce delivery", category: "Inventory", vendor: "Green Acres Co.", amount: 4850, date: "2026-09-26", supplierId: "sp-1" },
-  { id: 2, name: "Monthly electricity", category: "Utilities", vendor: "BESCOM", amount: 12400, date: "2026-09-25", supplierId: null },
-  { id: 3, name: "Kitchen equipment service", category: "Maintenance", vendor: "ProChef Services", amount: 3200, date: "2026-09-24", supplierId: "sp-2" },
-  { id: 4, name: "Social media campaign", category: "Marketing", vendor: "Studio North", amount: 6500, date: "2026-09-22", supplierId: null },
-];
-
-type Staff = {
-  id: number | string;
-  name: string;
-  role: string;
-  initial: string;
-  shift: string;
-  dailyRate: number;
-  email: string;
-  phone: string;
-};
-
-type Wage = {
-  id: number | string;
-  staffId: number | string;
-  date: string;
-  amount: number;
-  status: "Paid" | "Unpaid";
   note: string;
 };
 
@@ -254,11 +228,35 @@ type Sale = {
   bill: Bill;
 };
 
+const initialDishes: Dish[] = [
+  { id: 1, name: "Burrata & Heirloom Tomato", category: "Appetizers", price: 520, cost: 210, stock: true, emoji: "🍅", diet: "Vegetarian", time: 12 },
+  { id: 2, name: "Grilled Salmon Bowl", category: "Mains", price: 790, cost: 330, stock: true, emoji: "🥗", diet: "Gluten-free", time: 18 },
+  { id: 3, name: "Dark Chocolate Fondant", category: "Desserts", price: 390, cost: 130, stock: true, emoji: "🍫", diet: "Vegetarian", time: 14 },
+  { id: 4, name: "Truffle Mushroom Risotto", category: "Mains", price: 680, cost: 240, stock: true, emoji: "🍄", diet: "Vegetarian", time: 22 },
+  { id: 5, name: "Smoked Chicken Tacos", category: "Mains", price: 560, cost: 185, stock: true, emoji: "🌮", diet: "", time: 16 },
+  { id: 6, name: "Citrus Mint Cooler", category: "Drinks", price: 240, cost: 65, stock: true, emoji: "🍹", diet: "Vegan", time: 5 },
+  { id: 7, name: "Crispy Calamari", category: "Appetizers", price: 490, cost: 210, stock: false, emoji: "🍤", diet: "", time: 15 },
+  { id: 8, name: "Margherita Flatbread", category: "Mains", price: 470, cost: 155, stock: true, emoji: "🍕", diet: "Vegetarian", time: 17 },
+];
+
+const initialPlans: Plan[] = [
+  { id: 1, name: "Free trial", price: 0, period: "7 days", features: "Explore core POS, menu items, inventory, and reports.", active: true },
+  { id: 2, name: "Monthly", price: 2999, period: "30 days", features: "Full access, table management, live inventory tracking, POS checkout.", active: true },
+  { id: 3, name: "Yearly", price: 29999, period: "365 days", features: "Full platform access, priority support, unlimited staff accounts.", active: true },
+];
+
+const initialRestaurants = [
+  { id: 1, name: "The Saffron Table", owner: "Mani Raj", email: "mani@example.com", phone: "+91 98765 43210", city: "Bengaluru", plan: "Monthly", status: "Active", renewal: "2026-10-12", initial: "ST" },
+  { id: 2, name: "Ambur Biriyani", owner: "Ambur", email: "ambur@example.com", phone: "+91 98765 43211", city: "Chennai", plan: "Monthly", status: "Trial", renewal: "2026-10-13", initial: "AB" },
+  { id: 3, name: "Giri Restaurant", owner: "Giri", email: "giri@example.com", phone: "+91 98765 43212", city: "Bengaluru", plan: "Free trial", status: "Trial", renewal: "2026-10-13", initial: "GR" },
+  { id: 4, name: "Mani", owner: "Mani", email: "mani.rest@example.com", phone: "+91 98765 43213", city: "Madurai", plan: "Free trial", status: "Trial", renewal: "2026-10-13", initial: "MN" },
+];
+
 const initialStaff: Staff[] = [
-  { id: 1, name: "Ananya Rao", role: "Store Manager", initial: "AR", shift: "09:00 – 18:00", dailyRate: 1800, email: "ananya@restopulse.demo", phone: "+91 98765 43210" },
-  { id: 2, name: "Rohan Mehta", role: "Cashier", initial: "RM", shift: "10:00 – 19:00", dailyRate: 900, email: "rohan@restopulse.demo", phone: "+91 98765 43211" },
-  { id: 3, name: "Priya Nair", role: "Head Chef", initial: "PN", shift: "11:00 – 21:00", dailyRate: 2100, email: "priya@restopulse.demo", phone: "+91 98765 43212" },
-  { id: 4, name: "Arjun Das", role: "Waitstaff", initial: "AD", shift: "12:00 – 21:00", dailyRate: 750, email: "arjun@restopulse.demo", phone: "+91 98765 43213" },
+  { id: 1, name: "Ananya Rao", role: "Manager", initial: "AR", shift: "09:00 – 18:00", payType: "Monthly", monthlySalary: 45000, dailyRate: 1800, email: "ananya@restopulse.demo", phone: "+91 98765 43210" },
+  { id: 2, name: "Rohan Mehta", role: "Accountant", initial: "RM", shift: "10:00 – 19:00", payType: "Monthly", monthlySalary: 28000, dailyRate: 900, email: "rohan@restopulse.demo", phone: "+91 98765 43211" },
+  { id: 3, name: "Priya Nair", role: "Storekeeper", initial: "PN", shift: "08:00 – 17:00", payType: "Monthly", monthlySalary: 26000, dailyRate: 900, email: "priya@restopulse.demo", phone: "+91 98765 43212" },
+  { id: 4, name: "Arjun Das", role: "Staff", initial: "AD", shift: "12:00 – 21:00", payType: "Daily", monthlySalary: 0, dailyRate: 750, email: "arjun@restopulse.demo", phone: "+91 98765 43213" },
 ];
 
 const initialWages: Wage[] = [
@@ -266,8 +264,15 @@ const initialWages: Wage[] = [
   { id: 2, staffId: 1, date: "2026-09-24", amount: 1800, status: "Paid", note: "Regular" },
   { id: 3, staffId: 2, date: "2026-09-25", amount: 900, status: "Paid", note: "Day shift" },
   { id: 4, staffId: 2, date: "2026-09-26", amount: 900, status: "Unpaid", note: "Evening cover" },
-  { id: 5, staffId: 3, date: "2026-09-25", amount: 2100, status: "Paid", note: "Regular" },
+  { id: 5, staffId: 3, date: "2026-09-25", amount: 900, status: "Paid", note: "Regular" },
   { id: 6, staffId: 4, date: "2026-09-25", amount: 750, status: "Paid", note: "Regular" },
+];
+
+const initialExpenses: Expense[] = [
+  { id: 1, name: "Fresh produce delivery", category: "Inventory", vendor: "Green Acres Co.", amount: 4850, date: "2026-09-26", supplierId: "sp-1" },
+  { id: 2, name: "Monthly electricity", category: "Utilities", vendor: "BESCOM", amount: 12400, date: "2026-09-25", supplierId: null },
+  { id: 3, name: "Kitchen equipment service", category: "Maintenance", vendor: "ProChef Services", amount: 3200, date: "2026-09-24", supplierId: "sp-2" },
+  { id: 4, name: "Social media campaign", category: "Marketing", vendor: "Studio North", amount: 6500, date: "2026-09-22", supplierId: null },
 ];
 
 function seededSale(
@@ -327,16 +332,16 @@ const chart = [
 
 const money = (n: number) => "₹" + Math.round(n).toLocaleString("en-IN");
 
-const navTenant: { id: View; label: string; icon: typeof LayoutDashboard }[] = [
+const navTenant: { id: View; label: string; icon: typeof LayoutDashboard; allowedRoles?: string[] }[] = [
   { id: "dashboard", label: "Overview", icon: LayoutDashboard },
-  { id: "pos", label: "POS Terminal", icon: ShoppingBag },
-  { id: "menu", label: "Menu & dishes", icon: UtensilsCrossed },
-  { id: "inventory", label: "Inventory", icon: Package },
-  { id: "staff", label: "Team & payroll", icon: Users },
-  { id: "expenses", label: "Expenses", icon: ReceiptText },
-  { id: "suppliers", label: "Suppliers", icon: Building2 },
-  { id: "subscription", label: "Subscription", icon: CreditCard },
-  { id: "settings", label: "Settings", icon: Settings },
+  { id: "pos", label: "POS Terminal", icon: ShoppingBag, allowedRoles: ["Owner", "Manager", "Staff"] },
+  { id: "menu", label: "Menu & dishes", icon: UtensilsCrossed, allowedRoles: ["Owner", "Manager"] },
+  { id: "inventory", label: "Inventory", icon: Package, allowedRoles: ["Owner", "Manager", "Storekeeper"] },
+  { id: "staff", label: "Team & payroll", icon: Users, allowedRoles: ["Owner", "Manager", "Accountant"] },
+  { id: "expenses", label: "Expenses", icon: ReceiptText, allowedRoles: ["Owner", "Accountant", "Manager"] },
+  { id: "suppliers", label: "Suppliers", icon: Building2, allowedRoles: ["Owner", "Accountant", "Storekeeper"] },
+  { id: "subscription", label: "Subscription", icon: CreditCard, allowedRoles: ["Owner"] },
+  { id: "settings", label: "Settings", icon: Settings, allowedRoles: ["Owner"] },
 ];
 
 const navPlatform: { id: View; label: string; icon: typeof Building2 }[] = [
@@ -354,7 +359,10 @@ export default function Home() {
   const [loginBusy, setLoginBusy] = useState(false);
   const [tenantId, setTenantId] = useState<string | null>("1");
 
-  // Settings state with complete GST details
+  // Current logged in user access level
+  const [currentUserRole, setCurrentUserRole] = useState<string>("Owner");
+
+  // Settings State with complete GST breakdown
   const [tenantInfo, setTenantInfo] = useState<{
     name: string;
     logo_url: string | null;
@@ -406,7 +414,7 @@ export default function Home() {
   const [wageForm, setWageForm] = useState({ date: new Date().toLocaleDateString("en-CA"), amount: "", note: "" });
   const [selectedStaff, setSelectedStaff] = useState<Staff | null>(null);
 
-  // Print paper format: 58mm, 80mm, A4
+  // Print paper sizing format: 58mm, 80mm, A4
   const [printPaperSize, setPrintPaperSize] = useState<"58mm" | "80mm" | "A4">("80mm");
 
   const [dark, setDark] = useState(false);
@@ -449,7 +457,7 @@ export default function Home() {
   const [subscriptionUpiId, setSubscriptionUpiId] = useState<string>("admin-restopulse@upi");
 
   // Inline Subscription Cards Section
-  const [activeInlinePlan, setActiveInlinePlan] = useState<Plan | null>(initialPlans[1]); // default to Monthly
+  const [activeInlinePlan, setActiveInlinePlan] = useState<Plan | null>(initialPlans[1]);
   const [inlineRefId, setInlineRefId] = useState("");
   const [inlineScreenshotFile, setInlineScreenshotFile] = useState<File | null>(null);
   const [inlineSubmitBusy, setInlineSubmitBusy] = useState(false);
@@ -589,6 +597,9 @@ export default function Home() {
         const platform = !!a?.data;
         setIsAdmin(platform);
         setAccountRole(platform ? "admin" : "restaurant");
+        if (m?.data?.role) {
+          setCurrentUserRole(m.data.role);
+        }
         if (r?.data?.length) {
           setRestaurants(
             r.data.map((x: any) => ({
@@ -766,7 +777,7 @@ export default function Home() {
   const lineDiscount = cart.reduce((sum, l) => sum + l.discount * l.qty, 0);
   const totalDiscount = Math.min(subtotal, lineDiscount + orderDiscount);
   
-  // Tax calculations based on active GST percentage
+  // Tax calculation with CGST and SGST
   const effectiveGst = tenantInfo.gst_percent || 5;
   const tax = Math.round((subtotal - totalDiscount) * (effectiveGst / 100));
   const cgstAmount = Math.round(tax / 2);
@@ -810,7 +821,9 @@ export default function Home() {
         name: member.name,
         role: member.role,
         shift: member.shift,
-        dailyRate: String(member.dailyRate),
+        payType: member.payType || "Monthly",
+        monthlySalary: String(member.monthlySalary || 0),
+        dailyRate: String(member.dailyRate || 0),
         email: member.email,
         phone: member.phone,
       });
@@ -915,23 +928,31 @@ export default function Home() {
       setSupplierPayments((old) => [newPay, ...old]);
       toast.success("Payment recorded");
     }
+
+    // EMPLOYEE: DESIGNATION & MONTHLY SALARY + DAILY WAGE
     if (modal === "employee") {
-      if (!form.name?.trim() || !form.role?.trim()) {
-        toast.error("Enter a name and role");
+      if (!form.name?.trim()) {
+        toast.error("Enter employee name");
         return;
       }
+      const payType = (form.payType as "Monthly" | "Daily") || "Monthly";
+      const monthlySalary = Number(form.monthlySalary) || 0;
+      const dailyRate = Number(form.dailyRate) || (payType === "Monthly" ? Math.round(monthlySalary / 30) : 0);
+
       const person: Staff = {
         id: editing ?? Date.now(),
         name: form.name.trim(),
-        role: form.role.trim(),
+        role: (form.role as EmployeeRole) || "Staff",
         initial: form.name.trim().split(/\s+/).map((x) => x[0]).join("").slice(0, 2).toUpperCase(),
         shift: form.shift || "09:00 – 18:00",
-        dailyRate: Math.max(0, Number(form.dailyRate) || 0),
+        payType,
+        monthlySalary,
+        dailyRate,
         email: form.email || "staff@restopulse.demo",
         phone: form.phone || "",
       };
       setStaff((old) => (editing !== null ? old.map((x) => (x.id === editing ? person : x)) : [...old, person]));
-      toast.success(editing !== null ? "Employee updated" : "Employee added");
+      toast.success(editing !== null ? "Employee updated" : "Employee added with role permissions");
     }
     setModal(null);
   };
@@ -986,7 +1007,11 @@ export default function Home() {
 
   const openStaff = (person: Staff) => {
     setSelectedStaff(person);
-    setWageForm({ date: new Date().toLocaleDateString("en-CA"), amount: String(person.dailyRate), note: "" });
+    setWageForm({
+      date: new Date().toLocaleDateString("en-CA"),
+      amount: String(person.dailyRate || Math.round((person.monthlySalary || 0) / 30)),
+      note: ""
+    });
   };
 
   const saveAdminUpi = async () => {
@@ -1005,7 +1030,6 @@ export default function Home() {
     setAdminUpiBusy(false);
   };
 
-  // INLINE SUBSCRIPTION PAYMENT REFERENCE SUBMISSION
   const handleInlineSubmitReference = async () => {
     if (!activeInlinePlan) return;
     if (!inlineRefId.trim()) {
@@ -1266,11 +1290,16 @@ export default function Home() {
   const inlineUpiPayUri = `upi://pay?pa=${encodeURIComponent(subscriptionUpiId)}&pn=${encodeURIComponent("RestoPulse")}&am=${encodeURIComponent(activePlanPrice.toFixed(2))}&cu=INR&tn=${encodeURIComponent(`${currentRestaurant?.name || 'Restaurant'} ${activeInlinePlan?.name || 'Subscription'}`)}`;
   const inlineQrImageUrl = `https://api.qrserver.com/v1/create-qr-code/?size=240x240&data=${encodeURIComponent(inlineUpiPayUri)}`;
 
+  // Filtered Navigation based on Role Access
+  const visibleNavTenant = navTenant.filter(
+    (item) => !item.allowedRoles || item.allowedRoles.includes(currentUserRole)
+  );
+
   return (
     <div className="app-shell">
       <Toaster richColors position="top-right" />
 
-      {/* DYNAMIC THERMAL & A4 PRINT RULES */}
+      {/* DYNAMIC PRINT ENGINE WITHOUT OVERFLOW & NO SOLID BLACK BARS */}
       <style jsx global>{`
         @media print {
           @page {
@@ -1287,13 +1316,16 @@ export default function Home() {
             position: absolute !important;
             left: 0 !important;
             top: 0 !important;
-            width: ${printPaperSize === "A4" ? "100%" : printPaperSize === "58mm" ? "48mm" : "72mm"} !important;
-            max-width: ${printPaperSize === "A4" ? "100%" : printPaperSize === "58mm" ? "48mm" : "72mm"} !important;
+            width: ${printPaperSize === "A4" ? "100%" : printPaperSize === "58mm" ? "50mm" : "72mm"} !important;
+            max-width: ${printPaperSize === "A4" ? "100%" : printPaperSize === "58mm" ? "50mm" : "72mm"} !important;
             margin: 0 auto !important;
-            padding: ${printPaperSize === "A4" ? "8mm" : "3mm"} !important;
+            padding: ${printPaperSize === "A4" ? "8mm" : "2mm 3mm"} !important;
             background: #ffffff !important;
             color: #000000 !important;
             font-family: 'Courier New', Courier, monospace !important;
+            border: none !important;
+            box-shadow: none !important;
+            box-sizing: border-box !important;
           }
           .no-print {
             display: none !important;
@@ -1328,15 +1360,15 @@ export default function Home() {
           </span>
           <div>
             <b>{tenantInfo?.name || "The Saffron Table"}</b>
-            <small>{accountRole === "admin" ? "Platform console" : "Restaurant workspace"}</small>
+            <small>{currentUserRole} · {accountRole === "admin" ? "Platform console" : "Restaurant"}</small>
           </div>
           <ChevronDown size={15} />
         </div>
 
-        {/* RESTAURANT NAVIGATION */}
+        {/* RESTAURANT NAVIGATION (FILTERED BY ROLE ACCESS) */}
         <div className="nav-heading">RESTAURANT</div>
         <nav aria-label="Restaurant navigation">
-          {navTenant.map((item) => (
+          {visibleNavTenant.map((item) => (
             <button
               key={item.id}
               className={"nav-link " + (view === item.id ? "active" : "")}
@@ -1388,7 +1420,7 @@ export default function Home() {
             <span className="profile-avatar">MR</span>
             <div>
               <b>{authUser?.slice(0, 8) || "Mani Raj"}</b>
-              <small>{accountRole === "admin" ? "Platform administrator" : "Restaurant owner"}</small>
+              <small>{currentUserRole}</small>
             </div>
             <MoreHorizontal size={19} />
           </button>
@@ -1453,7 +1485,7 @@ export default function Home() {
             <div className="profile-popover">
               <div className="profile-popover-head">
                 <b>{authUser?.slice(0, 8) || "Mani Raj"}</b>
-                <small>{accountRole === "admin" ? "Platform administrator" : "Restaurant owner"}</small>
+                <small>{currentUserRole}</small>
               </div>
               <button onClick={() => nav("settings")}>
                 <Settings size={17} /> Account & settings
@@ -1597,7 +1629,7 @@ export default function Home() {
             </>
           )}
 
-          {/* 2. POS TERMINAL: EXACT ALIGNMENT FIX FOR IMAGE 1 */}
+          {/* 2. POS TERMINAL */}
           {view === "pos" && (
             <>
               <div className="page-head pos-head">
@@ -1650,16 +1682,14 @@ export default function Home() {
                       </span>
                     </div>
 
-                    {/* REDESIGNED CART ITEMS: 2-TIER CLEAN ROW WITH PROPER ALIGNMENT & PADDING */}
                     <div className="cart-items space-y-3 max-h-[460px] overflow-y-auto pr-1">
                       {cart.map((l) => {
                         const d = dishes.find((x) => x.id === l.id)!;
                         return (
                           <div
                             key={l.id}
-                            className="p-3 rounded-2xl border bg-background/80 hover:bg-background transition-all space-y-2.5 shadow-sm"
+                            className="p-3 rounded-2xl border bg-background/80 hover:bg-background transition-all space-y-2 shadow-sm"
                           >
-                            {/* Top Tier: Emoji, Name, and Total Price */}
                             <div className="flex items-start justify-between gap-2">
                               <div className="flex items-center gap-2.5 min-w-0">
                                 <span className="text-xl flex-shrink-0">{d.emoji}</span>
@@ -1677,7 +1707,6 @@ export default function Home() {
                               </span>
                             </div>
 
-                            {/* Bottom Tier: Quantity Stepper Controls */}
                             <div className="flex items-center justify-between pt-1 border-t border-border/40">
                               <div className="text-[10px] text-muted-foreground">
                                 {l.discount > 0 ? (
@@ -1719,7 +1748,6 @@ export default function Home() {
                     </div>
                   </div>
 
-                  {/* PROPERLY PADDED & CENTERED CHARGE FOOTER */}
                   <div className="cart-footer mt-4 pt-3 border-t space-y-3">
                     <div className="flex justify-between items-center px-1">
                       <span className="text-xs font-medium text-muted-foreground">Total due</span>
@@ -1832,14 +1860,14 @@ export default function Home() {
             </>
           )}
 
-          {/* 5. TEAM & PAYROLL - POLISHED SaaS CARDS (MATCHING IMAGE 2) */}
+          {/* 5. TEAM & PAYROLL - DESIGNATIONS, MONTHLY SALARIES & ROLE ACCESS */}
           {view === "staff" && (
             <>
               <div className="page-head flex justify-between items-center">
                 <div>
                   <div className="eyebrow text-amber-500 font-bold uppercase tracking-wider text-[11px]">YOUR PEOPLE</div>
                   <h1 className="text-2xl font-black">Team & payroll</h1>
-                  <p className="text-xs text-muted-foreground mt-0.5">Profiles, shifts, and compensation in one place.</p>
+                  <p className="text-xs text-muted-foreground mt-0.5">Designations, role access, and compensation (Monthly & Daily).</p>
                 </div>
                 <button
                   className="bg-amber-500 hover:bg-amber-600 text-white font-bold text-xs py-2 px-4 rounded-xl flex items-center gap-1.5 transition-all shadow-md active:scale-95"
@@ -1851,14 +1879,14 @@ export default function Home() {
 
               {/* Polished Employee Cards Grid */}
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mt-6">
-                {staff.map((s, i) => (
+                {staff.map((s) => (
                   <div
                     key={s.name}
                     className="p-5 rounded-2xl border bg-card/60 hover:bg-card border-border/70 hover:border-indigo-500/80 transition-all cursor-pointer shadow-sm relative group flex flex-col justify-between"
                     onClick={() => openStaff(s)}
                   >
                     <div>
-                      {/* Top Header: Avatar & Top-Right Action Controls */}
+                      {/* Avatar & Action controls */}
                       <div className="flex justify-between items-start mb-3">
                         <span className="w-10 h-10 rounded-full bg-indigo-100 dark:bg-indigo-950 text-indigo-700 dark:text-indigo-300 font-bold text-xs flex items-center justify-center border border-indigo-200 dark:border-indigo-900 shadow-inner">
                           {s.initial}
@@ -1884,29 +1912,36 @@ export default function Home() {
                         </div>
                       </div>
 
-                      {/* Name & Role */}
                       <div className="mb-4">
                         <div className="font-bold text-sm text-foreground leading-tight">{s.name}</div>
-                        <div className="text-[11px] text-muted-foreground mt-0.5">{s.role}</div>
+                        <div className="flex items-center gap-1.5 mt-1">
+                          <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-indigo-50 dark:bg-indigo-950/60 text-indigo-600 dark:text-indigo-400 border border-indigo-200 dark:border-indigo-800">
+                            {s.role}
+                          </span>
+                          <span className="text-[10px] text-muted-foreground">· {s.payType}</span>
+                        </div>
                       </div>
                     </div>
 
-                    {/* Footer Shift & Base Pay Details */}
+                    {/* Pay details */}
                     <div className="pt-3 border-t border-border/50 text-[11px] space-y-1.5">
                       <div className="flex justify-between items-center">
                         <span className="text-muted-foreground">Shift</span>
                         <b className="font-mono text-foreground font-semibold">{s.shift}</b>
                       </div>
                       <div className="flex justify-between items-center">
-                        <span className="text-muted-foreground">Base pay</span>
-                        <b className="font-mono text-foreground font-semibold">{money(s.dailyRate)} / day</b>
+                        <span className="text-muted-foreground">
+                          {s.payType === "Monthly" ? "Monthly Salary" : "Daily Rate"}
+                        </span>
+                        <b className="font-mono text-foreground font-semibold">
+                          {s.payType === "Monthly" ? money(s.monthlySalary) : `${money(s.dailyRate)} / day`}
+                        </b>
                       </div>
                     </div>
                   </div>
                 ))}
               </div>
 
-              {/* Payroll overview bar */}
               <div className="panel pay-note mt-6 p-4 rounded-xl border bg-secondary/30 flex items-center gap-3">
                 <Wallet size={19} className="text-indigo-500 flex-shrink-0" />
                 <div className="text-xs text-foreground/90">
@@ -2077,7 +2112,7 @@ export default function Home() {
             </>
           )}
 
-          {/* 8. RESTAURANT SUBSCRIPTION (EXACT LAYOUT FROM REFERENCE IMAGE) */}
+          {/* 8. RESTAURANT SUBSCRIPTION */}
           {view === "subscription" && (
             <>
               <div className="page-head">
@@ -2351,7 +2386,6 @@ export default function Home() {
                   <h1>Restaurant Directory</h1>
                   <p>Registered restaurants on RestoPulse and their active plans.</p>
                 </div>
-                <button className="primary-btn" onClick={() => open("restaurant")}><Plus size={17} /> Add restaurant</button>
               </div>
 
               <div className="panel management-panel mt-6">
@@ -2573,15 +2607,85 @@ export default function Home() {
         </DialogContent>
       </Dialog>
 
-      {/* GLOBAL ENTITY MODAL (DISH, PLAN, SUPPLIER, EMPLOYEE, EXPENSE, PAYMENT) */}
-      <Dialog open={!!modal && modal !== "inventory"} onOpenChange={(v) => !v && setModal(null)}>
+      {/* EMPLOYEE ADD / EDIT MODAL - DESIGNATIONS & PAY TYPE */}
+      <Dialog open={modal === "employee"} onOpenChange={(v) => !v && setModal(null)}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>{editing ? "Edit Employee" : "Add New Employee"}</DialogTitle>
+            <DialogDescription>Assign designation, access permissions, and salary structure.</DialogDescription>
+          </DialogHeader>
+          <div className="space-y-3 py-2 text-xs">
+            <label className="block space-y-1">
+              <span className="font-semibold text-muted-foreground">Full Name</span>
+              <input value={form.name || ""} onChange={(e) => setForm({ ...form, name: e.target.value })} placeholder="e.g. Ramesh Kumar" className="w-full p-2 border rounded-lg bg-background" />
+            </label>
+
+            <label className="block space-y-1">
+              <span className="font-semibold text-muted-foreground">Designation & Access Level</span>
+              <select
+                value={form.role || "Staff"}
+                onChange={(e) => setForm({ ...form, role: e.target.value })}
+                className="w-full p-2 border rounded-lg bg-background font-medium"
+              >
+                <option value="Manager">Manager (Full operational access: POS, Menu, Inventory, Staff)</option>
+                <option value="Accountant">Accountant (Financial access: Expenses, Suppliers, Payroll)</option>
+                <option value="Storekeeper">Storekeeper (Warehouse access: Inventory, Suppliers)</option>
+                <option value="Staff">Staff (POS cashier access only)</option>
+              </select>
+            </label>
+
+            <div className="grid grid-cols-2 gap-3">
+              <label className="block space-y-1">
+                <span className="font-semibold text-muted-foreground">Pay Type</span>
+                <select
+                  value={form.payType || "Monthly"}
+                  onChange={(e) => setForm({ ...form, payType: e.target.value })}
+                  className="w-full p-2 border rounded-lg bg-background"
+                >
+                  <option value="Monthly">Monthly Salary</option>
+                  <option value="Daily">Daily Wage</option>
+                </select>
+              </label>
+
+              {form.payType === "Daily" ? (
+                <label className="block space-y-1">
+                  <span className="font-semibold text-muted-foreground">Daily Rate (₹)</span>
+                  <input type="number" value={form.dailyRate || ""} onChange={(e) => setForm({ ...form, dailyRate: e.target.value })} placeholder="800" className="w-full p-2 border rounded-lg bg-background" />
+                </label>
+              ) : (
+                <label className="block space-y-1">
+                  <span className="font-semibold text-muted-foreground">Monthly Salary (₹)</span>
+                  <input type="number" value={form.monthlySalary || ""} onChange={(e) => setForm({ ...form, monthlySalary: e.target.value })} placeholder="25000" className="w-full p-2 border rounded-lg bg-background" />
+                </label>
+              )}
+            </div>
+
+            <div className="grid grid-cols-2 gap-3">
+              <label className="block space-y-1">
+                <span className="font-semibold text-muted-foreground">Shift</span>
+                <input value={form.shift || ""} onChange={(e) => setForm({ ...form, shift: e.target.value })} placeholder="09:00 – 18:00" className="w-full p-2 border rounded-lg bg-background" />
+              </label>
+              <label className="block space-y-1">
+                <span className="font-semibold text-muted-foreground">Phone</span>
+                <input value={form.phone || ""} onChange={(e) => setForm({ ...form, phone: e.target.value })} placeholder="+91 98765 00000" className="w-full p-2 border rounded-lg bg-background" />
+              </label>
+            </div>
+          </div>
+          <DialogFooter>
+            <button className="quiet-btn" onClick={() => setModal(null)}>Cancel</button>
+            <button className="primary-btn" onClick={save}>Save Employee</button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* GLOBAL ENTITY MODAL (DISH, PLAN, SUPPLIER, EXPENSE, PAYMENT) */}
+      <Dialog open={!!modal && modal !== "inventory" && modal !== "employee"} onOpenChange={(v) => !v && setModal(null)}>
         <DialogContent className="modal-content">
           <DialogHeader>
             <DialogTitle>
               {modal === "plan" ? (editing ? "Edit Plan" : "Add Plan")
                 : modal === "dish" ? (editing ? "Edit Dish" : "Add Dish")
                 : modal === "supplier" ? (editing ? "Edit Supplier" : "Add Supplier")
-                : modal === "employee" ? (editing ? "Edit Employee" : "Add Employee")
                 : modal === "expense" ? "Log Expense"
                 : "Record Payment"}
             </DialogTitle>
@@ -2633,13 +2737,6 @@ export default function Home() {
                 <label>Phone<input value={form.phone || ""} onChange={(e) => setForm({ ...form, phone: e.target.value })} /></label>
               </>
             )}
-            {modal === "employee" && (
-              <>
-                <label>Full name<input value={form.name || ""} onChange={(e) => setForm({ ...form, name: e.target.value })} /></label>
-                <label>Role<input value={form.role || ""} onChange={(e) => setForm({ ...form, role: e.target.value })} /></label>
-                <label>Daily rate (₹)<input type="number" value={form.dailyRate || ""} onChange={(e) => setForm({ ...form, dailyRate: e.target.value })} /></label>
-              </>
-            )}
             {modal === "payment" && (
               <>
                 <label>
@@ -2675,11 +2772,16 @@ export default function Home() {
                 <div>
                   <h3 className="text-sm font-bold">{selectedStaff.name}</h3>
                   <p className="text-muted-foreground">{selectedStaff.role} · {selectedStaff.phone}</p>
+                  <p className="text-indigo-600 font-semibold mt-0.5">
+                    {selectedStaff.payType === "Monthly"
+                      ? `Monthly: ${money(selectedStaff.monthlySalary)}`
+                      : `Daily: ${money(selectedStaff.dailyRate)}`}
+                  </p>
                 </div>
               </div>
 
               <div className="space-y-2 p-3 border rounded-xl">
-                <div className="font-bold">Record Day's Wage</div>
+                <div className="font-bold">Record Day's Wage / Daily Attendance</div>
                 <div className="grid grid-cols-2 gap-2">
                   <label className="space-y-1">
                     <span>Date</span>
@@ -2744,7 +2846,7 @@ export default function Home() {
         </SheetContent>
       </Sheet>
 
-      {/* STRUCTURED PRINTABLE THERMAL RECEIPT WITH 58MM, 80MM & A4 FORMAT SELECTOR */}
+      {/* PRINTABLE THERMAL RECEIPT DIALOG - NO SOLID BLACK HEADER, CLEAN THERMAL MONOCHROME */}
       <Dialog open={!!receipt} onOpenChange={(v) => !v && setReceipt(null)}>
         <DialogContent className="max-w-md p-6 bg-slate-900 border border-slate-800 text-white">
           <DialogHeader className="no-print">
@@ -2754,7 +2856,7 @@ export default function Home() {
             </DialogDescription>
           </DialogHeader>
 
-          {/* Paper Format Selector: 58mm, 80mm, A4 */}
+          {/* Paper Size Format Selector (58mm, 80mm, A4) */}
           <div className="no-print flex items-center justify-between p-2.5 mb-2 rounded-xl bg-slate-800 border border-slate-700 text-xs">
             <span className="font-semibold text-gray-300">Format:</span>
             <div className="flex gap-1.5">
@@ -2777,15 +2879,15 @@ export default function Home() {
           {receipt && (
             <div
               id="printable-receipt-card"
-              className="p-5 bg-white text-black rounded-xl font-mono text-xs space-y-2 border shadow-lg"
+              className="p-5 bg-white text-black rounded-xl font-mono text-[11px] leading-relaxed border shadow-lg"
             >
-              {/* Receipt Header */}
+              {/* Receipt Header (Centered, clean) */}
               <div className="text-center space-y-0.5">
                 <div className="text-sm font-extrabold uppercase tracking-wide">
                   {receipt.business?.name || "The Saffron Table"}
                 </div>
                 <div className="text-[10px] text-gray-600 leading-tight">
-                  {receipt.business?.address || "12 Church Street, Bengaluru"}
+                  {receipt.business?.address}
                 </div>
                 {receipt.business?.business_phone && (
                   <div className="text-[10px] text-gray-600">
@@ -2799,7 +2901,8 @@ export default function Home() {
                 )}
               </div>
 
-              <div className="border-b border-dashed border-gray-400 my-1.5" />
+              {/* Dotted Divider */}
+              <div className="border-b border-dashed border-gray-400 my-2" />
 
               {/* Order Meta */}
               <div className="flex justify-between text-[11px] font-bold">
@@ -2808,22 +2911,23 @@ export default function Home() {
               </div>
               <div className="text-[10px] text-gray-500">{receipt.issuedAt}</div>
 
-              <div className="border-b border-dashed border-gray-400 my-1.5" />
+              {/* Dotted Divider */}
+              <div className="border-b border-dashed border-gray-400 my-2" />
 
-              {/* Tabular Item Rows with Proper Column Alignment */}
+              {/* CLEAN ITEM TABLE WITHOUT OVERFLOW / NO BLACK INVERTED BAR */}
               <table className="w-full text-[10px] font-mono border-collapse">
                 <thead>
-                  <tr className="border-b border-dashed border-gray-400 text-left">
-                    <th className="py-1">ITEM</th>
-                    <th className="py-1 text-center">QTY</th>
-                    <th className="py-1 text-right">PRICE</th>
-                    <th className="py-1 text-right">TOTAL</th>
+                  <tr className="border-b border-dashed border-gray-400 text-gray-700 font-bold">
+                    <th className="py-1 text-left w-[50%]">ITEM</th>
+                    <th className="py-1 text-center w-[15%]">QTY</th>
+                    <th className="py-1 text-right w-[17%]">PRICE</th>
+                    <th className="py-1 text-right w-[18%]">TOTAL</th>
                   </tr>
                 </thead>
                 <tbody>
                   {receipt.items.map((item, idx) => (
                     <tr key={idx} className="border-b border-dotted border-gray-200">
-                      <td className="py-1 pr-1 max-w-[120px] truncate">{item.name}</td>
+                      <td className="py-1 pr-1 truncate text-left">{item.name}</td>
                       <td className="py-1 text-center">{item.qty}</td>
                       <td className="py-1 text-right">{money(item.unitPrice)}</td>
                       <td className="py-1 text-right font-semibold">
@@ -2834,26 +2938,27 @@ export default function Home() {
                 </tbody>
               </table>
 
-              <div className="border-b border-dashed border-gray-400 my-1.5" />
+              {/* Dotted Divider */}
+              <div className="border-b border-dashed border-gray-400 my-2" />
 
               {/* Financial Breakdown & GST Slabs */}
               <div className="space-y-0.5 text-[10px] font-mono">
                 <div className="flex justify-between">
-                  <span>Subtotal</span>
+                  <span>Subtotal:</span>
                   <span>{money(receipt.subtotal)}</span>
                 </div>
                 {receipt.discount > 0 && (
                   <div className="flex justify-between text-green-700">
-                    <span>Discount</span>
+                    <span>Discount:</span>
                     <span>−{money(receipt.discount)}</span>
                   </div>
                 )}
                 <div className="flex justify-between text-gray-600 text-[10px]">
-                  <span>CGST ({tenantInfo.cgst_percent}%)</span>
+                  <span>CGST ({tenantInfo.cgst_percent}%):</span>
                   <span>{money(receipt.cgst)}</span>
                 </div>
                 <div className="flex justify-between text-gray-600 text-[10px]">
-                  <span>SGST ({tenantInfo.sgst_percent}%)</span>
+                  <span>SGST ({tenantInfo.sgst_percent}%):</span>
                   <span>{money(receipt.sgst)}</span>
                 </div>
                 <div className="border-b border-solid border-gray-900 my-1" />

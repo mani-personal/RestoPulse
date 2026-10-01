@@ -282,14 +282,19 @@ export default function Home() {
   const [loginEmail, setLoginEmail] = useState("");
   const [loginPassword, setLoginPassword] = useState("");
   const [loginBusy, setLoginBusy] = useState(false);
+
+  // Persistent Selected Workspace Locking
   const [tenantId, setTenantId] = useState<string | null>(null);
+  const tenantIdRef = useRef<string | null>(null);
+  tenantIdRef.current = tenantId;
 
   const [currentUserRole, setCurrentUserRole] = useState<string>("owner");
 
-  // Dynamic state populated directly by the database
+  // Dynamic Workspace Identity
   const [activePlanName, setActivePlanName] = useState<string>("Free trial");
   const [activeRenewalDate, setActiveRenewalDate] = useState<string>("—");
-  const [activeRestaurantName, setActiveRestaurantName] = useState<string>("Restaurant");
+  const [activeRestaurantName, setActiveRestaurantName] = useState<string>("Loading workspace…");
+  const [workspaceMenuOpen, setWorkspaceMenuOpen] = useState(false);
 
   const [tenantInfo, setTenantInfo] = useState<{
     id?: string;
@@ -399,41 +404,76 @@ export default function Home() {
     return 30;
   };
 
-  // Live Subscription Status Synchronization from Database via Service Role API
+  // Switch Workspace cleanly without blinking
+  const switchWorkspace = (rest: any) => {
+    if (!rest?.id) return;
+    setTenantId(rest.id);
+    localStorage.setItem("rp-active-tenant-id", rest.id);
+    setActiveRestaurantName(rest.name);
+    setActivePlanName(rest.plan || "Free trial");
+    setActiveRenewalDate(rest.renewal || rest.renewal_on || "—");
+    setTenantInfo((prev) => ({
+      ...prev,
+      id: rest.id,
+      name: rest.name,
+      address: rest.city ? `${rest.name}, ${rest.city}` : prev.address,
+      business_phone: rest.phone || prev.business_phone,
+    }));
+    setStoreForm((prev) => ({
+      ...prev,
+      name: rest.name,
+      address: rest.city ? `${rest.name}, ${rest.city}` : prev.address,
+      phone: rest.phone || prev.phone,
+    }));
+    setWorkspaceMenuOpen(false);
+  };
+
+  // SYNC ACTIVE RESTAURANT (LOCKED TO tenantIdRef.current)
   const syncLiveSubscriptionStatus = useCallback(async () => {
     try {
-      const url = `/api/subscription?restaurant_id=${encodeURIComponent(tenantId || "")}&user_id=${encodeURIComponent(authUser || "")}&email=${encodeURIComponent(loginEmail || "")}`;
+      const currentId = tenantIdRef.current;
+      const url = `/api/subscription?restaurant_id=${encodeURIComponent(currentId || "")}&user_id=${encodeURIComponent(authUser || "")}&email=${encodeURIComponent(loginEmail || "")}`;
       const res = await fetch(url);
       const data = await res.json();
       if (data?.restaurant) {
-        setActivePlanName(data.restaurant.plan || "Free trial");
-        setActiveRenewalDate(data.restaurant.renewal_on || "—");
-        setActiveRestaurantName(data.restaurant.name);
-        if (data.restaurant.id) {
+        // If no workspace is selected yet, lock to the returned one
+        if (!tenantIdRef.current) {
           setTenantId(data.restaurant.id);
+          localStorage.setItem("rp-active-tenant-id", data.restaurant.id);
+          setActiveRestaurantName(data.restaurant.name);
+        } else if (tenantIdRef.current === data.restaurant.id) {
+          // Only update name if it matches the current locked ID
+          setActiveRestaurantName(data.restaurant.name);
         }
-        setTenantInfo((prev) => ({
-          ...prev,
-          id: data.restaurant.id,
-          name: data.restaurant.name,
-          address: data.restaurant.address || prev.address,
-          business_phone: data.restaurant.owner_phone || prev.business_phone,
-          gstin: data.restaurant.gstin || prev.gstin,
-        }));
-        setStoreForm((prev) => ({
-          ...prev,
-          name: data.restaurant.name,
-          address: data.restaurant.address || prev.address,
-          phone: data.restaurant.owner_phone || prev.phone,
-          gstin: data.restaurant.gstin || prev.gstin,
-        }));
+
+        // Update plan and renewal details for the active restaurant
+        if (!tenantIdRef.current || tenantIdRef.current === data.restaurant.id) {
+          setActivePlanName(data.restaurant.plan || "Free trial");
+          setActiveRenewalDate(data.restaurant.renewal_on || "—");
+          setTenantInfo((prev) => ({
+            ...prev,
+            id: data.restaurant.id,
+            name: data.restaurant.name,
+            address: data.restaurant.address || prev.address,
+            business_phone: data.restaurant.owner_phone || prev.business_phone,
+            gstin: data.restaurant.gstin || prev.gstin,
+          }));
+          setStoreForm((prev) => ({
+            ...prev,
+            name: data.restaurant.name,
+            address: data.restaurant.address || prev.address,
+            phone: data.restaurant.owner_phone || prev.phone,
+            gstin: data.restaurant.gstin || prev.gstin,
+          }));
+        }
       }
       if (data?.upi_id) {
         setSubscriptionUpiId(data.upi_id);
       }
     } catch {}
-  }, [tenantId, authUser, loginEmail]);
+  }, [authUser, loginEmail]);
 
+  // FETCH RESTAURANT DIRECTORY WITHOUT OVERWRITING ACTIVE VIEW
   const fetchAllRestaurants = useCallback(async () => {
     try {
       if (db) {
@@ -453,28 +493,27 @@ export default function Home() {
           }));
           setRestaurants(mapped);
 
-          const found =
-            mapped.find((r: any) => String(r.id) === String(tenantId)) ||
-            mapped.find((r: any) => r.email === loginEmail) ||
-            mapped[0];
+          // Lock on initial load if no workspace is active yet
+          const savedTenantId = localStorage.getItem("rp-active-tenant-id");
+          const target = mapped.find((r: any) => r.id === savedTenantId) || mapped.find((r: any) => r.id === tenantIdRef.current) || mapped[0];
 
-          if (found) {
-            setActivePlanName(found.plan || "Free trial");
-            setActiveRenewalDate(found.renewal || "—");
-            setActiveRestaurantName(found.name);
-            setTenantId(found.id);
-            setTenantInfo((prev) => ({
-              ...prev,
-              id: found.id,
-              name: found.name,
-              address: found.city ? `${found.name}, ${found.city}` : prev.address,
-              business_phone: found.phone || prev.business_phone,
-            }));
+          if (!tenantIdRef.current && target) {
+            setTenantId(target.id);
+            setActiveRestaurantName(target.name);
+            setActivePlanName(target.plan || "Free trial");
+            setActiveRenewalDate(target.renewal || "—");
+          } else if (tenantIdRef.current) {
+            // Keep active details fresh from the latest list
+            const current = mapped.find((r: any) => r.id === tenantIdRef.current);
+            if (current) {
+              setActivePlanName(current.plan || "Free trial");
+              setActiveRenewalDate(current.renewal || "—");
+            }
           }
         }
       }
     } catch {}
-  }, [db, tenantId, loginEmail]);
+  }, [db]);
 
   const fetchRealApprovals = useCallback(async () => {
     try {
@@ -528,10 +567,9 @@ export default function Home() {
     let live = true;
     (async () => {
       try {
-        const [a, m, r] = await Promise.all([
+        const [a, m] = await Promise.all([
           db.from("platform_admins").select("user_id").eq("user_id", authUser).maybeSingle(),
           db.from("memberships").select("restaurant_id,role").eq("user_id", authUser).limit(1).maybeSingle(),
-          db.from("restaurants").select("*").order("created_at", { ascending: false }),
         ]);
         if (!live) return;
         const platform = !!a?.data;
@@ -540,35 +578,9 @@ export default function Home() {
         if (m?.data?.role) {
           setCurrentUserRole(m.data.role.toLowerCase());
         }
-        if (m?.data?.restaurant_id) {
+        if (m?.data?.restaurant_id && !tenantIdRef.current) {
           setTenantId(m.data.restaurant_id);
-        }
-        if (r?.data?.length) {
-          const mapped = r.data.map((x: any) => ({
-            id: x.id,
-            name: x.name,
-            owner: x.owner_name,
-            email: x.owner_email,
-            phone: x.owner_phone,
-            city: x.city,
-            plan: x.plan,
-            status: x.status,
-            renewal: x.renewal_on || "—",
-            initial: (x.name || "RS").slice(0, 2).toUpperCase(),
-          }));
-          setRestaurants(mapped);
-
-          const found =
-            mapped.find((item: any) => String(item.id) === String(m?.data?.restaurant_id)) ||
-            mapped.find((item: any) => item.email === loginEmail) ||
-            mapped[0];
-
-          if (found) {
-            setActivePlanName(found.plan || "Free trial");
-            setActiveRenewalDate(found.renewal || "—");
-            setActiveRestaurantName(found.name);
-            setTenantId(found.id);
-          }
+          localStorage.setItem("rp-active-tenant-id", m.data.restaurant_id);
         }
       } catch (e) {
         console.error("Auth hydration error", e);
@@ -577,7 +589,7 @@ export default function Home() {
     return () => {
       live = false;
     };
-  }, [db, authUser, loginEmail]);
+  }, [db, authUser]);
 
   useEffect(() => {
     const savedUpi = localStorage.getItem("rp-admin-upi");
@@ -595,9 +607,9 @@ export default function Home() {
         }
       })
       .catch(() => {});
-  }, [isAdmin, tenantId]);
+  }, []);
 
-  // LIVE 2-SECOND POLLING FOR REALTIME SYNC
+  // STABLE POLLING LOOP (NO BLINKING / RE-RENDER RACE)
   useEffect(() => {
     fetchSubscriptionRequests();
     fetchRealApprovals();
@@ -609,7 +621,7 @@ export default function Home() {
       fetchRealApprovals();
       fetchAllRestaurants();
       syncLiveSubscriptionStatus();
-    }, 2000);
+    }, 4000);
 
     return () => {
       clearInterval(interval);
@@ -886,7 +898,7 @@ export default function Home() {
         phone: form.phone || "",
       };
       setStaff((old) => (editing !== null ? old.map((x) => (x.id === editing ? person : x)) : [...old, person]));
-      toast.success(editing !== null ? "Employee updated" : "Employee added with role permissions");
+      toast.success(editing !== null ? "Employee updated" : "Employee added");
     }
     setModal(null);
   };
@@ -999,9 +1011,9 @@ export default function Home() {
       const planName = activeInlinePlan.name;
 
       const payload = {
-        restaurant_id: tenantId && tenantId !== "1" ? tenantId : null,
-        restaurant_name: activeRestaurantName || "Mani",
-        owner_name: activeRestaurantName || "Owner",
+        restaurant_id: tenantIdRef.current,
+        restaurant_name: activeRestaurantName,
+        owner_name: activeRestaurantName,
         owner_email: loginEmail || "owner@example.com",
         plan: planName,
         upi_id: subscriptionUpiId,
@@ -1080,9 +1092,6 @@ export default function Home() {
     try {
       const planName = requestedPlan || "Free trial";
       const daysToAdd = getPlanDurationDays(planName);
-      const nextDate = new Date();
-      nextDate.setDate(nextDate.getDate() + daysToAdd);
-      const renewalStr = nextDate.toISOString().slice(0, 10);
 
       await fetch("/api/admin/approvals", {
         method: "PATCH",
@@ -1104,12 +1113,12 @@ export default function Home() {
     }
   };
 
-  // PERSIST RESTAURANT SETTINGS SAFELY TO DATABASE (WITHOUT NON-EXISTENT COLUMNS)
+  // SAVE SETTINGS (HANDLES FALLBACKS AND SAFE PERSISTENCE)
   const handleSaveRestaurantSettings = async () => {
     try {
       const payload = {
-        id: tenantId || tenantInfo.id,
-        name: storeForm.name.trim(),
+        id: tenantIdRef.current || tenantInfo.id,
+        name: storeForm.name.trim() || activeRestaurantName,
         phone: storeForm.phone.trim(),
         address: storeForm.address.trim(),
         gstin: storeForm.gstin.trim(),
@@ -1196,6 +1205,7 @@ export default function Home() {
 
   const handleSignOut = async () => {
     if (db) await db.auth.signOut();
+    localStorage.removeItem("rp-active-tenant-id");
     setTenantId(null);
     setAuthUser(null);
   };
@@ -1310,18 +1320,44 @@ export default function Home() {
             <small>THE PULSE OF MODERN GASTRONOMY</small>
           </div>
         </div>
+
+        {/* WORKSPACE SELECTOR - CLICK TO SWITCH WITHOUT FLICKER */}
         <div className="workspace-label">
           WORKSPACE <ChevronDown size={14} />
         </div>
-        <div className="store-selector">
+        <div
+          className="store-selector relative cursor-pointer"
+          onClick={() => setWorkspaceMenuOpen(!workspaceMenuOpen)}
+        >
           <span className="store-avatar">
             {activeRestaurantName ? activeRestaurantName.slice(0, 2).toUpperCase() : "RS"}
           </span>
-          <div>
-            <b>{activeRestaurantName || "Restaurant"}</b>
+          <div className="truncate">
+            <b className="truncate block">{activeRestaurantName || "Select Workspace"}</b>
             <small>{currentUserRole.toUpperCase()} · {accountRole === "admin" ? "Platform console" : "Restaurant"}</small>
           </div>
           <ChevronDown size={15} />
+
+          {workspaceMenuOpen && restaurants.length > 0 && (
+            <div
+              className="absolute left-0 top-full mt-2 w-full bg-slate-900 border border-slate-700 rounded-xl p-2 z-50 shadow-2xl max-h-60 overflow-y-auto"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div className="text-[10px] text-gray-400 font-bold px-2 py-1 uppercase">Switch Workspace</div>
+              {restaurants.map((r: any) => (
+                <button
+                  key={r.id}
+                  onClick={() => switchWorkspace(r)}
+                  className={`w-full text-left px-2.5 py-1.5 rounded-lg text-xs font-semibold flex justify-between items-center ${
+                    tenantId === r.id ? "bg-amber-500 text-white" : "hover:bg-slate-800 text-gray-200"
+                  }`}
+                >
+                  <span className="truncate">{r.name}</span>
+                  <span className="text-[10px] opacity-75">{r.plan || "Free trial"}</span>
+                </button>
+              ))}
+            </div>
+          )}
         </div>
 
         {/* RESTAURANT NAVIGATION */}
@@ -1908,14 +1944,6 @@ export default function Home() {
                   </div>
                 ))}
               </div>
-
-              <div className="panel pay-note mt-6 p-4 rounded-xl border bg-secondary/30 flex items-center gap-3">
-                <Wallet size={19} className="text-indigo-500 flex-shrink-0" />
-                <div className="text-xs text-foreground/90">
-                  <b className="font-bold">Payroll overview:</b> {money(wages.filter((w) => w.status === "Paid").reduce((sum, w) => sum + w.amount, 0))} paid ·{" "}
-                  {money(wages.filter((w) => w.status === "Unpaid").reduce((sum, w) => sum + w.amount, 0))} due across recorded daily wages.
-                </div>
-              </div>
             </>
           )}
 
@@ -1928,21 +1956,6 @@ export default function Home() {
                   <h1>Expenses</h1>
                 </div>
                 <button className="primary-btn" onClick={() => open("expense")}><Plus size={17} /> Log expense</button>
-              </div>
-
-              <div className="platform-stats grid grid-cols-3 gap-4 my-6">
-                <div className="p-4 bg-card rounded-xl border">
-                  <strong>{money(expenses.reduce((a, x) => a + x.amount, 0))}</strong>
-                  <span>Total Recorded Expenses</span>
-                </div>
-                <div className="p-4 bg-card rounded-xl border">
-                  <strong>{expenses.length}</strong>
-                  <span>Transactions Logged</span>
-                </div>
-                <div className="p-4 bg-card rounded-xl border">
-                  <strong>{expenses.length ? [...expenses].sort((a, b) => b.amount - a.amount)[0].category : "—"}</strong>
-                  <span>Largest Category</span>
-                </div>
               </div>
 
               <div className="panel management-panel mt-6">
@@ -2089,7 +2102,7 @@ export default function Home() {
             </>
           )}
 
-          {/* 8. RESTAURANT SUBSCRIPTION (REAL-TIME SYNCHRONIZED TIER BADGE) */}
+          {/* 8. RESTAURANT SUBSCRIPTION */}
           {view === "subscription" && (
             <>
               <div className="page-head">
@@ -2229,7 +2242,7 @@ export default function Home() {
             </>
           )}
 
-          {/* 9. SETTINGS - DATABASE PERSISTED */}
+          {/* 9. SETTINGS WITH DATABASE PERSISTENCE */}
           {view === "settings" && (
             <>
               <div className="page-head">

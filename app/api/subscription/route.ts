@@ -25,7 +25,7 @@ export async function GET(request: Request) {
 
     const upi_id = settingData?.upi_id || settingData?.value || 'admin-restopulse@upi'
 
-    // 2. Fetch live restaurant
+    // 2. Find restaurant via membership
     let restaurant: any = null
 
     if (user_id) {
@@ -50,13 +50,13 @@ export async function GET(request: Request) {
       if (data) restaurant = data
     }
 
-    if (!restaurant && email) {
-      const { data } = await supabase.from('restaurants').select('*').eq('owner_email', email).maybeSingle()
+    if (!restaurant && name) {
+      const { data } = await supabase.from('restaurants').select('*').ilike('name', name).maybeSingle()
       if (data) restaurant = data
     }
 
-    if (!restaurant && name) {
-      const { data } = await supabase.from('restaurants').select('*').ilike('name', name).maybeSingle()
+    if (!restaurant && email) {
+      const { data } = await supabase.from('restaurants').select('*').eq('owner_email', email).maybeSingle()
       if (data) restaurant = data
     }
 
@@ -84,9 +84,6 @@ export async function GET(request: Request) {
             owner_phone: restaurant.owner_phone || '',
             address: restaurant.address || '',
             gstin: restaurant.gstin || '',
-            gst_percent: restaurant.gst_percent || 5,
-            cgst_percent: restaurant.cgst_percent || 2.5,
-            sgst_percent: restaurant.sgst_percent || 2.5,
           }
         : null,
     })
@@ -105,10 +102,10 @@ export async function POST(request: Request) {
       .from('subscription_requests')
       .insert({
         restaurant_id: restaurant_id || null,
-        restaurant_name: restaurant_name || 'Restaurant',
+        restaurant_name: restaurant_name || 'Mani',
         owner_name: owner_name || 'Owner',
         owner_email: owner_email || 'owner@example.com',
-        plan: plan || 'Monthly',
+        plan: plan || 'Yearly',
         upi_id: upi_id || '',
         screenshot_url: screenshot_url || '',
         message: message || '',

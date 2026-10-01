@@ -40,6 +40,7 @@ import {
   QrCode,
   Upload,
   AlertTriangle,
+  KeyRound,
 } from "lucide-react";
 import {
   AreaChart,
@@ -377,14 +378,12 @@ export default function Home() {
   ]);
   const [supplierDetail, setSupplierDetail] = useState<string | null>("sp-1");
   const [dishFile, setDishFile] = useState<File | null>(null);
-  const [logoUploading, setLogoUploading] = useState(false);
   const [view, setView] = useState<View>("dashboard");
   const [profileMenu, setProfileMenu] = useState(false);
   const [accountRole, setAccountRole] = useState<"admin" | "restaurant">("restaurant");
   const [staff, setStaff] = useState<Staff[]>(initialStaff);
   const [wages, setWages] = useState<Wage[]>(initialWages);
   const [wageForm, setWageForm] = useState({ date: new Date().toLocaleDateString("en-CA"), amount: "", note: "" });
-  const [printSize, setPrintSize] = useState<"58mm" | "85mm" | "A4">("58mm");
   const [dark, setDark] = useState(false);
   const [mobileNav, setMobileNav] = useState(false);
   const [notifications, setNotifications] = useState(false);
@@ -400,7 +399,6 @@ export default function Home() {
   const [table, setTable] = useState("T04");
   const [orderDiscount, setOrderDiscount] = useState(0);
   const [payment, setPayment] = useState("UPI");
-  const [cash, setCash] = useState("");
   const [sound, setSound] = useState(false);
   const [receipt, setReceipt] = useState<Bill | null>(null);
   const [orders, setOrders] = useState<Sale[]>(initialSales);
@@ -410,7 +408,7 @@ export default function Home() {
   const [selectedStaff, setSelectedStaff] = useState<Staff | null>(null);
   const [dateRange, setDateRange] = useState("This week");
 
-  // Inventory Manager State
+  // Inventory State
   const [inventoryList, setInventoryList] = useState<InventoryItem[]>([
     { id: 1, name: "Basmati Rice", category: "Grains", onHand: 12, unit: "bags", reorderLevel: 5 },
     { id: 2, name: "Refined Cooking Oil", category: "Oils", onHand: 3, unit: "tins", reorderLevel: 6 },
@@ -420,16 +418,20 @@ export default function Home() {
   const [invForm, setInvForm] = useState({ name: "", category: "Grains", onHand: "", unit: "bags", reorderLevel: "5" });
   const [editingInvId, setEditingInvId] = useState<string | number | null>(null);
 
-  const [adminUpiId, setAdminUpiId] = useState("admin-restopulse@upi");
+  // Admin UPI & Subscription Payment States
+  const [adminUpiId, setAdminUpiId] = useState<string>("admin-restopulse@upi");
   const [adminUpiBusy, setAdminUpiBusy] = useState(false);
-  const [subscriptionUpiId, setSubscriptionUpiId] = useState("admin-restopulse@upi");
-  const [extensionRequest, setExtensionRequest] = useState<ExtensionRequest | null>(null);
+  const [subscriptionUpiId, setSubscriptionUpiId] = useState<string>("admin-restopulse@upi");
   const [extensionMessage, setExtensionMessage] = useState("");
   const [extensionFile, setExtensionFile] = useState<File | null>(null);
   const [extensionBusy, setExtensionBusy] = useState(false);
   const [showQrModal, setShowQrModal] = useState(false);
   const [selectedPlanForPayment, setSelectedPlanForPayment] = useState<Plan | null>(null);
-  const [subscriptionRequests, setSubscriptionRequests] = useState<Array<any>>([]);
+
+  // Password reset state
+  const [newPassword, setNewPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
+  const [pwdBusy, setPwdBusy] = useState(false);
 
   useEffect(() => {
     if (!db) {
@@ -495,43 +497,30 @@ export default function Home() {
     };
   }, [db, authUser]);
 
+  // Load Admin UPI ID from persistent storage and backend
   useEffect(() => {
-    let live = true;
-    (async () => {
-      try {
-        const res = await fetch("/api/subscription");
-        const data = await res.json();
-        if (live && data?.upi_id) {
+    const savedUpi = localStorage.getItem("rp-admin-upi");
+    if (savedUpi) {
+      setAdminUpiId(savedUpi);
+      setSubscriptionUpiId(savedUpi);
+    }
+    fetch("/api/subscription")
+      .then((res) => res.json())
+      .then((data) => {
+        if (data?.upi_id) {
           setSubscriptionUpiId(data.upi_id);
           setAdminUpiId(data.upi_id);
+          localStorage.setItem("rp-admin-upi", data.upi_id);
         }
-      } catch {}
-
-      if (isAdmin) {
-        try {
-          const session = (await db.auth.getSession()).data.session;
-          const reqRes = await fetch("/api/admin/subscriptions", {
-            headers: session ? { Authorization: `Bearer ${session.access_token}` } : {},
-          });
-          const reqData = await reqRes.json();
-          if (live && reqData?.requests) {
-            setSubscriptionRequests(reqData.requests);
-          }
-        } catch {}
-      }
-    })();
-    return () => {
-      live = false;
-    };
-  }, [isAdmin, tenantId, db]);
+      })
+      .catch(() => {});
+  }, [isAdmin, tenantId]);
 
   useEffect(() => {
     const key = tenantId ? `rp-inventory-list:${tenantId}` : `rp-inventory-list:default`;
     try {
       const raw = localStorage.getItem(key);
-      if (raw) {
-        setInventoryList(JSON.parse(raw));
-      }
+      if (raw) setInventoryList(JSON.parse(raw));
     } catch {}
   }, [tenantId]);
 
@@ -810,7 +799,6 @@ export default function Home() {
     setModal(null);
   };
 
-  // CHECKOUT: Instantly sets receipt state to trigger receipt dialog popup
   const checkout = () => {
     if (!cart.length) {
       toast.error("Add dishes to the order first");
@@ -847,10 +835,8 @@ export default function Home() {
       status: "Paid",
     };
 
-    // 1. Immediately pop up the receipt modal
     setReceipt(bill);
 
-    // 2. Append completed sale transaction
     const newSale: Sale = {
       id,
       time,
@@ -861,25 +847,9 @@ export default function Home() {
       bill,
     };
     setOrders((old) => [newSale, ...old]);
-
-    // 3. Reset POS order builder
     setCart([]);
     setOrderDiscount(0);
-    setCash("");
     toast.success("Payment complete · " + id);
-
-    // Async background database sync if live
-    if (db && tenantId) {
-      db.from("sales").insert({
-        restaurant_id: tenantId,
-        bill_no: id,
-        placed_at: now.toISOString(),
-        order_type: orderType,
-        amount: total,
-        status: "Paid",
-        receipt: bill,
-      }).then();
-    }
   };
 
   const openStaff = (person: Staff) => {
@@ -887,42 +857,26 @@ export default function Home() {
     setWageForm({ date: new Date().toLocaleDateString("en-CA"), amount: String(person.dailyRate), note: "" });
   };
 
-  const addWage = async () => {
-    if (!selectedStaff || Number(wageForm.amount) <= 0) {
-      toast.error("Enter a valid amount");
-      return;
-    }
-    const newW: Wage = {
-      id: Date.now(),
-      staffId: selectedStaff.id,
-      date: wageForm.date,
-      amount: Number(wageForm.amount),
-      status: "Unpaid",
-      note: wageForm.note,
-    };
-    setWages((old) => [newW, ...old]);
-    setWageForm((f) => ({ ...f, note: "" }));
-    toast.success("Daily wage recorded");
-  };
-
+  // Save Admin UPI ID and synchronize locally and on server
   const saveAdminUpi = async () => {
     setAdminUpiBusy(true);
-    setSubscriptionUpiId(adminUpiId.trim());
+    const trimmed = adminUpiId.trim();
+    localStorage.setItem("rp-admin-upi", trimmed);
+    setSubscriptionUpiId(trimmed);
+    try {
+      await fetch("/api/admin/settings", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ upi_id: trimmed }),
+      });
+    } catch {}
     toast.success("Admin payment UPI ID saved successfully!");
     setAdminUpiBusy(false);
   };
 
-  const copyUpi = async () => {
-    if (!subscriptionUpiId) return;
-    try {
-      await navigator.clipboard.writeText(subscriptionUpiId);
-      toast.success("UPI ID copied");
-    } catch {
-      toast.info(subscriptionUpiId);
-    }
-  };
-
   const handleChoosePlan = (plan: Plan) => {
+    const activeUpi = localStorage.getItem("rp-admin-upi") || subscriptionUpiId || adminUpiId || "admin-restopulse@upi";
+    setSubscriptionUpiId(activeUpi);
     setSelectedPlanForPayment(plan);
     setShowQrModal(true);
   };
@@ -944,9 +898,34 @@ export default function Home() {
     }, 600);
   };
 
-  const reviewExtensionRequest = async (requestId: string, restId: string) => {
-    setSubscriptionRequests((old) => old.filter((x) => x.id !== requestId));
-    toast.success("Subscription approved and extended by 30 days!");
+  // Reset Password Handler
+  const handleResetPassword = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newPassword || newPassword.length < 6) {
+      toast.error("Password must be at least 6 characters long");
+      return;
+    }
+    if (newPassword !== confirmPassword) {
+      toast.error("Passwords do not match");
+      return;
+    }
+    setPwdBusy(true);
+    try {
+      if (db) {
+        const { error } = await db.auth.updateUser({ password: newPassword });
+        if (error) {
+          toast.error(error.message);
+          return;
+        }
+      }
+      toast.success("Password reset successfully!");
+      setNewPassword("");
+      setConfirmPassword("");
+    } catch (err: any) {
+      toast.error(err.message || "Failed to reset password");
+    } finally {
+      setPwdBusy(false);
+    }
   };
 
   const login = async (e: React.FormEvent) => {
@@ -1013,6 +992,13 @@ export default function Home() {
       </div>
     );
 
+  // Formatted UPI URI for instant QR generation
+  const upiPayUri = selectedPlanForPayment
+    ? `upi://pay?pa=${encodeURIComponent(subscriptionUpiId)}&pn=${encodeURIComponent("RestoPulse")}&am=${encodeURIComponent(selectedPlanForPayment.price.toFixed(2))}&cu=INR&tn=${encodeURIComponent(`${currentRestaurant?.name || 'Restaurant'} ${selectedPlanForPayment.name}`)}`
+    : `upi://pay?pa=${encodeURIComponent(subscriptionUpiId)}&pn=${encodeURIComponent("RestoPulse")}&cu=INR`;
+
+  const qrImageUrl = `https://api.qrserver.com/v1/create-qr-code/?size=220x220&data=${encodeURIComponent(upiPayUri)}`;
+
   return (
     <div className="app-shell">
       <Toaster richColors position="top-right" />
@@ -1064,7 +1050,7 @@ export default function Home() {
           ))}
         </nav>
 
-        {/* 1. PLATFORM ADMIN NAVIGATION: STRICTLY VISIBLE ONLY FOR ADMIN ACCOUNTS */}
+        {/* PLATFORM ADMIN NAVIGATION: STRICTLY SHOWN ONLY IF ADMIN */}
         {isAdmin && (
           <>
             <div className="nav-heading admin-heading">PLATFORM ADMIN</div>
@@ -1126,7 +1112,7 @@ export default function Home() {
           </div>
           <div className="top-actions">
             <span className="today-label">
-              <CalendarDays size={16} /> Wed, 30 Sep 2026
+              <CalendarDays size={16} /> Thu, 1 Oct 2026
             </span>
             <span className="top-divider" />
             <button
@@ -1208,7 +1194,7 @@ export default function Home() {
             <>
               <div className="page-head">
                 <div>
-                  <div className="eyebrow">WEDNESDAY, 30 SEPTEMBER 2026</div>
+                  <div className="eyebrow">THURSDAY, 1 OCTOBER 2026</div>
                   <h1>
                     Good afternoon, Mani <span className="wave">✳</span>
                   </h1>
@@ -1280,7 +1266,7 @@ export default function Home() {
                     <div className="kpi-foot">
                       {k.change && (
                         <span className={"change " + (k.label === "Operating expenses" ? "negative" : "")}>
-                              {k.change}
+                          {k.change}
                         </span>
                       )}
                       <span>{k.note}</span>
@@ -1344,7 +1330,7 @@ export default function Home() {
             </>
           )}
 
-          {/* 2. POS TERMINAL: FULLY INTERACTIVE WITH INSTANT RECEIPT TRIGGER ON CHARGE */}
+          {/* 2. POS TERMINAL */}
           {view === "pos" && (
             <>
               <div className="page-head pos-head">
@@ -1542,7 +1528,7 @@ export default function Home() {
             </>
           )}
 
-          {/* 4. INVENTORY MANAGEMENT (CRUD + STOCK THRESHOLDS) */}
+          {/* 4. INVENTORY MANAGEMENT */}
           {view === "inventory" && (
             <>
               <div className="page-head flex justify-between items-center">
@@ -1733,7 +1719,7 @@ export default function Home() {
             </>
           )}
 
-          {/* 8. SUBSCRIPTION & CHOOSE PLAN */}
+          {/* 8. SUBSCRIPTION & CHOOSE PLAN: DYNAMIC PLANS & ACTUAL QR CODE ENCODED WITH AMOUNT AND SET ADMIN UPI */}
           {view === "subscription" && (
             <>
               <div className="page-head">
@@ -1743,13 +1729,25 @@ export default function Home() {
                   <p>Choose a plan configured by the administrator to renew or upgrade your subscription.</p>
                 </div>
               </div>
+
+              {/* Active Admin UPI display */}
+              <div className="mb-6 p-4 rounded-xl border bg-card flex justify-between items-center">
+                <div>
+                  <span className="text-xs text-muted-foreground uppercase font-bold tracking-wider">Active Admin UPI ID for Payments</span>
+                  <div className="text-lg font-mono font-bold text-indigo-600 dark:text-indigo-400 mt-0.5">{subscriptionUpiId}</div>
+                </div>
+                <button className="quiet-btn flex items-center gap-1.5" onClick={copyUpi}>
+                  <Copy size={16} /> Copy UPI
+                </button>
+              </div>
+
               <div className="pricing-grid grid md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
                 {plans.map((p) => (
                   <div className={"plan-card bg-card border rounded-xl p-6 flex flex-col justify-between shadow-sm relative " + (p.name === "Growth" ? "border-indigo-500 ring-1 ring-indigo-500" : "")} key={p.id}>
                     <div>
                       <div className="flex justify-between items-center mb-4">
-                        <span className="p-2 rounded-lg bg-indigo-50 text-indigo-600"><CreditCard size={20} /></span>
-                        <span className="px-2.5 py-1 text-xs font-semibold rounded-full bg-green-100 text-green-800">Active</span>
+                        <span className="p-2 rounded-lg bg-indigo-50 text-indigo-600 dark:bg-indigo-950 dark:text-indigo-400"><CreditCard size={20} /></span>
+                        <span className="px-2.5 py-1 text-xs font-semibold rounded-full bg-green-100 text-green-800 dark:bg-green-950 dark:text-green-300">Active</span>
                       </div>
                       <h2 className="text-xl font-bold">{p.name}</h2>
                       <div className="text-2xl font-black my-2">{money(p.price)} <span className="text-sm font-normal text-muted-foreground">/ {p.period}</span></div>
@@ -1763,15 +1761,17 @@ export default function Home() {
                   </div>
                 ))}
               </div>
+
               <div className="settings-grid">
                 <section className="panel settings-panel">
                   <h2>Request validity extension & upload proof</h2>
+                  <p>After completing payment via the QR code or UPI ID, upload your payment receipt screenshot below.</p>
                   <label className="block space-y-1 mt-3">
                     <span className="text-sm font-medium">Payment Screenshot</span>
                     <input type="file" accept="image/*" onChange={(e) => setExtensionFile(e.target.files?.[0] || null)} className="block w-full text-sm" />
                   </label>
                   <label className="block space-y-1 pt-3">
-                    <span className="text-sm font-medium">Transaction Note</span>
+                    <span className="text-sm font-medium">Transaction Note / Reference Number</span>
                     <textarea value={extensionMessage} onChange={(e) => setExtensionMessage(e.target.value)} placeholder="UTR / Transaction reference..." className="w-full p-2 border rounded-md text-sm bg-transparent" />
                   </label>
                   <button className="primary-btn mt-4" onClick={requestExtension} disabled={extensionBusy}>
@@ -1782,14 +1782,14 @@ export default function Home() {
             </>
           )}
 
-          {/* 9. WORKSPACE SETTINGS */}
+          {/* 9. SETTINGS WITH PASSWORD RESET */}
           {view === "settings" && (
             <>
               <div className="page-head">
                 <div>
                   <div className="eyebrow">WORKSPACE PREFERENCES</div>
                   <h1>Settings</h1>
-                  <p>Store details and your point-of-sale experience.</p>
+                  <p>Store details, security, and your point-of-sale experience.</p>
                 </div>
               </div>
               <div className="settings-grid">
@@ -1802,6 +1802,41 @@ export default function Home() {
                     <label>GSTIN<input value={storeForm.gstin} onChange={(e) => setStoreForm({ ...storeForm, gstin: e.target.value })} /></label>
                   </div>
                   <button className="primary-btn mt-3" onClick={() => toast.success("Details saved successfully!")}>Save details</button>
+                </section>
+
+                {/* Password Reset Section */}
+                <section className="panel settings-panel">
+                  <h2>Password & Security</h2>
+                  <p className="text-sm text-muted-foreground mb-4">Reset your login password for this restaurant account.</p>
+                  <form onSubmit={handleResetPassword} className="space-y-4">
+                    <label className="block space-y-1">
+                      <span className="text-sm font-medium">New Password</span>
+                      <input
+                        type="password"
+                        required
+                        minLength={6}
+                        value={newPassword}
+                        onChange={(e) => setNewPassword(e.target.value)}
+                        placeholder="••••••••"
+                        className="w-full p-2 border rounded-md text-sm bg-transparent"
+                      />
+                    </label>
+                    <label className="block space-y-1">
+                      <span className="text-sm font-medium">Confirm New Password</span>
+                      <input
+                        type="password"
+                        required
+                        minLength={6}
+                        value={confirmPassword}
+                        onChange={(e) => setConfirmPassword(e.target.value)}
+                        placeholder="••••••••"
+                        className="w-full p-2 border rounded-md text-sm bg-transparent"
+                      />
+                    </label>
+                    <button type="submit" className="primary-btn flex items-center gap-2" disabled={pwdBusy}>
+                      <KeyRound size={16} /> {pwdBusy ? "Resetting…" : "Reset Password"}
+                    </button>
+                  </form>
                 </section>
               </div>
             </>
@@ -2059,7 +2094,7 @@ export default function Home() {
         </DialogContent>
       </Dialog>
 
-      {/* 2. RECEIPT POPUP DIALOG ON POS CHECKOUT (SHOWS IMMEDIATELY AFTER CHARGING) */}
+      {/* RECEIPT POPUP DIALOG */}
       <Dialog open={!!receipt} onOpenChange={(v) => !v && setReceipt(null)}>
         <DialogContent className="receipt-dialog max-w-sm">
           <DialogHeader>
@@ -2102,22 +2137,33 @@ export default function Home() {
         </DialogContent>
       </Dialog>
 
-      {/* DYNAMIC QR CODE MODAL FOR CHOSEN SUBSCRIPTION PLAN */}
+      {/* DYNAMIC SCANNABLE QR CODE MODAL FOR CHOSEN SUBSCRIPTION PLAN */}
       <Dialog open={showQrModal} onOpenChange={setShowQrModal}>
         <DialogContent className="max-w-sm text-center">
           <DialogHeader>
             <DialogTitle>Pay for {selectedPlanForPayment?.name || 'Subscription'}</DialogTitle>
-            <DialogDescription>Amount Due: {money(selectedPlanForPayment?.price || 0)}</DialogDescription>
+            <DialogDescription>
+              Amount to Pay: <strong className="text-base text-gray-900 dark:text-gray-100">{money(selectedPlanForPayment?.price || 0)}</strong>
+            </DialogDescription>
           </DialogHeader>
           <div className="flex flex-col items-center justify-center p-4 bg-white rounded-xl border space-y-3">
-            <div className="w-48 h-48 bg-gray-100 flex flex-col items-center justify-center border-2 border-dashed border-gray-300 rounded-lg p-2">
-              <QrCode size={96} className="text-gray-800" />
-              <span className="text-[11px] font-mono text-gray-600 mt-2 break-all">{subscriptionUpiId}</span>
+            {/* Scannable live QR image with encoded amount and admin UPI ID */}
+            <div className="p-2 border-2 border-dashed border-gray-300 rounded-xl bg-white shadow-inner flex items-center justify-center">
+              <img
+                src={qrImageUrl}
+                alt="UPI Payment QR Code"
+                className="w-48 h-48 object-contain rounded-lg"
+              />
             </div>
-            <p className="text-xs font-semibold text-indigo-600">{subscriptionUpiId}</p>
+            <div className="text-center">
+              <span className="text-[11px] text-gray-500 block">Scan using any UPI App (GPay / PhonePe / Paytm)</span>
+              <p className="text-xs font-mono font-bold text-indigo-600 mt-1 select-all">{subscriptionUpiId}</p>
+            </div>
           </div>
-          <div className="space-y-2 pt-2">
-            <button className="primary-btn w-full" onClick={paySelectedPlan}>Pay via Installed UPI App</button>
+          <div className="space-y-2 pt-1">
+            <button className="primary-btn w-full flex items-center justify-center gap-2" onClick={paySelectedPlan}>
+              <ExternalLink size={16} /> Open UPI App Directly
+            </button>
           </div>
           <DialogFooter>
             <button className="quiet-btn w-full" onClick={() => setShowQrModal(false)}>Close</button>

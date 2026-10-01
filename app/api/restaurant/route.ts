@@ -3,7 +3,6 @@ import { createClient } from '@supabase/supabase-js'
 
 function getAdminClient() {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL
-  // Prioritize the service role key to bypass table RLS policies
   const serviceKey =
     process.env.SUPABASE_SERVICE_ROLE_KEY ||
     process.env.SUPABASE_SERVICE_KEY ||
@@ -31,7 +30,8 @@ export async function PATCH(request: Request) {
       return NextResponse.json({ error: 'Restaurant ID or Name required' }, { status: 400 })
     }
 
-    // Prepare safe update payload containing only native restaurants table columns
+    // Only update native columns that exist in the Supabase 'restaurants' table schema
+    // (Prevents the "Could not find 'cgst_percent' column in schema cache" error)
     const updatePayload: Record<string, any> = {}
     if (name) updatePayload.name = name.trim()
     if (phone) updatePayload.owner_phone = phone.trim()
@@ -49,21 +49,10 @@ export async function PATCH(request: Request) {
     const { data, error } = await query.select().maybeSingle()
 
     if (error) {
-      // If RLS blocked it because service role key isn't set in Vercel
-      if (error.message?.includes('permission denied')) {
-        return NextResponse.json(
-          {
-            error:
-              "Permission denied by Supabase RLS. Please add 'SUPABASE_SERVICE_ROLE_KEY' to your Vercel Environment Variables.",
-            fallback: updatePayload,
-          },
-          { status: 403 }
-        )
-      }
       return NextResponse.json({ error: error.message }, { status: 400 })
     }
 
-    // Optionally save tax configuration to settings table
+    // Persist tax breakdown safely into settings table if present
     try {
       await supabase.from('settings').upsert(
         {

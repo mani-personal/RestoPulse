@@ -14,8 +14,9 @@ export async function GET(request: Request) {
     const restaurant_id = searchParams.get('restaurant_id')
     const email = searchParams.get('email')
     const user_id = searchParams.get('user_id')
+    const name = searchParams.get('name')
 
-    // 1. Fetch active Admin UPI
+    // 1. Fetch current Admin UPI setting
     const { data: settingData } = await supabase
       .from('settings')
       .select('value, upi_id')
@@ -24,9 +25,10 @@ export async function GET(request: Request) {
 
     const upi_id = settingData?.upi_id || settingData?.value || 'admin-restopulse@upi'
 
-    // 2. Fetch the target restaurant
+    // 2. Fetch live restaurant record
     let restaurant: any = null
 
+    // Check membership link if user_id passed
     if (user_id) {
       const { data: membership } = await supabase
         .from('memberships')
@@ -54,6 +56,22 @@ export async function GET(request: Request) {
       if (data) restaurant = data
     }
 
+    if (!restaurant && name) {
+      const { data } = await supabase.from('restaurants').select('*').ilike('name', name).maybeSingle()
+      if (data) restaurant = data
+    }
+
+    // Fallback: fetch the active restaurant
+    if (!restaurant) {
+      const { data } = await supabase
+        .from('restaurants')
+        .select('*')
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .maybeSingle()
+      if (data) restaurant = data
+    }
+
     return NextResponse.json({
       upi_id,
       restaurant: restaurant
@@ -67,7 +85,7 @@ export async function GET(request: Request) {
           }
         : null,
     })
-  } catch {
+  } catch (err: any) {
     return NextResponse.json({ upi_id: 'admin-restopulse@upi', restaurant: null })
   }
 }

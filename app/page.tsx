@@ -354,7 +354,10 @@ export default function Home() {
   const [mobileNav, setMobileNav] = useState(false);
   const [notifications, setNotifications] = useState(false);
   const [dishes, setDishes] = useState<Dish[]>(initialDishes);
+
+  // Dynamic Plans state synced with server
   const [plans, setPlans] = useState<Plan[]>(initialPlans);
+
   const [restaurants, setRestaurants] = useState<any[]>([]);
   const [approvals, setApprovals] = useState<RestaurantApproval[]>([]);
   const [subscriptionRequests, setSubscriptionRequests] = useState<Array<any>>([]);
@@ -382,7 +385,7 @@ export default function Home() {
   const [adminUpiBusy, setAdminUpiBusy] = useState(false);
   const [subscriptionUpiId, setSubscriptionUpiId] = useState<string>("admin-restopulse@upi");
 
-  const [activeInlinePlan, setActiveInlinePlan] = useState<Plan | null>(initialPlans[2]);
+  const [activeInlinePlan, setActiveInlinePlan] = useState<Plan | null>(null);
   const [inlineRefId, setInlineRefId] = useState("");
   const [inlineScreenshotFile, setInlineScreenshotFile] = useState<File | null>(null);
   const [inlineSubmitBusy, setInlineSubmitBusy] = useState(false);
@@ -391,6 +394,21 @@ export default function Home() {
   const [newPassword, setNewPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [pwdBusy, setPwdBusy] = useState(false);
+
+  // Sync Live Pricing Plans from Backend
+  const fetchLivePlans = useCallback(async () => {
+    try {
+      const res = await fetch("/api/admin/pricing");
+      const data = await res.json();
+      if (data?.plans && Array.isArray(data.plans) && data.plans.length) {
+        setPlans(data.plans);
+        if (!activeInlinePlan) {
+          const defaultPlan = data.plans.find((p: Plan) => p.price > 0) || data.plans[0];
+          setActiveInlinePlan(defaultPlan);
+        }
+      }
+    } catch {}
+  }, [activeInlinePlan]);
 
   const getPlanDurationDays = (planName: string) => {
     const found = plans.find((p) => p.name.toLowerCase() === planName.toLowerCase());
@@ -404,7 +422,6 @@ export default function Home() {
     return 30;
   };
 
-  // Switch Workspace cleanly without blinking
   const switchWorkspace = (rest: any) => {
     if (!rest?.id) return;
     setTenantId(rest.id);
@@ -428,7 +445,7 @@ export default function Home() {
     setWorkspaceMenuOpen(false);
   };
 
-  // SYNC ACTIVE RESTAURANT (LOCKED TO tenantIdRef.current)
+  // SYNC ACTIVE RESTAURANT STATUS
   const syncLiveSubscriptionStatus = useCallback(async () => {
     try {
       const currentId = tenantIdRef.current;
@@ -436,17 +453,14 @@ export default function Home() {
       const res = await fetch(url);
       const data = await res.json();
       if (data?.restaurant) {
-        // If no workspace is selected yet, lock to the returned one
         if (!tenantIdRef.current) {
           setTenantId(data.restaurant.id);
           localStorage.setItem("rp-active-tenant-id", data.restaurant.id);
           setActiveRestaurantName(data.restaurant.name);
         } else if (tenantIdRef.current === data.restaurant.id) {
-          // Only update name if it matches the current locked ID
           setActiveRestaurantName(data.restaurant.name);
         }
 
-        // Update plan and renewal details for the active restaurant
         if (!tenantIdRef.current || tenantIdRef.current === data.restaurant.id) {
           setActivePlanName(data.restaurant.plan || "Free trial");
           setActiveRenewalDate(data.restaurant.renewal_on || "—");
@@ -473,7 +487,6 @@ export default function Home() {
     } catch {}
   }, [authUser, loginEmail]);
 
-  // FETCH RESTAURANT DIRECTORY WITHOUT OVERWRITING ACTIVE VIEW
   const fetchAllRestaurants = useCallback(async () => {
     try {
       if (db) {
@@ -493,7 +506,6 @@ export default function Home() {
           }));
           setRestaurants(mapped);
 
-          // Lock on initial load if no workspace is active yet
           const savedTenantId = localStorage.getItem("rp-active-tenant-id");
           const target = mapped.find((r: any) => r.id === savedTenantId) || mapped.find((r: any) => r.id === tenantIdRef.current) || mapped[0];
 
@@ -503,7 +515,6 @@ export default function Home() {
             setActivePlanName(target.plan || "Free trial");
             setActiveRenewalDate(target.renewal || "—");
           } else if (tenantIdRef.current) {
-            // Keep active details fresh from the latest list
             const current = mapped.find((r: any) => r.id === tenantIdRef.current);
             if (current) {
               setActivePlanName(current.plan || "Free trial");
@@ -609,24 +620,26 @@ export default function Home() {
       .catch(() => {});
   }, []);
 
-  // STABLE POLLING LOOP (NO BLINKING / RE-RENDER RACE)
+  // Real-Time Polling & Live Plans Sync
   useEffect(() => {
     fetchSubscriptionRequests();
     fetchRealApprovals();
     fetchAllRestaurants();
     syncLiveSubscriptionStatus();
+    fetchLivePlans();
 
     const interval = setInterval(() => {
       fetchSubscriptionRequests();
       fetchRealApprovals();
       fetchAllRestaurants();
       syncLiveSubscriptionStatus();
+      fetchLivePlans();
     }, 4000);
 
     return () => {
       clearInterval(interval);
     };
-  }, [fetchSubscriptionRequests, fetchRealApprovals, fetchAllRestaurants, syncLiveSubscriptionStatus]);
+  }, [fetchSubscriptionRequests, fetchRealApprovals, fetchAllRestaurants, syncLiveSubscriptionStatus, fetchLivePlans]);
 
   useEffect(() => {
     if (!tenantId) return;
@@ -788,10 +801,15 @@ export default function Home() {
     } else setForm({});
   };
 
+  // ADMIN PLAN EDITING & CREATION (SAVES DIRECTLY TO DATABASE)
   const save = async () => {
     if (modal === "plan") {
+      if (!isAdmin) {
+        toast.error("Only Platform Administrators can modify pricing plans.");
+        return;
+      }
       if (!form.name?.trim() || !Number.isFinite(Number(form.price))) {
-        toast.error("Enter a plan name and price");
+        toast.error("Enter a valid plan name and price");
         return;
       }
       const p: Plan = {
@@ -802,8 +820,20 @@ export default function Home() {
         features: form.features || "",
         active: true,
       };
-      setPlans((old) => (editing ? old.map((x) => (x.id === editing ? p : x)) : [...old, p]));
-      toast.success(editing ? "Plan updated" : "Plan created");
+
+      const updatedPlans = editing ? plans.map((x) => (x.id === editing ? p : x)) : [...plans, p];
+      setPlans(updatedPlans);
+
+      try {
+        await fetch("/api/admin/pricing", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ plans: updatedPlans }),
+        });
+        toast.success(editing ? "Plan updated successfully!" : "Plan created successfully!");
+      } catch {
+        toast.error("Failed to save pricing changes to server.");
+      }
     }
     if (modal === "dish") {
       if (!form.name?.trim() || Number(form.price) <= 0) {
@@ -901,6 +931,27 @@ export default function Home() {
       toast.success(editing !== null ? "Employee updated" : "Employee added");
     }
     setModal(null);
+  };
+
+  // ADMIN PLAN DELETION HANDLER
+  const handleDeletePlan = async (planId: number) => {
+    if (!isAdmin) {
+      toast.error("Only Platform Administrators can delete pricing plans.");
+      return;
+    }
+    if (!confirm("Are you sure you want to remove this pricing plan?")) return;
+    const filtered = plans.filter((p) => p.id !== planId);
+    setPlans(filtered);
+    try {
+      await fetch("/api/admin/pricing", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ plans: filtered }),
+      });
+      toast.success("Pricing plan deleted successfully");
+    } catch {
+      toast.error("Failed to update pricing on server.");
+    }
   };
 
   const checkout = () => {
@@ -1113,7 +1164,7 @@ export default function Home() {
     }
   };
 
-  // SAVE SETTINGS (HANDLES FALLBACKS AND SAFE PERSISTENCE)
+  // PERSIST RESTAURANT SETTINGS SAFELY TO DATABASE
   const handleSaveRestaurantSettings = async () => {
     try {
       const payload = {
@@ -1256,6 +1307,7 @@ export default function Home() {
   const inlineUpiPayUri = `upi://pay?pa=${encodeURIComponent(subscriptionUpiId)}&pn=${encodeURIComponent("RestoPulse")}&am=${encodeURIComponent(activePlanPrice.toFixed(2))}&cu=INR&tn=${encodeURIComponent(`${activeRestaurantName} ${activeInlinePlan?.name || 'Subscription'}`)}`;
   const inlineQrImageUrl = `https://api.qrserver.com/v1/create-qr-code/?size=240x240&data=${encodeURIComponent(inlineUpiPayUri)}`;
 
+  // Navigation Filter: Restaurant login NEVER sees the admin Pricing plans link
   const normalizedRole = (currentUserRole || "").toLowerCase();
   const isOwnerOrAdmin = normalizedRole === "owner" || normalizedRole === "admin" || !normalizedRole;
   
@@ -1321,7 +1373,7 @@ export default function Home() {
           </div>
         </div>
 
-        {/* WORKSPACE SELECTOR - CLICK TO SWITCH WITHOUT FLICKER */}
+        {/* WORKSPACE SELECTOR */}
         <div className="workspace-label">
           WORKSPACE <ChevronDown size={14} />
         </div>
@@ -1376,7 +1428,7 @@ export default function Home() {
           ))}
         </nav>
 
-        {/* PLATFORM ADMIN NAVIGATION */}
+        {/* PLATFORM ADMIN NAVIGATION (SHOWN ONLY IF LOGGED IN AS ADMIN) */}
         {isAdmin && (
           <>
             <div className="nav-heading admin-heading">PLATFORM ADMIN</div>
@@ -1852,13 +1904,6 @@ export default function Home() {
                           </tr>
                         );
                       })}
-                      {!inventoryList.length && (
-                        <tr>
-                          <td colSpan={5} className="text-center py-6 text-muted-foreground text-xs">
-                            No inventory items found. Add items to track stock.
-                          </td>
-                        </tr>
-                      )}
                     </tbody>
                   </table>
                 </div>
@@ -1973,13 +2018,6 @@ export default function Home() {
                           <td className="strong">{money(e.amount)}</td>
                         </tr>
                       ))}
-                      {!expenses.length && (
-                        <tr>
-                          <td colSpan={4} className="text-center py-6 text-muted-foreground text-xs">
-                            No expenses logged yet.
-                          </td>
-                        </tr>
-                      )}
                     </tbody>
                   </table>
                 </div>
@@ -2008,112 +2046,37 @@ export default function Home() {
               <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mt-6">
                 <div className="panel p-4 border rounded-xl bg-card space-y-2">
                   <h2 className="text-sm font-bold mb-3">Supplier Directory</h2>
-                  {suppliers.map((sp) => {
-                    const billed = expenses.filter((x) => x.supplierId === sp.id).reduce((n, x) => n + x.amount, 0);
-                    const paid = supplierPayments.filter((x) => x.supplierId === sp.id).reduce((n, x) => n + x.amount, 0);
-                    const due = Math.max(0, billed - paid);
-                    return (
-                      <div
-                        key={sp.id}
-                        onClick={() => setSupplierDetail(sp.id)}
-                        className={`p-3 rounded-xl border cursor-pointer transition-all flex justify-between items-center ${
-                          supplierDetail === sp.id ? "border-indigo-500 bg-indigo-50/10" : "hover:bg-muted/40"
-                        }`}
-                      >
-                        <div>
-                          <b className="text-xs block">{sp.name}</b>
-                          <small className="text-[11px] text-muted-foreground">{sp.phone || sp.contact}</small>
-                        </div>
-                        <span className="text-xs font-mono font-bold text-amber-600">{money(due)}</span>
+                  {suppliers.map((sp) => (
+                    <div
+                      key={sp.id}
+                      onClick={() => setSupplierDetail(sp.id)}
+                      className={`p-3 rounded-xl border cursor-pointer transition-all flex justify-between items-center ${
+                        supplierDetail === sp.id ? "border-indigo-500 bg-indigo-50/10" : "hover:bg-muted/40"
+                      }`}
+                    >
+                      <div>
+                        <b className="text-xs block">{sp.name}</b>
+                        <small className="text-[11px] text-muted-foreground">{sp.phone || sp.contact}</small>
                       </div>
-                    );
-                  })}
-                  {!suppliers.length && (
-                    <div className="text-xs text-muted-foreground py-4 text-center">No suppliers added.</div>
-                  )}
-                </div>
-
-                <div className="md:col-span-2 panel p-6 border rounded-xl bg-card">
-                  {supplierDetail ? (
-                    (() => {
-                      const sp = suppliers.find((x) => x.id === supplierDetail);
-                      const billed = expenses.filter((x) => x.supplierId === supplierDetail).reduce((n, x) => n + x.amount, 0);
-                      const paid = supplierPayments.filter((x) => x.supplierId === supplierDetail).reduce((n, x) => n + x.amount, 0);
-                      const due = Math.max(0, billed - paid);
-                      const transactions = [
-                        ...expenses.filter(x => x.supplierId === supplierDetail).map(x => ({ id: String(x.id), date: x.date, label: x.name, type: "Purchase", amount: x.amount })),
-                        ...supplierPayments.filter(x => x.supplierId === supplierDetail).map(x => ({ id: x.id, date: x.date, label: x.note || x.method, type: "Payment", amount: x.amount }))
-                      ].sort((a, b) => b.date.localeCompare(a.date));
-
-                      return (
-                        <div className="space-y-4">
-                          <div className="flex justify-between items-start pb-4 border-b">
-                            <div>
-                              <h3 className="text-lg font-bold">{sp?.name}</h3>
-                              <p className="text-xs text-muted-foreground">{sp?.email} · {sp?.phone}</p>
-                            </div>
-                            <div className="text-right">
-                              <span className="text-xs text-muted-foreground block">Balance Due</span>
-                              <strong className="text-xl text-amber-600">{money(due)}</strong>
-                            </div>
-                          </div>
-
-                          <div className="grid grid-cols-2 gap-4 text-xs">
-                            <div className="p-3 bg-secondary/30 rounded-lg">Total Purchases: <b>{money(billed)}</b></div>
-                            <div className="p-3 bg-secondary/30 rounded-lg">Total Paid: <b>{money(paid)}</b></div>
-                          </div>
-
-                          <div className="table-scroll mt-4">
-                            <table className="w-full text-left text-xs">
-                              <thead>
-                                <tr className="border-b text-muted-foreground">
-                                  <th className="py-2">DATE</th>
-                                  <th className="py-2">NOTE</th>
-                                  <th className="py-2">TYPE</th>
-                                  <th className="py-2">AMOUNT</th>
-                                </tr>
-                              </thead>
-                              <tbody>
-                                {transactions.map(t => (
-                                  <tr key={t.id} className="border-b">
-                                    <td className="py-2 font-mono">{t.date}</td>
-                                    <td className="py-2">{t.label}</td>
-                                    <td className="py-2">
-                                      <span className={`px-2 py-0.5 rounded text-[10px] font-bold ${t.type === "Payment" ? "bg-green-100 text-green-800" : "bg-blue-100 text-blue-800"}`}>
-                                        {t.type}
-                                      </span>
-                                    </td>
-                                    <td className="py-2 font-bold">{t.type === "Payment" ? "−" : "+"}{money(t.amount)}</td>
-                                  </tr>
-                                ))}
-                              </tbody>
-                            </table>
-                          </div>
-                        </div>
-                      );
-                    })()
-                  ) : (
-                    <div className="text-center py-16 text-muted-foreground text-xs">
-                      Select a supplier from the directory to view complete purchase and payment history.
                     </div>
-                  )}
+                  ))}
                 </div>
               </div>
             </>
           )}
 
-          {/* 8. RESTAURANT SUBSCRIPTION */}
+          {/* 8. RESTAURANT SUBSCRIPTION (READ-ONLY FOR RESTAURANT: CANNOT EDIT/DELETE PLANS) */}
           {view === "subscription" && (
             <>
               <div className="page-head">
                 <div>
                   <div className="eyebrow">PLANS & BILLING</div>
                   <h1>Subscription</h1>
-                  <p>Choose a plan, scan the UPI QR code below, and submit the reference ID for approval.</p>
+                  <p>Choose an active platform plan, scan the UPI QR code below, and submit the transaction reference.</p>
                 </div>
               </div>
 
-              {/* Grid of Plans */}
+              {/* Grid of Plans Synced Live from Admin Configuration */}
               <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
                 {plans.map((p) => {
                   const normalizedCurrent = (activePlanName || "").toLowerCase().trim();
@@ -2168,7 +2131,7 @@ export default function Home() {
                 })}
               </div>
 
-              {/* DYNAMIC PAYMENT BOX UNDER CARDS */}
+              {/* DYNAMIC PAYMENT BOX */}
               {activeInlinePlan && activeInlinePlan.price > 0 && (
                 <div
                   className="max-w-md mx-auto rounded-2xl p-6 border text-center shadow-lg my-8"
@@ -2242,7 +2205,7 @@ export default function Home() {
             </>
           )}
 
-          {/* 9. SETTINGS WITH DATABASE PERSISTENCE */}
+          {/* 9. SETTINGS WITH SAFE DATABASE PERSISTENCE */}
           {view === "settings" && (
             <>
               <div className="page-head">
@@ -2542,15 +2505,20 @@ export default function Home() {
             </>
           )}
 
-          {/* 12. ADMIN: PRICING PLANS */}
+          {/* 12. ADMIN: PRICING PLANS (ADMIN ONLY - HAS EDIT/CREATE/DELETE OPTIONS) */}
           {view === "pricing" && isAdmin && (
             <>
               <div className="page-head flex justify-between items-center">
                 <div>
                   <div className="eyebrow">SUBSCRIPTION MANAGEMENT</div>
-                  <h1>Pricing plans & Admin UPI Configuration</h1>
+                  <h1>Pricing Plans & Configuration</h1>
+                  <p>Create, edit, and delete plans available to restaurants on RestoPulse.</p>
                 </div>
+                <button className="primary-btn flex items-center gap-1.5" onClick={() => open("plan")}>
+                  <Plus size={16} /> Add Plan
+                </button>
               </div>
+
               <section className="panel settings-panel mb-6 mt-4">
                 <h2>Restaurant payment UPI ID</h2>
                 <div className="settings-fields mt-3">
@@ -2558,12 +2526,39 @@ export default function Home() {
                 </div>
                 <button className="primary-btn mt-3" onClick={saveAdminUpi} disabled={adminUpiBusy}>Save Admin UPI ID</button>
               </section>
+
+              {/* Editable Plans Grid */}
               <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                 {plans.map((p) => (
-                  <div key={p.id} className="p-5 border rounded-2xl bg-card space-y-2">
-                    <h3 className="font-bold text-sm">{p.name}</h3>
-                    <div className="text-2xl font-black">{money(p.price)} <small className="text-xs font-normal text-muted-foreground">/{p.period}</small></div>
-                    <p className="text-xs text-muted-foreground">{p.features}</p>
+                  <div key={p.id} className="p-5 border rounded-2xl bg-card space-y-3 flex flex-col justify-between shadow-sm">
+                    <div>
+                      <div className="flex justify-between items-start">
+                        <h3 className="font-bold text-base">{p.name}</h3>
+                        <span className="text-[10px] uppercase font-bold px-2 py-0.5 rounded-full bg-secondary">
+                          {p.period}
+                        </span>
+                      </div>
+                      <div className="text-2xl font-black mt-2">
+                        {money(p.price)} <small className="text-xs font-normal text-muted-foreground">/{p.period}</small>
+                      </div>
+                      <p className="text-xs text-muted-foreground mt-2 leading-relaxed">{p.features}</p>
+                    </div>
+
+                    {/* Admin Edit & Delete Actions */}
+                    <div className="pt-3 border-t flex justify-end gap-2">
+                      <button
+                        className="quiet-btn text-xs py-1 px-2.5 flex items-center gap-1"
+                        onClick={() => open("plan", p.id)}
+                      >
+                        <Pencil size={13} /> Edit Plan
+                      </button>
+                      <button
+                        className="quiet-btn text-xs py-1 px-2.5 text-red-600 hover:bg-red-50 flex items-center gap-1"
+                        onClick={() => handleDeletePlan(p.id)}
+                      >
+                        <Trash2 size={13} /> Delete
+                      </button>
+                    </div>
                   </div>
                 ))}
               </div>
@@ -2573,6 +2568,38 @@ export default function Home() {
       </div>
 
       {mobileNav && <button className="nav-backdrop" aria-label="Close navigation" onClick={() => setMobileNav(false)} />}
+
+      {/* MODAL FOR ADDING / EDITING PRICING PLANS (ADMIN ONLY) */}
+      <Dialog open={modal === "plan"} onOpenChange={(v) => !v && setModal(null)}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>{editing ? "Edit Pricing Plan" : "Add New Pricing Plan"}</DialogTitle>
+            <DialogDescription>Changes will update the plans shown in the restaurant console immediately.</DialogDescription>
+          </DialogHeader>
+          <div className="space-y-3 py-2 text-xs">
+            <label className="block space-y-1">
+              <span className="font-semibold text-muted-foreground">Plan Name</span>
+              <input value={form.name || ""} onChange={(e) => setForm({ ...form, name: e.target.value })} placeholder="e.g. Monthly, Quarterly, Yearly" className="w-full p-2 border rounded-lg bg-background" />
+            </label>
+            <label className="block space-y-1">
+              <span className="font-semibold text-muted-foreground">Price (₹)</span>
+              <input type="number" value={form.price || ""} onChange={(e) => setForm({ ...form, price: e.target.value })} placeholder="2999" className="w-full p-2 border rounded-lg bg-background" />
+            </label>
+            <label className="block space-y-1">
+              <span className="font-semibold text-muted-foreground">Period / Duration Label</span>
+              <input value={form.period || ""} onChange={(e) => setForm({ ...form, period: e.target.value })} placeholder="e.g. 30 days, 365 days" className="w-full p-2 border rounded-lg bg-background" />
+            </label>
+            <label className="block space-y-1">
+              <span className="font-semibold text-muted-foreground">Features Description</span>
+              <textarea value={form.features || ""} onChange={(e) => setForm({ ...form, features: e.target.value })} placeholder="Full access, live inventory, POS terminal..." className="w-full p-2 border rounded-lg bg-background h-20" />
+            </label>
+          </div>
+          <DialogFooter>
+            <button className="quiet-btn" onClick={() => setModal(null)}>Cancel</button>
+            <button className="primary-btn" onClick={save}>Save Plan</button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       {/* INVENTORY ADD / EDIT MODAL */}
       <Dialog open={modal === "inventory"} onOpenChange={(v) => !v && setModal(null)}>
@@ -2679,12 +2706,11 @@ export default function Home() {
       </Dialog>
 
       {/* GLOBAL ENTITY MODAL */}
-      <Dialog open={!!modal && modal !== "inventory" && modal !== "employee"} onOpenChange={(v) => !v && setModal(null)}>
+      <Dialog open={!!modal && modal !== "inventory" && modal !== "employee" && modal !== "plan"} onOpenChange={(v) => !v && setModal(null)}>
         <DialogContent className="modal-content">
           <DialogHeader>
             <DialogTitle>
-              {modal === "plan" ? (editing ? "Edit Plan" : "Add Plan")
-                : modal === "dish" ? (editing ? "Edit Dish" : "Add Dish")
+              {modal === "dish" ? (editing ? "Edit Dish" : "Add Dish")
                 : modal === "supplier" ? (editing ? "Edit Supplier" : "Add Supplier")
                 : modal === "expense" ? "Log Expense"
                 : "Record Payment"}
@@ -2876,7 +2902,7 @@ export default function Home() {
               {/* Receipt Header */}
               <div className="text-center space-y-0.5">
                 <div className="text-sm font-extrabold uppercase tracking-wide">
-                  {receipt.business?.name || activeRestaurantName || "Restaurant"}
+                  {receipt.business?.name || activeRestaurantName}
                 </div>
                 <div className="text-[10px] text-gray-600 leading-tight">
                   {receipt.business?.address}

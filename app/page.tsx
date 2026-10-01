@@ -120,6 +120,19 @@ type InventoryItem = {
   reorderLevel: number;
 };
 
+type RestaurantApproval = {
+  id: string | number;
+  name: string;
+  city: string;
+  submitted: string;
+  docs: string;
+  status: string;
+  owner?: string;
+  email?: string;
+  phone?: string;
+  plan?: string;
+};
+
 const initialDishes: Dish[] = [
   { id: 1, name: "Truffle Mushroom Risotto", category: "Mains", price: 680, cost: 240, stock: true, emoji: "🍄", diet: "Vegetarian", time: 22 },
   { id: 2, name: "Grilled Salmon Bowl", category: "Mains", price: 790, cost: 330, stock: true, emoji: "🥗", diet: "Gluten-free", time: 18 },
@@ -143,10 +156,6 @@ const initialRestaurants = [
   { id: 2, name: "Olive & Ember", owner: "Neha Kapoor", email: "neha@example.com", phone: "+91 98765 43211", city: "Mumbai", plan: "Starter", status: "Active", renewal: "04 Oct 2026", initial: "OE" },
   { id: 3, name: "Nori House", owner: "Arun Iyer", email: "arun@example.com", phone: "+91 98765 43212", city: "Chennai", plan: "Growth", status: "Trial", renewal: "29 Sep 2026", initial: "NH" },
   { id: 4, name: "Mira Kitchen", owner: "Sara Khan", email: "sara@example.com", phone: "+91 98765 43213", city: "Hyderabad", plan: "Starter", status: "Paused", renewal: "18 Oct 2026", initial: "MK" },
-];
-
-const initialApprovals = [
-  { id: 1, name: "Spice Route Bistro", city: "Pune", submitted: "28 Sep 2026", docs: "FSSAI License & GST", status: "Pending" }
 ];
 
 type Expense = {
@@ -377,14 +386,16 @@ export default function Home() {
   const [staff, setStaff] = useState<Staff[]>(initialStaff);
   const [wages, setWages] = useState<Wage[]>(initialWages);
   const [wageForm, setWageForm] = useState({ date: new Date().toLocaleDateString("en-CA"), amount: "", note: "" });
-  const [printSize, setPrintSize] = useState<"58mm" | "85mm" | "A4">("58mm");
   const [dark, setDark] = useState(false);
   const [mobileNav, setMobileNav] = useState(false);
   const [notifications, setNotifications] = useState(false);
   const [dishes, setDishes] = useState<Dish[]>(initialDishes);
   const [plans, setPlans] = useState<Plan[]>(initialPlans);
   const [restaurants, setRestaurants] = useState(initialRestaurants);
-  const [approvals, setApprovals] = useState(initialApprovals);
+  
+  // Real Restaurant Onboarding Approvals State (replaces dummy Spice Route Bistro)
+  const [approvals, setApprovals] = useState<RestaurantApproval[]>([]);
+
   const [expenses, setExpenses] = useState<Expense[]>(initialExpenses);
   const [cart, setCart] = useState<CartLine[]>([]);
   const [category, setCategory] = useState("All items");
@@ -428,7 +439,66 @@ export default function Home() {
   const [confirmPassword, setConfirmPassword] = useState("");
   const [pwdBusy, setPwdBusy] = useState(false);
 
-  // Centralized Request Fetcher for Admin
+  // Real-Time Fetcher for Real Restaurant Registration Approvals
+  const fetchRealApprovals = useCallback(async () => {
+    try {
+      if (db) {
+        const { data, error } = await db
+          .from("restaurants")
+          .select("*")
+          .eq("status", "Pending")
+          .order("created_at", { ascending: false });
+
+        if (!error && data) {
+          setApprovals(
+            data.map((r: any) => ({
+              id: r.id,
+              name: r.name,
+              city: r.city || "Not specified",
+              submitted: r.created_at
+                ? new Date(r.created_at).toLocaleDateString("en-IN", {
+                    day: "numeric",
+                    month: "short",
+                    year: "numeric",
+                  })
+                : "Recent",
+              docs: r.gstin ? `GSTIN: ${r.gstin}` : "Registration Docs",
+              status: "Pending",
+              owner: r.owner_name,
+              email: r.owner_email,
+              phone: r.owner_phone,
+              plan: r.plan || "Free Trial",
+            }))
+          );
+          return;
+        }
+      }
+      const res = await fetch("/api/admin/approvals");
+      const json = await res.json();
+      if (json?.approvals) {
+        setApprovals(json.approvals);
+      }
+    } catch {
+      // Fallback: check pending restaurants in state
+      const pendingInList = restaurants
+        .filter((r) => r.status === "Pending")
+        .map((r) => ({
+          id: r.id,
+          name: r.name,
+          city: r.city,
+          submitted: "Recent",
+          docs: "Business Certificate",
+          status: "Pending",
+          owner: r.owner,
+          email: r.email,
+          phone: r.phone,
+          plan: r.plan,
+        }));
+      setApprovals(pendingInList);
+    }
+  }, [db, restaurants]);
+
+  // Centralized Request Fetcher for Admin Subscriptions
   const fetchSubscriptionRequests = useCallback(async () => {
     try {
       if (db) {
@@ -449,7 +519,6 @@ export default function Home() {
         setSubscriptionRequests(json.requests);
       }
     } catch {
-      // Fallback local memory array if database schema pending
       const localReqs = localStorage.getItem("rp-local-sub-requests");
       if (localReqs) setSubscriptionRequests(JSON.parse(localReqs));
     }
@@ -519,7 +588,6 @@ export default function Home() {
     };
   }, [db, authUser]);
 
-  // Load Admin UPI ID from storage and backend
   useEffect(() => {
     const savedUpi = localStorage.getItem("rp-admin-upi");
     if (savedUpi) {
@@ -538,37 +606,40 @@ export default function Home() {
       .catch(() => {});
   }, [isAdmin, tenantId]);
 
-  // Real-Time Sync & Polling for Admin Console Subscription Requests
+  // Real-Time Sync & Polling for Approvals and Subscriptions
   useEffect(() => {
     fetchSubscriptionRequests();
+    fetchRealApprovals();
 
-    // 1. Supabase Real-time channel listener
-    let channel: any = null;
+    let channel1: any = null;
+    let channel2: any = null;
     if (db) {
-      channel = db
-        .channel("realtime-subscription-requests")
-        .on(
-          "postgres_changes",
-          { event: "*", schema: "public", table: "subscription_requests" },
-          () => {
-            fetchSubscriptionRequests();
-          }
-        )
+      channel1 = db
+        .channel("realtime-sub-reqs")
+        .on("postgres_changes", { event: "*", schema: "public", table: "subscription_requests" }, () => {
+          fetchSubscriptionRequests();
+        })
+        .subscribe();
+
+      channel2 = db
+        .channel("realtime-restaurants-approval")
+        .on("postgres_changes", { event: "*", schema: "public", table: "restaurants" }, () => {
+          fetchRealApprovals();
+        })
         .subscribe();
     }
 
-    // 2. Continuous fallback poll every 5 seconds
     const interval = setInterval(() => {
       fetchSubscriptionRequests();
+      fetchRealApprovals();
     }, 5000);
 
     return () => {
       clearInterval(interval);
-      if (channel && db) {
-        db.removeChannel(channel);
-      }
+      if (channel1 && db) db.removeChannel(channel1);
+      if (channel2 && db) db.removeChannel(channel2);
     };
-  }, [db, fetchSubscriptionRequests]);
+  }, [db, fetchSubscriptionRequests, fetchRealApprovals]);
 
   useEffect(() => {
     const key = tenantId ? `rp-inventory-list:${tenantId}` : `rp-inventory-list:default`;
@@ -950,7 +1021,6 @@ export default function Home() {
     window.location.href = link;
   };
 
-  // Submission with direct Database, API, and Real-Time persistence
   const requestExtension = async () => {
     setExtensionBusy(true);
     try {
@@ -969,7 +1039,6 @@ export default function Home() {
             }
           }
         } catch {
-          // Fallback to local data URI preview if storage bucket is not configured
           screenshotUrl = await new Promise((resolve) => {
             const reader = new FileReader();
             reader.onload = () => resolve(reader.result as string);
@@ -991,19 +1060,16 @@ export default function Home() {
         requested_at: new Date().toISOString(),
       };
 
-      // 1. Write directly to Supabase if table exists
       if (db) {
         await db.from("subscription_requests").insert(payload);
       }
 
-      // 2. Write to backend API endpoint
       await fetch("/api/subscription", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload),
       });
 
-      // 3. Fallback broadcast via LocalStorage for cross-tab realtime sync
       const existing = JSON.parse(localStorage.getItem("rp-local-sub-requests") || "[]");
       const newRecord = { id: `req-${Date.now()}`, ...payload };
       localStorage.setItem("rp-local-sub-requests", JSON.stringify([newRecord, ...existing]));
@@ -1012,8 +1078,6 @@ export default function Home() {
       setExtensionMessage("");
       setExtensionFile(null);
       setShowQrModal(false);
-
-      // Force immediate refresh
       fetchSubscriptionRequests();
     } catch (err: any) {
       toast.error(err.message || "Failed to submit request");
@@ -1039,7 +1103,6 @@ export default function Home() {
         body: JSON.stringify({ request_id: requestId }),
       });
 
-      // Update local storage backup
       const existing = JSON.parse(localStorage.getItem("rp-local-sub-requests") || "[]");
       localStorage.setItem("rp-local-sub-requests", JSON.stringify(existing.filter((x: any) => x.id !== requestId)));
 
@@ -1047,6 +1110,41 @@ export default function Home() {
       toast.success("Subscription approved and extended successfully!");
     } catch (err: any) {
       toast.error(err.message || "Failed to approve request");
+    }
+  };
+
+  // Real Restaurant Onboarding Approval Handler
+  const handleReviewRestaurantApproval = async (approvalId: string | number, action: "approve" | "reject") => {
+    try {
+      if (db) {
+        await db
+          .from("restaurants")
+          .update({ status: action === "approve" ? "Active" : "Rejected" })
+          .eq("id", approvalId);
+      }
+      await fetch("/api/admin/approvals", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ restaurant_id: approvalId, action }),
+      });
+
+      setApprovals((old) => old.filter((x) => x.id !== approvalId));
+      setRestaurants((old) =>
+        old.map((r) =>
+          r.id === approvalId
+            ? { ...r, status: action === "approve" ? "Active" : "Rejected" }
+            : r
+        )
+      );
+
+      toast.success(
+        action === "approve"
+          ? "Restaurant approved and activated successfully!"
+          : "Restaurant registration rejected"
+      );
+      fetchRealApprovals();
+    } catch (err: any) {
+      toast.error(err.message || "Failed to update restaurant status");
     }
   };
 
@@ -1213,8 +1311,8 @@ export default function Home() {
                 >
                   <item.icon size={18} />
                   {item.label}
-                  {item.id === "approvals" && (
-                    <span className="nav-count">{subscriptionRequests.length || approvals.filter((x) => x.status === "Pending").length}</span>
+                  {item.id === "approvals" && approvals.length > 0 && (
+                    <span className="nav-count">{approvals.length}</span>
                   )}
                 </button>
               ))}
@@ -1325,15 +1423,26 @@ export default function Home() {
             <div className="notification-popover">
               <div className="popover-title">
                 <b>Notifications</b>
-                <span>{subscriptionRequests.length || approvals.filter((x) => x.status === "Pending").length} new</span>
+                <span>{approvals.length + subscriptionRequests.length} new</span>
               </div>
-              <button onClick={() => nav(isAdmin ? "restaurants" : "subscription")}>
-                <span className="notif-icon amber">◎</span>
-                <span>
-                  <b>{subscriptionRequests.length} pending renewal requests</b>
-                  <small>Review uploaded payment proofs</small>
-                </span>
-              </button>
+              {approvals.length > 0 && (
+                <button onClick={() => nav("approvals")}>
+                  <span className="notif-icon amber">◎</span>
+                  <span>
+                    <b>{approvals.length} pending restaurant approvals</b>
+                    <small>Review restaurant onboarding applications</small>
+                  </span>
+                </button>
+              )}
+              {subscriptionRequests.length > 0 && (
+                <button onClick={() => nav("restaurants")}>
+                  <span className="notif-icon teal">↗</span>
+                  <span>
+                    <b>{subscriptionRequests.length} subscription renewals pending</b>
+                    <small>Review payment screenshots</small>
+                  </span>
+                </button>
+              )}
             </div>
           )}
         </header>
@@ -1869,7 +1978,7 @@ export default function Home() {
             </>
           )}
 
-          {/* 8. SUBSCRIPTION & CHOOSE PLAN: DYNAMIC PLANS & ACTUAL QR CODE ENCODED WITH AMOUNT AND SET ADMIN UPI */}
+          {/* 8. SUBSCRIPTION & CHOOSE PLAN */}
           {view === "subscription" && (
             <>
               <div className="page-head">
@@ -1880,7 +1989,6 @@ export default function Home() {
                 </div>
               </div>
 
-              {/* Active Admin UPI display */}
               <div className="mb-6 p-4 rounded-xl border bg-card flex justify-between items-center">
                 <div>
                   <span className="text-xs text-muted-foreground uppercase font-bold tracking-wider">Active Admin UPI ID for Payments</span>
@@ -1954,7 +2062,6 @@ export default function Home() {
                   <button className="primary-btn mt-3" onClick={() => toast.success("Details saved successfully!")}>Save details</button>
                 </section>
 
-                {/* Password Reset Section */}
                 <section className="panel settings-panel">
                   <h2>Password & Security</h2>
                   <p className="text-sm text-muted-foreground mb-4">Reset your login password for this restaurant account.</p>
@@ -2004,7 +2111,6 @@ export default function Home() {
                 <button className="primary-btn" onClick={() => open("restaurant")}><Plus size={17} /> Add restaurant</button>
               </div>
 
-              {/* Real-Time Subscription Extension Requests Table */}
               <section className="panel management-panel mb-6">
                 <div className="panel-header flex justify-between items-center">
                   <div>
@@ -2107,28 +2213,64 @@ export default function Home() {
             </>
           )}
 
-          {/* 11. ADMIN: APPROVALS */}
+          {/* 11. ADMIN: REAL ONBOARDING APPROVALS (REPLACES DUMMY DATA) */}
           {view === "approvals" && isAdmin && (
             <>
-              <div className="page-head">
+              <div className="page-head flex justify-between items-center">
                 <div>
                   <div className="eyebrow">ONBOARDING PIPELINE</div>
-                  <h1>Pending Approvals <span className="heading-count">{approvals.length}</span></h1>
-                  <p>Review new business accounts before onboarding.</p>
+                  <h1>
+                    Pending Approvals{" "}
+                    <span className="heading-count">{approvals.length}</span>
+                  </h1>
+                  <p>Review real restaurant accounts waiting to join RestoPulse.</p>
                 </div>
+                <button className="quiet-btn text-xs" onClick={fetchRealApprovals}>
+                  Refresh
+                </button>
               </div>
               <div className="approval-grid">
                 {approvals.map((a) => (
                   <div className="approval-card" key={a.id}>
+                    <div className="approval-top">
+                      <span className="approval-avatar">{a.name.slice(0, 2).toUpperCase()}</span>
+                      <span className="status trial">Pending Review</span>
+                    </div>
                     <h2>{a.name}</h2>
-                    <p>{a.city} · Submitted {a.submitted}</p>
-                    <div className="approval-actions mt-3 flex gap-2">
-                      <button className="primary-btn" onClick={() => { setApprovals((old) => old.filter((x) => x.id !== a.id)); toast.success(a.name + " approved"); }}>Approve</button>
-                      <button className="quiet-btn" onClick={() => { setApprovals((old) => old.filter((x) => x.id !== a.id)); toast.info(a.name + " rejected"); }}>Reject</button>
+                    <p>
+                      {a.city} · Submitted {a.submitted}
+                    </p>
+                    <div className="text-xs text-muted-foreground space-y-0.5 mt-2">
+                      {a.owner && <div>Owner: <b>{a.owner}</b></div>}
+                      {a.email && <div>Email: <b>{a.email}</b></div>}
+                      {a.phone && <div>Phone: <b>{a.phone}</b></div>}
+                      {a.plan && <div>Requested Plan: <b className="text-indigo-600">{a.plan}</b></div>}
+                    </div>
+                    <div className="approval-doc mt-2">
+                      <BadgeCheck size={16} />
+                      <span>{a.docs}</span>
+                    </div>
+                    <div className="approval-actions mt-4 flex gap-2">
+                      <button
+                        className="primary-btn"
+                        onClick={() => handleReviewRestaurantApproval(a.id, "approve")}
+                      >
+                        Approve & Activate
+                      </button>
+                      <button
+                        className="quiet-btn text-red-600"
+                        onClick={() => handleReviewRestaurantApproval(a.id, "reject")}
+                      >
+                        Reject
+                      </button>
                     </div>
                   </div>
                 ))}
-                {!approvals.length && <div className="panel empty-state">All caught up. No pending registrations.</div>}
+                {!approvals.length && (
+                  <div className="panel empty-state">
+                    All caught up. No pending restaurant registrations right now.
+                  </div>
+                )}
               </div>
             </>
           )}

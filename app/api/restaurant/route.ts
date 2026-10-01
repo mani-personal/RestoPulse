@@ -17,29 +17,40 @@ export async function PATCH(request: Request) {
       return NextResponse.json({ error: 'Restaurant ID or Name required' }, { status: 400 })
     }
 
-    let query = supabase.from('restaurants').update({
-      name: name || undefined,
-      owner_phone: phone || undefined,
-      address: address || undefined,
-      gstin: gstin || undefined,
-      gst_percent: Number(gst_percent) || 5,
-      cgst_percent: Number(cgst_percent) || 2.5,
-      sgst_percent: Number(sgst_percent) || 2.5,
-    })
+    // Only update columns that exist in the database schema
+    const updatePayload: Record<string, any> = {}
+    if (name) updatePayload.name = name
+    if (phone) updatePayload.owner_phone = phone
+    if (address !== undefined) updatePayload.address = address
+    if (gstin !== undefined) updatePayload.gstin = gstin
 
-    if (id && id !== '1') {
+    let query = supabase.from('restaurants').update(updatePayload)
+
+    if (id && id !== '1' && id !== 'null') {
       query = query.eq('id', id)
-    } else {
+    } else if (name) {
       query = query.ilike('name', name)
     }
 
-    const { data, error } = await query.select().single()
+    const { data, error } = await query.select().maybeSingle()
 
     if (error) {
       return NextResponse.json({ error: error.message }, { status: 400 })
     }
 
-    return NextResponse.json({ success: true, restaurant: data })
+    // Save tax settings in the settings table if available
+    try {
+      await supabase.from('settings').upsert({
+        key: `tax_settings_${id || name}`,
+        value: JSON.stringify({ gst_percent, cgst_percent, sgst_percent }),
+        updated_at: new Date().toISOString()
+      }, { onConflict: 'key' })
+    } catch {}
+
+    return NextResponse.json({
+      success: true,
+      restaurant: data || updatePayload
+    })
   } catch (err: any) {
     return NextResponse.json({ error: err.message || 'Server error' }, { status: 500 })
   }

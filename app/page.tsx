@@ -42,6 +42,7 @@ import {
   AlertTriangle,
   KeyRound,
   RefreshCw,
+  X,
 } from "lucide-react";
 import {
   AreaChart,
@@ -244,10 +245,7 @@ const initialPlans: Plan[] = [
 ];
 
 const initialRestaurants = [
-  { id: 1, name: "The Saffron Table", owner: "Mani Raj", email: "mani@example.com", phone: "+91 98765 43210", city: "Bengaluru", plan: "Monthly", status: "Active", renewal: "2026-10-12", initial: "ST" },
-  { id: 2, name: "Ambur Biriyani", owner: "Ambur", email: "ambur@example.com", phone: "+91 98765 43211", city: "Chennai", plan: "Monthly", status: "Trial", renewal: "2026-10-13", initial: "AB" },
-  { id: 3, name: "Giri Restaurant", owner: "Giri", email: "giri@example.com", phone: "+91 98765 43212", city: "Bengaluru", plan: "Free trial", status: "Trial", renewal: "2026-10-13", initial: "GR" },
-  { id: 4, name: "Mani", owner: "Mani", email: "mani.rest@example.com", phone: "+91 98765 43213", city: "Madurai", plan: "Free trial", status: "Trial", renewal: "2026-10-13", initial: "MN" },
+  { id: 1, name: "The Saffron Table", owner: "Mani Raj", email: "mani@example.com", phone: "+91 98765 43210", city: "Bengaluru", plan: "Free Trial", status: "Active", renewal: "2026-10-13", initial: "ST" },
 ];
 
 const initialStaff: Staff[] = [
@@ -417,7 +415,7 @@ export default function Home() {
   const [notifications, setNotifications] = useState(false);
   const [dishes, setDishes] = useState<Dish[]>(initialDishes);
   const [plans, setPlans] = useState<Plan[]>(initialPlans);
-  const [restaurants, setRestaurants] = useState(initialRestaurants);
+  const [restaurants, setRestaurants] = useState<any[]>(initialRestaurants);
   const [approvals, setApprovals] = useState<RestaurantApproval[]>([]);
   const [subscriptionRequests, setSubscriptionRequests] = useState<Array<any>>([]);
   const [expenses, setExpenses] = useState<Expense[]>(initialExpenses);
@@ -470,30 +468,35 @@ export default function Home() {
     return 30;
   };
 
-  // Synchronize and re-fetch real restaurants
   const fetchAllRestaurants = useCallback(async () => {
     try {
       if (db) {
         const { data, error } = await db.from("restaurants").select("*").order("created_at", { ascending: false });
         if (!error && data && data.length) {
-          setRestaurants(
-            data.map((x: any) => ({
-              id: x.id,
-              name: x.name,
-              owner: x.owner_name,
-              email: x.owner_email,
-              phone: x.owner_phone,
-              city: x.city,
-              plan: x.plan,
-              status: x.status,
-              renewal: x.renewal_on || "—",
-              initial: x.name.slice(0, 2).toUpperCase(),
-            }))
-          );
+          const mapped = data.map((x: any) => ({
+            id: x.id,
+            name: x.name,
+            owner: x.owner_name,
+            email: x.owner_email,
+            phone: x.owner_phone,
+            city: x.city,
+            plan: x.plan,
+            status: x.status,
+            renewal: x.renewal_on || "—",
+            initial: x.name.slice(0, 2).toUpperCase(),
+          }));
+          setRestaurants(mapped);
+
+          // Update active restaurant in local storage
+          const foundActive = mapped.find((r: any) => String(r.id) === String(tenantId)) || mapped[0];
+          if (foundActive) {
+            localStorage.setItem("rp-active-plan", foundActive.plan);
+            localStorage.setItem("rp-active-renewal", foundActive.renewal);
+          }
         }
       }
     } catch {}
-  }, [db]);
+  }, [db, tenantId]);
 
   const fetchRealApprovals = useCallback(async () => {
     try {
@@ -533,24 +536,8 @@ export default function Home() {
       if (json?.approvals) {
         setApprovals(json.approvals);
       }
-    } catch {
-      const pendingInList = restaurants
-        .filter((r) => r.status === "Pending")
-        .map((r) => ({
-          id: r.id,
-          name: r.name,
-          city: r.city,
-          submitted: "Recent",
-          docs: "Business Certificate",
-          status: "Pending",
-          owner: r.owner,
-          email: r.email,
-          phone: r.phone,
-          plan: r.plan,
-        }));
-      setApprovals(pendingInList);
-    }
-  }, [db, restaurants]);
+    } catch {}
+  }, [db]);
 
   const fetchSubscriptionRequests = useCallback(async () => {
     try {
@@ -616,24 +603,23 @@ export default function Home() {
         if (m?.data?.role) {
           setCurrentUserRole(m.data.role.toLowerCase());
         }
-        if (r?.data?.length) {
-          setRestaurants(
-            r.data.map((x: any) => ({
-              id: x.id,
-              name: x.name,
-              owner: x.owner_name,
-              email: x.owner_email,
-              phone: x.owner_phone,
-              city: x.city,
-              plan: x.plan,
-              status: x.status,
-              renewal: x.renewal_on || "—",
-              initial: x.name.slice(0, 2).toUpperCase(),
-            }))
-          );
-        }
         if (m?.data?.restaurant_id) {
           setTenantId(m.data.restaurant_id);
+        }
+        if (r?.data?.length) {
+          const mapped = r.data.map((x: any) => ({
+            id: x.id,
+            name: x.name,
+            owner: x.owner_name,
+            email: x.owner_email,
+            phone: x.owner_phone,
+            city: x.city,
+            plan: x.plan,
+            status: x.status,
+            renewal: x.renewal_on || "—",
+            initial: x.name.slice(0, 2).toUpperCase(),
+          }));
+          setRestaurants(mapped);
         }
       } catch (e) {
         console.error("Auth hydration error", e);
@@ -788,7 +774,17 @@ export default function Home() {
   const displayed = dishes.filter(
     (d) => (category === "All items" || d.category === category) && d.name.toLowerCase().includes(query.toLowerCase())
   );
-  const currentRestaurant = restaurants.find((r) => String(r.id) === String(tenantId)) || restaurants[0];
+
+  // Active restaurant resolution with fallback
+  const currentRestaurant =
+    restaurants.find((r) => String(r.id) === String(tenantId)) ||
+    restaurants[0] || {
+      id: "1",
+      name: "The Saffron Table",
+      plan: localStorage.getItem("rp-active-plan") || "Free Trial",
+      renewal: localStorage.getItem("rp-active-renewal") || "2026-10-13",
+      status: "Active",
+    };
 
   const subtotal = cart.reduce((sum, l) => {
     const d = dishes.find((x) => x.id === l.id);
@@ -1047,7 +1043,7 @@ export default function Home() {
     setAdminUpiBusy(false);
   };
 
-  // RESTAURANT SUBMITS PAYMENT REFERENCE
+  // SINGLE SUBMISSION DISPATCH: PREVENTS DUPLICATE SUBMISSIONS TO ADMIN
   const handleInlineSubmitReference = async () => {
     if (!activeInlinePlan) return;
     if (!inlineRefId.trim()) {
@@ -1080,7 +1076,7 @@ export default function Home() {
       }
 
       const planName = activeInlinePlan.name;
-      const targetRestId = currentRestaurant?.id || (tenantId !== "1" ? tenantId : null);
+      const targetRestId = currentRestaurant?.id && currentRestaurant.id !== "1" ? currentRestaurant.id : null;
 
       const payload = {
         restaurant_id: targetRestId,
@@ -1095,19 +1091,17 @@ export default function Home() {
         requested_at: new Date().toISOString(),
       };
 
-      if (db) {
-        await db.from("subscription_requests").insert(payload);
-      }
-
-      await fetch("/api/subscription", {
+      // Exactly ONE submission through backend API route to prevent duplicates
+      const res = await fetch("/api/subscription", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload),
       });
 
-      const existing = JSON.parse(localStorage.getItem("rp-local-sub-requests") || "[]");
-      const newRecord = { id: `req-${Date.now()}`, ...payload };
-      localStorage.setItem("rp-local-sub-requests", JSON.stringify([newRecord, ...existing]));
+      if (!res.ok) {
+        // Fallback directly to Supabase if endpoint fails
+        if (db) await db.from("subscription_requests").insert(payload);
+      }
 
       toast.success("Payment reference submitted for Admin approval!");
       setInlineRefId("");
@@ -1120,20 +1114,22 @@ export default function Home() {
     }
   };
 
-  // ADMIN APPROVES SUBSCRIPTION: ADDS DAYS ONTO EXISTING DATE OR FREE TRIAL
-  const reviewExtensionRequest = async (requestId: string, reqRest: any) => {
+  // ADMIN ACTION: APPROVE OR REJECT SUBSCRIPTION PROOF
+  const handleReviewSubscriptionAction = async (
+    requestId: string,
+    reqRest: any,
+    action: "approve" | "reject"
+  ) => {
     try {
       const planName = reqRest?.plan || "Monthly";
       const daysToAdd = getPlanDurationDays(planName);
 
-      // Find target restaurant by ID, name, or email
       const targetRestaurant =
         restaurants.find((r) => String(r.id) === String(reqRest?.restaurant_id)) ||
         restaurants.find((r) => r.name === reqRest?.restaurant_name) ||
         restaurants.find((r) => r.email === reqRest?.owner_email) ||
-        restaurants[0];
+        currentRestaurant;
 
-      // Stacking logic: if current renewal date is in the future, add to it
       let baseDate = new Date();
       if (targetRestaurant?.renewal && targetRestaurant.renewal !== "—") {
         const existingRenewal = new Date(targetRestaurant.renewal);
@@ -1144,22 +1140,10 @@ export default function Home() {
 
       const nextDate = new Date(baseDate.getTime());
       nextDate.setDate(nextDate.getDate() + daysToAdd);
-      const newRenewalStr = nextDate.toISOString().slice(0, 10); // YYYY-MM-DD
+      const newRenewalStr = nextDate.toISOString().slice(0, 10);
 
-      // Update in Supabase
-      if (db) {
-        await db.from("subscription_requests").update({ status: "Approved" }).eq("id", requestId);
-        if (targetRestaurant?.id) {
-          await db.from("restaurants").update({
-            plan: planName,
-            renewal_on: newRenewalStr,
-            status: "Active"
-          }).eq("id", targetRestaurant.id);
-        }
-      }
-
-      // Update via backend API
-      await fetch("/api/admin/subscriptions", {
+      // Call API endpoint
+      const res = await fetch("/api/admin/subscriptions", {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -1169,27 +1153,41 @@ export default function Home() {
           owner_email: targetRestaurant?.email,
           plan_name: planName,
           days_to_add: daysToAdd,
+          action: action,
         }),
       });
 
-      // Update local state immediately
-      setRestaurants((old) =>
-        old.map((r) =>
-          String(r.id) === String(targetRestaurant?.id) || r.name === targetRestaurant?.name
-            ? { ...r, plan: planName, renewal: newRenewalStr, status: "Active" }
-            : r
-        )
-      );
+      if (action === "approve") {
+        // Update Supabase directly as safety net
+        if (db && targetRestaurant?.id) {
+          await db.from("restaurants").update({
+            plan: planName,
+            renewal_on: newRenewalStr,
+            status: "Active",
+          }).eq("id", targetRestaurant.id);
+        }
 
-      // Remove from request queue
-      const existing = JSON.parse(localStorage.getItem("rp-local-sub-requests") || "[]");
-      localStorage.setItem("rp-local-sub-requests", JSON.stringify(existing.filter((x: any) => x.id !== requestId)));
+        // Immediately update all UI states
+        setRestaurants((old) =>
+          old.map((r) =>
+            String(r.id) === String(targetRestaurant?.id) || r.name === targetRestaurant?.name
+              ? { ...r, plan: planName, renewal: newRenewalStr, status: "Active" }
+              : r
+          )
+        );
+
+        localStorage.setItem("rp-active-plan", planName);
+        localStorage.setItem("rp-active-renewal", newRenewalStr);
+
+        toast.success(`Subscription approved! ${planName} active with validity up to ${newRenewalStr}.`);
+      } else {
+        toast.info("Subscription payment request was rejected.");
+      }
 
       setSubscriptionRequests((old) => old.filter((x) => x.id !== requestId));
-      toast.success(`Subscription approved! Plan updated to ${planName} with validity extended to ${newRenewalStr}.`);
       fetchAllRestaurants();
     } catch (err: any) {
-      toast.error(err.message || "Failed to approve request");
+      toast.error(err.message || "Failed to process request");
     }
   };
 
@@ -1335,7 +1333,6 @@ export default function Home() {
   const inlineUpiPayUri = `upi://pay?pa=${encodeURIComponent(subscriptionUpiId)}&pn=${encodeURIComponent("RestoPulse")}&am=${encodeURIComponent(activePlanPrice.toFixed(2))}&cu=INR&tn=${encodeURIComponent(`${currentRestaurant?.name || 'Restaurant'} ${activeInlinePlan?.name || 'Subscription'}`)}`;
   const inlineQrImageUrl = `https://api.qrserver.com/v1/create-qr-code/?size=240x240&data=${encodeURIComponent(inlineUpiPayUri)}`;
 
-  // Safe Navigation: Owner & Admin see all items by default
   const normalizedRole = (currentUserRole || "").toLowerCase();
   const isOwnerOrAdmin = normalizedRole === "owner" || normalizedRole === "admin" || !normalizedRole;
   
@@ -1456,7 +1453,7 @@ export default function Home() {
           <div className="trial-note">
             <span className="trial-icon">✦</span>
             <b>Active Plan</b>
-            <p className="font-semibold text-white">{currentRestaurant?.plan || "Monthly"}</p>
+            <p className="font-semibold text-white">{currentRestaurant?.plan || "Free Trial"}</p>
             <p className="text-[11px] text-gray-400 mt-0.5">Expires: {currentRestaurant?.renewal || "—"}</p>
             <button onClick={() => nav(isAdmin ? "pricing" : "subscription")}>
               Manage plan <ArrowUpRight size={14} />
@@ -1679,7 +1676,7 @@ export default function Home() {
             </>
           )}
 
-          {/* 2. POS TERMINAL: CLEAN 2-TIER CART ITEM ALIGNMENT */}
+          {/* 2. POS TERMINAL: 2-TIER ALIGNED CART ITEMS */}
           {view === "pos" && (
             <>
               <div className="page-head pos-head">
@@ -2468,7 +2465,7 @@ export default function Home() {
             </>
           )}
 
-          {/* 11. ADMIN: APPROVALS */}
+          {/* 11. ADMIN: APPROVALS (INCLUDES APPROVE & REJECT ACTIONS) */}
           {view === "approvals" && isAdmin && (
             <>
               <div className="page-head flex justify-between items-center">
@@ -2498,7 +2495,7 @@ export default function Home() {
                         <th>PLAN</th>
                         <th>PAYMENT PROOF</th>
                         <th>TRANSACTION NOTE</th>
-                        <th>ACTION</th>
+                        <th>ACTIONS</th>
                       </tr>
                     </thead>
                     <tbody>
@@ -2533,12 +2530,20 @@ export default function Home() {
                           </td>
                           <td className="text-sm max-w-xs truncate">{req.message || "—"}</td>
                           <td>
-                            <button
-                              className="primary-btn text-xs py-1.5 px-3"
-                              onClick={() => reviewExtensionRequest(req.id, req)}
-                            >
-                              Approve Renewal
-                            </button>
+                            <div className="flex items-center gap-1.5">
+                              <button
+                                className="primary-btn text-xs py-1.5 px-3"
+                                onClick={() => handleReviewSubscriptionAction(req.id, req, "approve")}
+                              >
+                                Approve
+                              </button>
+                              <button
+                                className="quiet-btn text-xs py-1.5 px-3 text-red-600 hover:bg-red-50"
+                                onClick={() => handleReviewSubscriptionAction(req.id, req, "reject")}
+                              >
+                                Reject
+                              </button>
+                            </div>
                           </td>
                         </tr>
                       ))}
@@ -2621,279 +2626,7 @@ export default function Home() {
 
       {mobileNav && <button className="nav-backdrop" aria-label="Close navigation" onClick={() => setMobileNav(false)} />}
 
-      {/* INVENTORY ADD / EDIT MODAL */}
-      <Dialog open={modal === "inventory"} onOpenChange={(v) => !v && setModal(null)}>
-        <DialogContent className="max-w-md">
-          <DialogHeader>
-            <DialogTitle>{editingInvId !== null ? "Edit Stock Item" : "Add New Stock Item"}</DialogTitle>
-          </DialogHeader>
-          <div className="space-y-4 py-2">
-            <label className="block space-y-1">
-              <span className="text-sm font-medium">Item Name</span>
-              <input type="text" value={invForm.name} onChange={(e) => setInvForm({ ...invForm, name: e.target.value })} className="w-full p-2 border rounded-md text-sm bg-transparent" />
-            </label>
-            <div className="grid grid-cols-2 gap-3">
-              <label className="block space-y-1">
-                <span className="text-sm font-medium">Quantity On Hand</span>
-                <input type="number" min="0" value={invForm.onHand} onChange={(e) => setInvForm({ ...invForm, onHand: e.target.value })} className="w-full p-2 border rounded-md text-sm bg-transparent" />
-              </label>
-              <label className="block space-y-1">
-                <span className="text-sm font-medium">Unit</span>
-                <input type="text" value={invForm.unit} onChange={(e) => setInvForm({ ...invForm, unit: e.target.value })} className="w-full p-2 border rounded-md text-sm bg-transparent" />
-              </label>
-            </div>
-            <label className="block space-y-1">
-              <span className="text-sm font-medium">Reorder Threshold</span>
-              <input type="number" min="0" value={invForm.reorderLevel} onChange={(e) => setInvForm({ ...invForm, reorderLevel: e.target.value })} className="w-full p-2 border rounded-md text-sm bg-transparent" />
-            </label>
-          </div>
-          <DialogFooter>
-            <button className="quiet-btn" onClick={() => setModal(null)}>Cancel</button>
-            <button className="primary-btn" onClick={handleAddOrEditInventory}>Save Item</button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-
-      {/* EMPLOYEE ADD / EDIT MODAL */}
-      <Dialog open={modal === "employee"} onOpenChange={(v) => !v && setModal(null)}>
-        <DialogContent className="max-w-md">
-          <DialogHeader>
-            <DialogTitle>{editing ? "Edit Employee" : "Add New Employee"}</DialogTitle>
-            <DialogDescription>Assign designation, access permissions, and salary structure.</DialogDescription>
-          </DialogHeader>
-          <div className="space-y-3 py-2 text-xs">
-            <label className="block space-y-1">
-              <span className="font-semibold text-muted-foreground">Full Name</span>
-              <input value={form.name || ""} onChange={(e) => setForm({ ...form, name: e.target.value })} placeholder="e.g. Ramesh Kumar" className="w-full p-2 border rounded-lg bg-background" />
-            </label>
-
-            <label className="block space-y-1">
-              <span className="font-semibold text-muted-foreground">Designation & Access Role</span>
-              <select
-                value={form.role || "Staff"}
-                onChange={(e) => setForm({ ...form, role: e.target.value })}
-                className="w-full p-2 border rounded-lg bg-background font-medium"
-              >
-                <option value="Manager">Manager (Operational access: POS, Menu, Inventory, Staff)</option>
-                <option value="Accountant">Accountant (Financial access: Expenses, Suppliers, Payroll)</option>
-                <option value="Storekeeper">Storekeeper (Warehouse access: Inventory, Suppliers)</option>
-                <option value="Staff">Staff (POS cashier terminal access only)</option>
-              </select>
-            </label>
-
-            <div className="grid grid-cols-2 gap-3">
-              <label className="block space-y-1">
-                <span className="font-semibold text-muted-foreground">Pay Type</span>
-                <select
-                  value={form.payType || "Monthly"}
-                  onChange={(e) => setForm({ ...form, payType: e.target.value })}
-                  className="w-full p-2 border rounded-lg bg-background"
-                >
-                  <option value="Monthly">Monthly Salary</option>
-                  <option value="Daily">Daily Wage</option>
-                </select>
-              </label>
-
-              {form.payType === "Daily" ? (
-                <label className="block space-y-1">
-                  <span className="font-semibold text-muted-foreground">Daily Rate (₹)</span>
-                  <input type="number" value={form.dailyRate || ""} onChange={(e) => setForm({ ...form, dailyRate: e.target.value })} placeholder="800" className="w-full p-2 border rounded-lg bg-background" />
-                </label>
-              ) : (
-                <label className="block space-y-1">
-                  <span className="font-semibold text-muted-foreground">Monthly Salary (₹)</span>
-                  <input type="number" value={form.monthlySalary || ""} onChange={(e) => setForm({ ...form, monthlySalary: e.target.value })} placeholder="25000" className="w-full p-2 border rounded-lg bg-background" />
-                </label>
-              )}
-            </div>
-
-            <div className="grid grid-cols-2 gap-3">
-              <label className="block space-y-1">
-                <span className="font-semibold text-muted-foreground">Shift</span>
-                <input value={form.shift || ""} onChange={(e) => setForm({ ...form, shift: e.target.value })} placeholder="09:00 – 18:00" className="w-full p-2 border rounded-lg bg-background" />
-              </label>
-              <label className="block space-y-1">
-                <span className="font-semibold text-muted-foreground">Phone</span>
-                <input value={form.phone || ""} onChange={(e) => setForm({ ...form, phone: e.target.value })} placeholder="+91 98765 00000" className="w-full p-2 border rounded-lg bg-background" />
-              </label>
-            </div>
-          </div>
-          <DialogFooter>
-            <button className="quiet-btn" onClick={() => setModal(null)}>Cancel</button>
-            <button className="primary-btn" onClick={save}>Save Employee</button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-
-      {/* GLOBAL ENTITY MODAL */}
-      <Dialog open={!!modal && modal !== "inventory" && modal !== "employee"} onOpenChange={(v) => !v && setModal(null)}>
-        <DialogContent className="modal-content">
-          <DialogHeader>
-            <DialogTitle>
-              {modal === "plan" ? (editing ? "Edit Plan" : "Add Plan")
-                : modal === "dish" ? (editing ? "Edit Dish" : "Add Dish")
-                : modal === "supplier" ? (editing ? "Edit Supplier" : "Add Supplier")
-                : modal === "expense" ? "Log Expense"
-                : "Record Payment"}
-            </DialogTitle>
-          </DialogHeader>
-          <div className="modal-fields">
-            {modal === "plan" && (
-              <>
-                <label>Plan name<input value={form.name || ""} onChange={(e) => setForm({ ...form, name: e.target.value })} /></label>
-                <label>Price (₹)<input type="number" value={form.price || ""} onChange={(e) => setForm({ ...form, price: e.target.value })} /></label>
-                <label>Period (7 days / 30 days / 365 days)<input value={form.period || ""} onChange={(e) => setForm({ ...form, period: e.target.value })} placeholder="30 days" /></label>
-                <label>Features<input value={form.features || ""} onChange={(e) => setForm({ ...form, features: e.target.value })} /></label>
-              </>
-            )}
-            {modal === "dish" && (
-              <>
-                <label>Dish name<input value={form.name || ""} onChange={(e) => setForm({ ...form, name: e.target.value })} /></label>
-                <label>Category<input value={form.category || "Mains"} onChange={(e) => setForm({ ...form, category: e.target.value })} /></label>
-                <label>Price (₹)<input type="number" value={form.price || ""} onChange={(e) => setForm({ ...form, price: e.target.value })} /></label>
-              </>
-            )}
-            {modal === "expense" && (
-              <>
-                <label>Description<input value={form.name || ""} onChange={(e) => setForm({ ...form, name: e.target.value })} /></label>
-                <label>
-                  Category
-                  <select value={form.category || "Inventory"} onChange={(e) => setForm({ ...form, category: e.target.value })}>
-                    <option value="Inventory">Inventory</option>
-                    <option value="Utilities">Utilities</option>
-                    <option value="Maintenance">Maintenance</option>
-                    <option value="Marketing">Marketing</option>
-                    <option value="Rent">Rent</option>
-                    <option value="Staff welfare">Staff welfare</option>
-                  </select>
-                </label>
-                <label>
-                  Linked Supplier (optional)
-                  <select value={form.supplierId || ""} onChange={(e) => setForm({ ...form, supplierId: e.target.value })}>
-                    <option value="">None</option>
-                    {suppliers.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
-                  </select>
-                </label>
-                <label>Amount (₹)<input type="number" value={form.amount || ""} onChange={(e) => setForm({ ...form, amount: e.target.value })} /></label>
-              </>
-            )}
-            {modal === "supplier" && (
-              <>
-                <label>Supplier name<input value={form.name || ""} onChange={(e) => setForm({ ...form, name: e.target.value })} /></label>
-                <label>Contact person<input value={form.contact || ""} onChange={(e) => setForm({ ...form, contact: e.target.value })} /></label>
-                <label>Phone<input value={form.phone || ""} onChange={(e) => setForm({ ...form, phone: e.target.value })} /></label>
-              </>
-            )}
-            {modal === "payment" && (
-              <>
-                <label>
-                  Supplier
-                  <select value={form.supplierId || ""} onChange={(e) => setForm({ ...form, supplierId: e.target.value })}>
-                    <option value="">Select</option>
-                    {suppliers.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
-                  </select>
-                </label>
-                <label>Amount (₹)<input type="number" value={form.amount || ""} onChange={(e) => setForm({ ...form, amount: e.target.value })} /></label>
-              </>
-            )}
-          </div>
-          <DialogFooter>
-            <button className="quiet-btn" onClick={() => setModal(null)}>Cancel</button>
-            <button className="primary-btn" onClick={save}>Save changes</button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-
-      {/* EMPLOYEE DETAILS SHEET */}
-      <Sheet open={!!selectedStaff} onOpenChange={(v) => !v && setSelectedStaff(null)}>
-        <SheetContent className="profile-sheet">
-          <SheetHeader>
-            <SheetTitle>Employee & Wage Record</SheetTitle>
-          </SheetHeader>
-          {selectedStaff && (
-            <div className="space-y-4 py-4 text-xs">
-              <div className="flex items-center gap-3 p-3 bg-secondary/30 rounded-xl">
-                <span className="w-10 h-10 rounded-full bg-indigo-200 dark:bg-indigo-900 text-indigo-800 dark:text-indigo-200 font-bold flex items-center justify-center">
-                  {selectedStaff.initial}
-                </span>
-                <div>
-                  <h3 className="text-sm font-bold">{selectedStaff.name}</h3>
-                  <p className="text-muted-foreground">{selectedStaff.role} · {selectedStaff.phone}</p>
-                  <p className="text-indigo-600 font-semibold mt-0.5">
-                    {selectedStaff.payType === "Monthly"
-                      ? `Monthly: ${money(selectedStaff.monthlySalary)}`
-                      : `Daily: ${money(selectedStaff.dailyRate)}`}
-                  </p>
-                </div>
-              </div>
-
-              <div className="space-y-2 p-3 border rounded-xl">
-                <div className="font-bold">Record Day's Wage / Daily Attendance</div>
-                <div className="grid grid-cols-2 gap-2">
-                  <label className="space-y-1">
-                    <span>Date</span>
-                    <input
-                      type="date"
-                      value={wageForm.date}
-                      onChange={(e) => setWageForm({ ...wageForm, date: e.target.value })}
-                      className="w-full p-1.5 border rounded"
-                    />
-                  </label>
-                  <label className="space-y-1">
-                    <span>Amount (₹)</span>
-                    <input
-                      type="number"
-                      value={wageForm.amount}
-                      onChange={(e) => setWageForm({ ...wageForm, amount: e.target.value })}
-                      className="w-full p-1.5 border rounded"
-                    />
-                  </label>
-                </div>
-                <button
-                  className="primary-btn w-full mt-2"
-                  onClick={() => {
-                    if (!wageForm.amount) return;
-                    setWages([
-                      { id: Date.now(), staffId: selectedStaff.id, date: wageForm.date, amount: Number(wageForm.amount), status: "Unpaid", note: "Wage" },
-                      ...wages
-                    ]);
-                    toast.success("Wage logged");
-                  }}
-                >
-                  Save Wage Entry
-                </button>
-              </div>
-
-              <div className="space-y-2">
-                <div className="font-bold">Wage History</div>
-                <div className="space-y-1.5 max-h-48 overflow-y-auto">
-                  {wages.filter(w => w.staffId === selectedStaff.id).map(w => (
-                    <div key={w.id} className="p-2 border rounded-lg flex justify-between items-center">
-                      <div>
-                        <div>{w.date}</div>
-                        <small className="text-muted-foreground">{w.note || "Daily wage"}</small>
-                      </div>
-                      <div className="flex items-center gap-2">
-                        <b>{money(w.amount)}</b>
-                        <button
-                          className={`px-2 py-0.5 rounded text-[10px] font-bold ${w.status === "Paid" ? "bg-green-100 text-green-800" : "bg-amber-100 text-amber-800"}`}
-                          onClick={() => {
-                            setWages(old => old.map(item => item.id === w.id ? { ...item, status: item.status === "Paid" ? "Unpaid" : "Paid" } : item));
-                          }}
-                        >
-                          {w.status}
-                        </button>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            </div>
-          )}
-        </SheetContent>
-      </Sheet>
-
-      {/* FIXED PRINTABLE THERMAL RECEIPT DIALOG (NO BLACK HEADER, CLEAN MONOCHROME) */}
+      {/* PRINTABLE THERMAL RECEIPT DIALOG - MONOCHROME, NO OVERFLOW, NO BLACK HEADER BAR */}
       <Dialog open={!!receipt} onOpenChange={(v) => !v && setReceipt(null)}>
         <DialogContent className="max-w-md p-6 bg-slate-900 border border-slate-800 text-white">
           <DialogHeader className="no-print">
@@ -2926,7 +2659,7 @@ export default function Home() {
           {receipt && (
             <div
               id="printable-receipt-card"
-              className="p-5 bg-white text-black rounded-xl font-mono text-[11px] leading-relaxed border shadow-lg"
+              className="p-4 bg-white text-black rounded-xl font-mono text-[11px] leading-relaxed border shadow-lg overflow-hidden"
             >
               {/* Receipt Header (Centered, clean) */}
               <div className="text-center space-y-0.5">
@@ -2962,7 +2695,7 @@ export default function Home() {
               <div className="border-b border-dashed border-gray-400 my-2" />
 
               {/* CLEAN ITEM TABLE WITHOUT OVERFLOW / NO BLACK INVERTED BAR */}
-              <table className="w-full text-[10px] font-mono border-collapse">
+              <table className="w-full text-[10px] font-mono border-collapse table-fixed">
                 <thead>
                   <tr className="border-b border-dashed border-gray-400 text-gray-700 font-bold">
                     <th className="py-1 text-left w-[50%]">ITEM</th>
@@ -2991,12 +2724,12 @@ export default function Home() {
               {/* Financial Breakdown & GST Slabs */}
               <div className="space-y-0.5 text-[10px] font-mono">
                 <div className="flex justify-between">
-                  <span>Subtotal:</span>
+                  <span>Subtotal</span>
                   <span>{money(receipt.subtotal)}</span>
                 </div>
                 {receipt.discount > 0 && (
                   <div className="flex justify-between text-green-700">
-                    <span>Discount:</span>
+                    <span>Discount</span>
                     <span>−{money(receipt.discount)}</span>
                   </div>
                 )}

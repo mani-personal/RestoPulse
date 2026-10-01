@@ -1093,12 +1093,12 @@ export default function Home() {
     }
   };
 
-  // PERSIST RESTAURANT SETTINGS SAFELY TO DATABASE (WITHOUT NON-EXISTENT COLUMNS)
+  // PERSIST RESTAURANT SETTINGS SAFELY TO DATABASE & LOCAL STORAGE
   const handleSaveRestaurantSettings = async () => {
     try {
       const payload = {
         id: tenantId || tenantInfo.id,
-        name: storeForm.name.trim(),
+        name: storeForm.name.trim() || activeRestaurantName,
         phone: storeForm.phone.trim(),
         address: storeForm.address.trim(),
         gstin: storeForm.gstin.trim(),
@@ -1107,6 +1107,23 @@ export default function Home() {
         sgst_percent: Number(storeForm.sgst_percent) || 2.5,
       };
 
+      // 1. Immediately persist to state and localStorage (ensures no data loss regardless of RLS)
+      setActiveRestaurantName(payload.name);
+      setTenantInfo((prev) => ({
+        ...prev,
+        name: payload.name,
+        address: payload.address,
+        business_phone: payload.phone,
+        gstin: payload.gstin,
+        gst_percent: payload.gst_percent,
+        cgst_percent: payload.cgst_percent,
+        sgst_percent: payload.sgst_percent,
+      }));
+
+      localStorage.setItem(`rp-store-${payload.name}`, JSON.stringify(payload));
+      localStorage.setItem("rp-active-name", payload.name);
+
+      // 2. Transmit to server
       const res = await fetch("/api/restaurant", {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
@@ -1115,9 +1132,20 @@ export default function Home() {
 
       const resData = await res.json();
       if (!res.ok) {
-        toast.error(resData.error || "Failed to save restaurant settings");
+        if (resData.error?.includes("SUPABASE_SERVICE_ROLE_KEY")) {
+          toast.warning("Saved locally. Add SUPABASE_SERVICE_ROLE_KEY in Vercel to sync with database.");
+        } else {
+          toast.error(resData.error || "Failed to update database.");
+        }
         return;
       }
+
+      toast.success("Restaurant details & GST settings saved successfully!");
+      syncLiveSubscriptionStatus();
+    } catch (err: any) {
+      toast.error(err.message || "Failed to save settings");
+    }
+  };
 
       setActiveRestaurantName(payload.name);
       setTenantInfo((prev) => ({

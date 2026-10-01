@@ -29,7 +29,7 @@ export async function PATCH(request: Request) {
   try {
     const supabase = getSupabase()
     const body = await request.json()
-    const { request_id, restaurant_id, plan_name, days_to_add } = body
+    const { request_id, restaurant_id, restaurant_name, owner_email, plan_name, days_to_add } = body
 
     // 1. Mark subscription request as Approved
     const { error: subErr } = await supabase
@@ -41,24 +41,57 @@ export async function PATCH(request: Request) {
       return NextResponse.json({ error: subErr.message }, { status: 400 })
     }
 
-    // 2. Automatically compute the renewal expiration date based on the plan duration
-    if (restaurant_id) {
-      const days = Number(days_to_add) || 30
-      const nextDate = new Date()
-      nextDate.setDate(nextDate.getDate() + days)
-      const renewalDateStr = nextDate.toLocaleDateString('en-CA') // YYYY-MM-DD
+    const days = Number(days_to_add) || 30
+    const planToSet = plan_name || 'Monthly'
 
-      await supabase
-        .from('restaurants')
-        .update({
-          status: 'Active',
-          plan: plan_name || 'Growth',
-          renewal_on: renewalDateStr,
-        })
-        .eq('id', restaurant_id)
+    // 2. Fetch current restaurant record to check existing renewal_on date
+    let restaurantQuery = supabase.from('restaurants').select('*')
+    if (restaurant_id) {
+      restaurantQuery = restaurantQuery.eq('id', restaurant_id)
+    } else if (owner_email) {
+      restaurantQuery = restaurantQuery.eq('owner_email', owner_email)
+    } else if (restaurant_name) {
+      restaurantQuery = restaurantQuery.eq('name', restaurant_name)
     }
 
-    return NextResponse.json({ success: true })
+    const { data: existingRest } = await restaurantQuery.maybeSingle()
+
+    let baseDate = new Date()
+    // If the restaurant already has an active trial/subscription in the future, add to those days
+    if (existingRest?.renewal_on) {
+      const existingRenewal = new Date(existingRest.renewal_on)
+      if (!isNaN(existingRenewal.getTime()) && existingRenewal > baseDate) {
+        baseDate = existingRenewal
+      }
+    }
+
+    // Add subscription days onto existing validity
+    const nextDate = new Date(baseDate.getTime())
+    nextDate.setDate(nextDate.getDate() + days)
+    const newRenewalDateStr = nextDate.toISOString().slice(0, 10) // YYYY-MM-DD
+
+    // 3. Update restaurant plan and renewal date in the database
+    let updateQuery = supabase.from('restaurants').update({
+      status: 'Active',
+      plan: planToSet,
+      renewal_on: newRenewalDateStr,
+    })
+
+    if (existingRest?.id) {
+      await updateQuery.eq('id', existingRest.id)
+    } else if (restaurant_id) {
+      await updateQuery.eq('id', restaurant_id)
+    } else if (owner_email) {
+      await updateQuery.eq('owner_email', owner_email)
+    } else if (restaurant_name) {
+      await updateQuery.eq('name', restaurant_name)
+    }
+
+    return NextResponse.json({
+      success: true,
+      plan: planToSet,
+      renewal_on: newRenewalDateStr,
+    })
   } catch (err: any) {
     return NextResponse.json({ error: err.message || 'Server error' }, { status: 500 })
   }

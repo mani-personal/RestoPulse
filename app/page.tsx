@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, useRef } from "react";
 import { browserDb } from "@/lib/supabase";
 import {
   LayoutDashboard,
@@ -146,17 +146,16 @@ const initialDishes: Dish[] = [
 ];
 
 const initialPlans: Plan[] = [
-  { id: 1, name: "Free Trial", price: 0, period: "14 days", features: "1 location · Core POS · 2 users", active: true },
-  { id: 2, name: "Starter", price: 2499, period: "month", features: "1 location · Menu & POS · 5 users", active: true },
-  { id: 3, name: "Growth", price: 5999, period: "month", features: "3 locations · Analytics · 20 users", active: true },
-  { id: 4, name: "Enterprise", price: 14999, period: "year", features: "Unlimited locations · Priority support", active: true },
+  { id: 1, name: "Free trial", price: 0, period: "7 days", features: "Explore core POS, menu items, inventory, and reports.", active: true },
+  { id: 2, name: "Monthly", price: 2999, period: "30 days", features: "Full access, table management, live inventory tracking, POS checkout.", active: true },
+  { id: 3, name: "Yearly", price: 29999, period: "365 days", features: "Full platform access, priority support, unlimited staff accounts.", active: true },
 ];
 
 const initialRestaurants = [
-  { id: 1, name: "The Saffron Table", owner: "Mani Raj", email: "mani@example.com", phone: "+91 98765 43210", city: "Bengaluru", plan: "Growth", status: "Active", renewal: "2026-10-12", initial: "ST" },
-  { id: 2, name: "Ambur Biriyani", owner: "Ambur", email: "ambur@example.com", phone: "+91 98765 43211", city: "Chennai", plan: "Starter", status: "Trial", renewal: "2026-10-13", initial: "AB" },
-  { id: 3, name: "Giri Restaurant", owner: "Giri", email: "giri@example.com", phone: "+91 98765 43212", city: "Bengaluru", plan: "Free Trial", status: "Trial", renewal: "2026-10-13", initial: "GR" },
-  { id: 4, name: "Mani", owner: "Mani", email: "mani.rest@example.com", phone: "+91 98765 43213", city: "Madurai", plan: "Free Trial", status: "Trial", renewal: "2026-10-13", initial: "MN" },
+  { id: 1, name: "The Saffron Table", owner: "Mani Raj", email: "mani@example.com", phone: "+91 98765 43210", city: "Bengaluru", plan: "Monthly", status: "Active", renewal: "2026-10-12", initial: "ST" },
+  { id: 2, name: "Ambur Biriyani", owner: "Ambur", email: "ambur@example.com", phone: "+91 98765 43211", city: "Chennai", plan: "Monthly", status: "Trial", renewal: "2026-10-13", initial: "AB" },
+  { id: 3, name: "Giri Restaurant", owner: "Giri", email: "giri@example.com", phone: "+91 98765 43212", city: "Bengaluru", plan: "Free trial", status: "Trial", renewal: "2026-10-13", initial: "GR" },
+  { id: 4, name: "Mani", owner: "Mani", email: "mani.rest@example.com", phone: "+91 98765 43213", city: "Madurai", plan: "Free trial", status: "Trial", renewal: "2026-10-13", initial: "MN" },
 ];
 
 type Expense = {
@@ -187,10 +186,10 @@ type SupplierPayment = {
 };
 
 const initialExpenses: Expense[] = [
-  { id: 1, name: "Fresh produce delivery", category: "Inventory", vendor: "Green Acres Co.", amount: 4850, date: "26 Sep 2026" },
-  { id: 2, name: "Monthly electricity", category: "Utilities", vendor: "BESCOM", amount: 12400, date: "25 Sep 2026" },
-  { id: 3, name: "Kitchen equipment service", category: "Maintenance", vendor: "ProChef Services", amount: 3200, date: "24 Sep 2026" },
-  { id: 4, name: "Social media campaign", category: "Marketing", vendor: "Studio North", amount: 6500, date: "22 Sep 2026" },
+  { id: 1, name: "Fresh produce delivery", category: "Inventory", vendor: "Green Acres Co.", amount: 4850, date: "2026-09-26" },
+  { id: 2, name: "Monthly electricity", category: "Utilities", vendor: "BESCOM", amount: 12400, date: "2026-09-25" },
+  { id: 3, name: "Kitchen equipment service", category: "Maintenance", vendor: "ProChef Services", amount: 3200, date: "2026-09-24" },
+  { id: 4, name: "Social media campaign", category: "Marketing", vendor: "Studio North", amount: 6500, date: "2026-09-22" },
 ];
 
 type Staff = {
@@ -380,6 +379,7 @@ export default function Home() {
     { id: "pay-1", supplierId: "sp-1", amount: 2500, date: "2026-09-26", method: "UPI", note: "Weekly vegetable delivery advance" }
   ]);
   const [supplierDetail, setSupplierDetail] = useState<string | null>("sp-1");
+  const [dishFile, setDishFile] = useState<File | null>(null);
   const [view, setView] = useState<View>("dashboard");
   const [profileMenu, setProfileMenu] = useState(false);
   const [accountRole, setAccountRole] = useState<"admin" | "restaurant">("restaurant");
@@ -392,12 +392,8 @@ export default function Home() {
   const [dishes, setDishes] = useState<Dish[]>(initialDishes);
   const [plans, setPlans] = useState<Plan[]>(initialPlans);
   const [restaurants, setRestaurants] = useState(initialRestaurants);
-  
-  // Real Restaurant Onboarding Approvals State
   const [approvals, setApprovals] = useState<RestaurantApproval[]>([]);
-  // Real Subscription Renewal Approvals State
   const [subscriptionRequests, setSubscriptionRequests] = useState<Array<any>>([]);
-
   const [expenses, setExpenses] = useState<Expense[]>(initialExpenses);
   const [cart, setCart] = useState<CartLine[]>([]);
   const [category, setCategory] = useState("All items");
@@ -425,27 +421,30 @@ export default function Home() {
   const [invForm, setInvForm] = useState({ name: "", category: "Grains", onHand: "", unit: "bags", reorderLevel: "5" });
   const [editingInvId, setEditingInvId] = useState<string | number | null>(null);
 
-  // Admin UPI & Subscription Payment States
+  // Admin UPI & Subscription States
   const [adminUpiId, setAdminUpiId] = useState<string>("admin-restopulse@upi");
   const [adminUpiBusy, setAdminUpiBusy] = useState(false);
   const [subscriptionUpiId, setSubscriptionUpiId] = useState<string>("admin-restopulse@upi");
-  const [extensionMessage, setExtensionMessage] = useState("");
-  const [extensionFile, setExtensionFile] = useState<File | null>(null);
-  const [extensionBusy, setExtensionBusy] = useState(false);
-  const [showQrModal, setShowQrModal] = useState(false);
-  const [selectedPlanForPayment, setSelectedPlanForPayment] = useState<Plan | null>(null);
+
+  // INLINE Selected Plan & Payment under Subscription Cards (matching reference screenshot)
+  const [activeInlinePlan, setActiveInlinePlan] = useState<Plan | null>(null);
+  const [inlineRefId, setInlineRefId] = useState("");
+  const [inlineScreenshotFile, setInlineScreenshotFile] = useState<File | null>(null);
+  const [inlineSubmitBusy, setInlineSubmitBusy] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Password reset state
   const [newPassword, setNewPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [pwdBusy, setPwdBusy] = useState(false);
 
-  // Helper to determine plan days
+  // Helper to determine plan duration in days
   const getPlanDurationDays = (planName: string) => {
-    const found = plans.find(p => p.name.toLowerCase() === planName.toLowerCase());
+    const found = plans.find((p) => p.name.toLowerCase() === planName.toLowerCase());
     if (found) {
+      if (found.period.includes("7")) return 7;
       if (found.period.includes("14")) return 14;
-      if (found.period.includes("year")) return 365;
+      if (found.period.includes("365") || found.period.includes("year")) return 365;
       return 30; // default month
     }
     return 30;
@@ -479,7 +478,7 @@ export default function Home() {
               owner: r.owner_name,
               email: r.owner_email,
               phone: r.owner_phone,
-              plan: r.plan || "Free Trial",
+              plan: r.plan || "Free trial",
             }))
           );
           return;
@@ -617,7 +616,7 @@ export default function Home() {
       .catch(() => {});
   }, [isAdmin, tenantId]);
 
-  // Real-Time Listener and Poller
+  // Real-time synchronization
   useEffect(() => {
     fetchSubscriptionRequests();
     fetchRealApprovals();
@@ -794,6 +793,7 @@ export default function Home() {
       });
     } else if (which === "dish" && id) {
       const d = dishes.find((x) => x.id === id)!;
+      setDishFile(null);
       setForm({
         name: d.name,
         category: d.category,
@@ -835,7 +835,7 @@ export default function Home() {
         price: Number(form.price),
         cost: Number(form.cost) || 0,
         stock: true,
-        emoji: form.emoji || "🍽️️",
+        emoji: form.emoji || "🍽",
         diet: form.diet || "",
         time: Number(form.time) || 15,
       };
@@ -868,7 +868,7 @@ export default function Home() {
         email: form.email || "owner@example.com",
         phone: form.phone || "+91 98765 00000",
         city: form.city || "Bengaluru",
-        plan: form.plan || "Growth",
+        plan: form.plan || "Monthly",
         status: "Active",
         renewal: "2026-10-30",
         initial: (form.name || "NR").slice(0, 2).toUpperCase(),
@@ -1018,30 +1018,23 @@ export default function Home() {
     }
   };
 
-  const handleChoosePlan = (plan: Plan) => {
-    const activeUpi = localStorage.getItem("rp-admin-upi") || subscriptionUpiId || adminUpiId || "admin-restopulse@upi";
-    setSubscriptionUpiId(activeUpi);
-    setSelectedPlanForPayment(plan);
-    setShowQrModal(true);
-  };
-
-  const paySelectedPlan = () => {
-    if (!selectedPlanForPayment) return;
-    const link = `upi://pay?pa=${encodeURIComponent(subscriptionUpiId)}&pn=RestoPulse&am=${encodeURIComponent(selectedPlanForPayment.price.toFixed(2))}&cu=INR&tn=${encodeURIComponent(`${currentRestaurant?.name || 'Restaurant'} ${selectedPlanForPayment.name} subscription`)}`;
-    window.location.href = link;
-  };
-
-  const requestExtension = async () => {
-    setExtensionBusy(true);
+  // INLINE SUBMISSION HANDLER (MATCHING ATTACHED SCREENSHOT)
+  const handleInlineSubmitReference = async () => {
+    if (!activeInlinePlan) return;
+    if (!inlineRefId.trim()) {
+      toast.error("Please enter the UPI transaction reference ID");
+      return;
+    }
+    setInlineSubmitBusy(true);
     try {
       let screenshotUrl = "";
-      if (extensionFile) {
+      if (inlineScreenshotFile) {
         try {
           if (db) {
-            const path = `subscriptions/${Date.now()}-${extensionFile.name.replace(/\s+/g, "_")}`;
+            const path = `subscriptions/${Date.now()}-${inlineScreenshotFile.name.replace(/\s+/g, "_")}`;
             const { error: uploadErr } = await db.storage
               .from("restaurant-media")
-              .upload(path, extensionFile, { contentType: extensionFile.type, upsert: true });
+              .upload(path, inlineScreenshotFile, { contentType: inlineScreenshotFile.type, upsert: true });
 
             if (!uploadErr) {
               const { data: pubData } = db.storage.from("restaurant-media").getPublicUrl(path);
@@ -1052,12 +1045,12 @@ export default function Home() {
           screenshotUrl = await new Promise((resolve) => {
             const reader = new FileReader();
             reader.onload = () => resolve(reader.result as string);
-            reader.readAsDataURL(extensionFile);
+            reader.readAsDataURL(inlineScreenshotFile);
           });
         }
       }
 
-      const planName = selectedPlanForPayment?.name || currentRestaurant?.plan || "Growth";
+      const planName = activeInlinePlan.name;
       const payload = {
         restaurant_id: tenantId && tenantId !== "1" ? tenantId : currentRestaurant?.id || null,
         restaurant_name: tenantInfo?.name || currentRestaurant?.name || "The Saffron Table",
@@ -1066,7 +1059,7 @@ export default function Home() {
         plan: planName,
         upi_id: subscriptionUpiId,
         screenshot_url: screenshotUrl,
-        message: extensionMessage.trim() || `Payment proof uploaded for ${planName} plan`,
+        message: `UPI Ref: ${inlineRefId.trim()} | Plan: ${planName}`,
         status: "Pending",
         requested_at: new Date().toISOString(),
       };
@@ -1085,25 +1078,23 @@ export default function Home() {
       const newRecord = { id: `req-${Date.now()}`, ...payload };
       localStorage.setItem("rp-local-sub-requests", JSON.stringify([newRecord, ...existing]));
 
-      toast.success("Payment proof and subscription request submitted to Admin successfully!");
-      setExtensionMessage("");
-      setExtensionFile(null);
-      setShowQrModal(false);
+      toast.success("Payment reference submitted for Admin approval!");
+      setInlineRefId("");
+      setInlineScreenshotFile(null);
       fetchSubscriptionRequests();
     } catch (err: any) {
-      toast.error(err.message || "Failed to submit request");
+      toast.error(err.message || "Failed to submit payment reference");
     } finally {
-      setExtensionBusy(false);
+      setInlineSubmitBusy(false);
     }
   };
 
   // AUTOMATIC PLAN & DAYS UPDATE ON SUBSCRIPTION PROOF APPROVAL
   const reviewExtensionRequest = async (requestId: string, restId?: string, reqPlanName?: string) => {
     try {
-      const planName = reqPlanName || "Growth";
+      const planName = reqPlanName || "Monthly";
       const daysToAdd = getPlanDurationDays(planName);
 
-      // Compute exact expiration date
       const nextDate = new Date();
       nextDate.setDate(nextDate.getDate() + daysToAdd);
       const renewalStr = nextDate.toLocaleDateString("en-CA"); // YYYY-MM-DD
@@ -1130,7 +1121,6 @@ export default function Home() {
         }),
       });
 
-      // Instantly update restaurants list in UI
       setRestaurants((old) =>
         old.map((r) =>
           String(r.id) === String(restId)
@@ -1139,12 +1129,11 @@ export default function Home() {
         )
       );
 
-      // Update local storage backup
       const existing = JSON.parse(localStorage.getItem("rp-local-sub-requests") || "[]");
       localStorage.setItem("rp-local-sub-requests", JSON.stringify(existing.filter((x: any) => x.id !== requestId)));
 
       setSubscriptionRequests((old) => old.filter((x) => x.id !== requestId));
-      toast.success(`Subscription approved! Updated ${planName} plan with +${daysToAdd} days validity.`);
+      toast.success(`Subscription approved! Plan updated to ${planName} with +${daysToAdd} days.`);
     } catch (err: any) {
       toast.error(err.message || "Failed to approve request");
     }
@@ -1153,7 +1142,7 @@ export default function Home() {
   // Real Restaurant Onboarding Approval Handler
   const handleReviewRestaurantApproval = async (approvalId: string | number, action: "approve" | "reject", requestedPlan?: string) => {
     try {
-      const planName = requestedPlan || "Free Trial";
+      const planName = requestedPlan || "Free trial";
       const daysToAdd = getPlanDurationDays(planName);
       const nextDate = new Date();
       nextDate.setDate(nextDate.getDate() + daysToAdd);
@@ -1288,15 +1277,42 @@ export default function Home() {
       </div>
     );
 
-  const upiPayUri = selectedPlanForPayment
-    ? `upi://pay?pa=${encodeURIComponent(subscriptionUpiId)}&pn=${encodeURIComponent("RestoPulse")}&am=${encodeURIComponent(selectedPlanForPayment.price.toFixed(2))}&cu=INR&tn=${encodeURIComponent(`${currentRestaurant?.name || 'Restaurant'} ${selectedPlanForPayment.name}`)}`
-    : `upi://pay?pa=${encodeURIComponent(subscriptionUpiId)}&pn=${encodeURIComponent("RestoPulse")}&cu=INR`;
-
-  const qrImageUrl = `https://api.qrserver.com/v1/create-qr-code/?size=220x220&data=${encodeURIComponent(upiPayUri)}`;
+  // Generate QR URI based on active plan
+  const activePlanPrice = activeInlinePlan ? activeInlinePlan.price : 2999;
+  const inlineUpiPayUri = `upi://pay?pa=${encodeURIComponent(subscriptionUpiId)}&pn=${encodeURIComponent("RestoPulse")}&am=${encodeURIComponent(activePlanPrice.toFixed(2))}&cu=INR&tn=${encodeURIComponent(`${currentRestaurant?.name || 'Restaurant'} ${activeInlinePlan?.name || 'Subscription'}`)}`;
+  const inlineQrImageUrl = `https://api.qrserver.com/v1/create-qr-code/?size=240x240&data=${encodeURIComponent(inlineUpiPayUri)}`;
 
   return (
     <div className="app-shell">
       <Toaster richColors position="top-right" />
+
+      {/* DEDICATED PRINT STYLES FOR CRISP THERMAL RECEIPT ALIGNMENT */}
+      <style jsx global>{`
+        @media print {
+          body * {
+            visibility: hidden;
+          }
+          #printable-receipt-area, #printable-receipt-area * {
+            visibility: visible;
+          }
+          #printable-receipt-area {
+            position: absolute;
+            left: 0;
+            top: 0;
+            width: 80mm;
+            max-width: 80mm;
+            padding: 4mm 6mm !important;
+            margin: 0 !important;
+            background: #ffffff !important;
+            color: #000000 !important;
+            font-family: 'Courier New', Courier, monospace !important;
+          }
+          .receipt-print-actions, .dialog-header, .dialog-footer {
+            display: none !important;
+          }
+        }
+      `}</style>
+
       <aside className={"sidebar " + (mobileNav ? "show" : "")}>
         <div className="brand">
           <div className="brand-symbol">
@@ -1370,8 +1386,8 @@ export default function Home() {
         <div className="sidebar-bottom">
           <div className="trial-note">
             <span className="trial-icon">✦</span>
-            <b>Growth plan</b>
-            <p>Your workspace is active.</p>
+            <b>Active Plan</b>
+            <p>{currentRestaurant?.plan || "Growth"} plan active.</p>
             <button onClick={() => nav(isAdmin ? "pricing" : "subscription")}>
               Manage plan <ArrowUpRight size={14} />
             </button>
@@ -1460,9 +1476,6 @@ export default function Home() {
               <button onClick={handleSignOut} className="text-red-600 hover:text-red-700">
                 <LogOut size={17} /> Sign out
               </button>
-              <div className="profile-role">
-                <span>Account role: {accountRole === "admin" ? "Platform admin" : "Restaurant owner"}</span>
-              </div>
             </div>
           )}
 
@@ -1491,10 +1504,8 @@ export default function Home() {
             <>
               <div className="page-head">
                 <div>
-                  <div className="eyebrow">THURSDAY, 1 OCTOBER 2026</div>
-                  <h1>
-                    Good afternoon, Mani <span className="wave">✳</span>
-                  </h1>
+                  <div className="eyebrow">OVERVIEW</div>
+                  <h1>Good afternoon, Mani</h1>
                   <p>Here’s what’s happening at {tenantInfo?.name || "your restaurant"}.</p>
                 </div>
                 <div className="head-actions">
@@ -1503,7 +1514,6 @@ export default function Home() {
                     <option>Yesterday</option>
                     <option>This week</option>
                     <option>This month</option>
-                    <option>Custom range</option>
                   </select>
                   <button className="primary-btn" onClick={() => nav("pos")}>
                     <Plus size={18} /> New order
@@ -1515,7 +1525,6 @@ export default function Home() {
                   {
                     label: "Gross sales",
                     value: money(orders.filter((o) => o.status !== "Voided").reduce((n, o) => n + o.bill.subtotal, 0)),
-                    change: "",
                     icon: Wallet,
                     tone: "amber",
                     note: "before discounts & refunds",
@@ -1523,7 +1532,6 @@ export default function Home() {
                   {
                     label: "Net sales",
                     value: money(orders.filter((o) => o.status === "Paid").reduce((n, o) => n + o.bill.subtotal - o.bill.discount, 0)),
-                    change: "",
                     icon: ArrowUpRight,
                     tone: "teal",
                     note: "paid sales, excluding tax",
@@ -1534,7 +1542,6 @@ export default function Home() {
                       expenses.reduce((a, x) => a + x.amount, 0) +
                         wages.filter((w) => w.status === "Paid").reduce((a, x) => a + x.amount, 0)
                     ),
-                    change: "",
                     icon: ReceiptText,
                     tone: "violet",
                     note: "expenses + paid wages",
@@ -1546,7 +1553,6 @@ export default function Home() {
                         expenses.reduce((a, x) => a + x.amount, 0) -
                         wages.filter((w) => w.status === "Paid").reduce((a, x) => a + x.amount, 0)
                     ),
-                    change: "",
                     icon: ArrowUpRight,
                     tone: "green",
                     note: "net sales − operating costs",
@@ -1555,21 +1561,50 @@ export default function Home() {
                   <div className="kpi-card" key={k.label}>
                     <div className="kpi-top">
                       <span>{k.label}</span>
-                      <span className={"kpi-icon " + k.tone}>
-                        <k.icon size={19} />
-                      </span>
+                      <span className={"kpi-icon " + k.tone}><k.icon size={19} /></span>
                     </div>
                     <strong>{k.value}</strong>
-                    <div className="kpi-foot">
-                      {k.change && (
-                        <span className={"change " + (k.label === "Operating expenses" ? "negative" : "")}>
-                          {k.change}
-                        </span>
-                      )}
-                      <span>{k.note}</span>
-                    </div>
+                    <div className="kpi-foot"><span>{k.note}</span></div>
                   </div>
                 ))}
+              </div>
+              <div className="analytics-grid">
+                <section className="panel chart-panel">
+                  <div className="panel-header">
+                    <div>
+                      <h2>Revenue & expenses</h2>
+                      <p>Weekly trend breakdown</p>
+                    </div>
+                  </div>
+                  <div className="chart">
+                    <ResponsiveContainer width="100%" height="100%">
+                      <AreaChart data={chart} margin={{ top: 15, right: 8, left: -17, bottom: 0 }}>
+                        <CartesianGrid strokeDasharray="3 5" vertical={false} stroke="var(--chart-grid)" />
+                        <XAxis dataKey="day" tickLine={false} axisLine={false} tick={{ fill: "var(--text-muted)", fontSize: 12 }} dy={12} />
+                        <YAxis tickLine={false} axisLine={false} tick={{ fill: "var(--text-muted)", fontSize: 12 }} tickFormatter={(v) => `${v / 1000}k`} />
+                        <Tooltip formatter={(v) => money(Number(v))} contentStyle={{ background: "var(--panel)", border: "1px solid var(--border)", borderRadius: 12 }} />
+                        <Area type="monotone" dataKey="revenue" stroke="#f59e0b" strokeWidth={3} fillOpacity={0.2} fill="#f59e0b" />
+                        <Area type="monotone" dataKey="expense" stroke="#10b981" strokeWidth={2} fillOpacity={0} />
+                      </AreaChart>
+                    </ResponsiveContainer>
+                  </div>
+                </section>
+                <section className="panel top-dishes">
+                  <div className="panel-header">
+                    <div><h2>Top performing dishes</h2></div>
+                  </div>
+                  {initialDishes.slice(0, 4).map((d, i) => (
+                    <div className="leader-row" key={d.id}>
+                      <span className="leader-rank">0{i + 1}</span>
+                      <span className="dish-thumb">{d.emoji}</span>
+                      <div className="leader-info">
+                        <b>{d.name}</b>
+                        <small>{[82, 67, 54, 42][i]} orders</small>
+                      </div>
+                      <strong>{money([55760, 52930, 28080, 23520][i])}</strong>
+                    </div>
+                  ))}
+                </section>
               </div>
             </>
           )}
@@ -1581,15 +1616,11 @@ export default function Home() {
                 <div>
                   <div className="eyebrow">FAST CHECKOUT</div>
                   <h1>Point of sale</h1>
-                  <p>Find a dish, build an order, and check out.</p>
                 </div>
                 <div className="head-actions">
                   <button className="quiet-btn" onClick={() => setSound(!sound)}>
                     {sound ? <Volume2 size={17} /> : <VolumeX size={17} />} Sound {sound ? "on" : "off"}
                   </button>
-                  <span className="terminal-status">
-                    <i /> Terminal online
-                  </span>
                 </div>
               </div>
               <div className="pos-layout">
@@ -1600,40 +1631,22 @@ export default function Home() {
                       <input
                         value={query}
                         onChange={(e) => setQuery(e.target.value)}
-                        placeholder="Search dishes, SKU or barcode…"
-                        aria-label="Search dishes"
+                        placeholder="Search dishes..."
                       />
-                      <kbd>⌘ K</kbd>
                     </label>
                   </div>
-                  <div className="category-list">
-                    {["All items", "Appetizers", "Mains", "Drinks", "Desserts"].map((c) => (
-                      <button key={c} className={category === c ? "selected" : ""} onClick={() => setCategory(c)}>
-                        {c}
-                      </button>
-                    ))}
-                  </div>
                   <div className="dish-grid">
-                    {displayed.map((d, i) => (
+                    {displayed.map((d) => (
                       <button
                         className={"dish-tile " + (!d.stock ? "sold-out" : "")}
                         key={d.id}
                         onClick={() => d.stock && addCart(d.id)}
                         disabled={!d.stock}
                       >
-                        <span className={"dish-photo photo-" + (i % 8)}>
-                          {d.imageUrl ? <img className="dish-image" src={d.imageUrl} alt={d.name} /> : <span>{d.emoji}</span>}
-                          {!d.stock && <b>86'D OUT</b>}
-                        </span>
+                        <span className="dish-photo"><span>{d.emoji}</span></span>
                         <span className="dish-body">
                           <span className="dish-name">{d.name}</span>
-                          <span className="dish-details">
-                            {d.diet || d.category} · {d.time} min
-                          </span>
-                          <span className="dish-price">
-                            {money(d.price)}
-                            <span className="dish-add"><Plus size={17} /></span>
-                          </span>
+                          <span className="dish-price">{money(d.price)}</span>
                         </span>
                       </button>
                     ))}
@@ -1641,10 +1654,7 @@ export default function Home() {
                 </section>
                 <aside className="order-panel">
                   <div className="order-head">
-                    <div>
-                      <h2>Current order</h2>
-                      <p>Order #RP-{10843 + orders.length}</p>
-                    </div>
+                    <h2>Current order</h2>
                     <span className="order-count">{cart.reduce((a, x) => a + x.qty, 0)} items</span>
                   </div>
                   <div className="cart-items">
@@ -1685,7 +1695,7 @@ export default function Home() {
             <>
               <div className="page-head">
                 <div>
-                  <div className="eyebrow">CATALOG MANAGEMENT</div>
+                  <div className="eyebrow">CATALOG</div>
                   <h1>Menu & dishes</h1>
                 </div>
                 <button className="primary-btn" onClick={() => open("dish")}><Plus size={17} /> Add dish</button>
@@ -1694,19 +1704,19 @@ export default function Home() {
                 <div className="table-scroll">
                   <table>
                     <thead>
-                      <tr><th>DISH</th><th>CATEGORY</th><th>SELLING PRICE</th><th>AVAILABILITY</th><th>ACTIONS</th></tr>
+                      <tr><th>DISH</th><th>CATEGORY</th><th>PRICE</th><th>AVAILABILITY</th><th>ACTION</th></tr>
                     </thead>
                     <tbody>
                       {dishes.map((d) => (
                         <tr key={d.id}>
-                          <td><span className="table-dish"><span className="mini-emoji">{d.emoji}</span><b>{d.name}</b></span></td>
+                          <td><b>{d.name}</b></td>
                           <td>{d.category}</td>
                           <td className="strong">{money(d.price)}</td>
                           <td>
                             <Switch checked={d.stock} onCheckedChange={(v) => setDishes((old) => old.map((x) => (x.id === d.id ? { ...x, stock: v } : x)))} />
                           </td>
                           <td>
-                            <button onClick={() => open("dish", d.id)}><Pencil size={16} /></button>
+                            <button onClick={() => open("dish", d.id)}><Pencil size={15} /></button>
                           </td>
                         </tr>
                       ))}
@@ -1722,7 +1732,7 @@ export default function Home() {
             <>
               <div className="page-head flex justify-between items-center">
                 <div>
-                  <div className="eyebrow">WAREHOUSE & STOCK CONTROL</div>
+                  <div className="eyebrow">WAREHOUSE & STOCK</div>
                   <h1>Inventory Manager</h1>
                 </div>
                 <button className="primary-btn flex items-center gap-2" onClick={() => openInventoryModal()}>
@@ -1775,74 +1785,220 @@ export default function Home() {
 
           {/* 5. TEAM & PAYROLL */}
           {view === "staff" && (
-            <div className="page-head">
-              <h1>Team & payroll</h1>
-            </div>
+            <>
+              <div className="page-head">
+                <div>
+                  <div className="eyebrow">STAFF</div>
+                  <h1>Team & payroll</h1>
+                </div>
+                <button className="primary-btn" onClick={() => open("employee")}><Plus size={17} /> Add employee</button>
+              </div>
+              <div className="staff-grid">
+                {staff.map((s, i) => (
+                  <div className="staff-card" key={s.name} role="button" tabIndex={0} onClick={() => openStaff(s)}>
+                    <span className={"staff-avatar a" + i}>{s.initial}</span>
+                    <span className="staff-name">{s.name}</span>
+                    <span className="staff-role">{s.role}</span>
+                    <span className="staff-meta"><span>Shift</span><b>{s.shift}</b></span>
+                    <span className="staff-meta"><span>Daily pay</span><b>{money(s.dailyRate)}</b></span>
+                  </div>
+                ))}
+              </div>
+            </>
           )}
 
           {/* 6. EXPENSES */}
           {view === "expenses" && (
-            <div className="page-head">
-              <h1>Expenses ledger</h1>
-            </div>
+            <>
+              <div className="page-head">
+                <div>
+                  <div className="eyebrow">FINANCE</div>
+                  <h1>Expenses</h1>
+                </div>
+                <button className="primary-btn" onClick={() => open("expense")}><Plus size={17} /> Log expense</button>
+              </div>
+              <div className="panel management-panel">
+                <div className="table-scroll">
+                  <table>
+                    <thead>
+                      <tr><th>DESCRIPTION</th><th>CATEGORY</th><th>VENDOR</th><th>AMOUNT</th></tr>
+                    </thead>
+                    <tbody>
+                      {expenses.map((e) => (
+                        <tr key={e.id}>
+                          <td className="strong">{e.name}</td>
+                          <td>{e.category}</td>
+                          <td>{e.vendor}</td>
+                          <td className="strong">{money(e.amount)}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            </>
           )}
 
           {/* 7. SUPPLIERS */}
           {view === "suppliers" && (
-            <div className="page-head">
-              <h1>Suppliers directory</h1>
-            </div>
+            <>
+              <div className="page-head">
+                <div>
+                  <div className="eyebrow">ACCOUNTS</div>
+                  <h1>Suppliers</h1>
+                </div>
+                <button className="primary-btn" onClick={() => open("supplier")}><Plus size={17} /> Add supplier</button>
+              </div>
+              <div className="supplier-layout">
+                <section className="panel supplier-list">
+                  {suppliers.map((sp) => (
+                    <button key={sp.id} className={"supplier-row " + (supplierDetail === sp.id ? "selected" : "")} onClick={() => setSupplierDetail(sp.id)}>
+                      <span className="supplier-monogram">{sp.name.slice(0, 2).toUpperCase()}</span>
+                      <span className="supplier-main"><b>{sp.name}</b><small>{sp.phone}</small></span>
+                    </button>
+                  ))}
+                </section>
+                <section className="panel supplier-ledger">
+                  {supplierDetail ? (
+                    <div className="p-4">
+                      <h3>{suppliers.find(x => x.id === supplierDetail)?.name}</h3>
+                      <p className="text-sm text-muted-foreground">{suppliers.find(x => x.id === supplierDetail)?.contact}</p>
+                    </div>
+                  ) : <div className="empty-state">Select a supplier to see records.</div>}
+                </section>
+              </div>
+            </>
           )}
 
-          {/* 8. RESTAURANT SUBSCRIPTION & PLAN SELECTION */}
+          {/* 8. RESTAURANT SUBSCRIPTION (EXACTLY MATCHING ATTACHED SCREENSHOT) */}
           {view === "subscription" && (
             <>
               <div className="page-head">
                 <div>
-                  <div className="eyebrow">SUBSCRIPTION & PLANS</div>
-                  <h1>Available Pricing Plans</h1>
-                  <p>Choose a plan configured by the administrator to renew or upgrade your subscription.</p>
+                  <div className="eyebrow">PLANS & BILLING</div>
+                  <h1>Subscription</h1>
+                  <p>Choose a plan, scan the UPI QR code below, and submit the reference ID for approval.</p>
                 </div>
               </div>
 
-              <div className="pricing-grid grid md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
-                {plans.map((p) => (
-                  <div className={"plan-card bg-card border rounded-xl p-6 flex flex-col justify-between shadow-sm relative " + (p.name === "Growth" ? "border-indigo-500 ring-1 ring-indigo-500" : "")} key={p.id}>
-                    <div>
-                      <div className="flex justify-between items-center mb-4">
-                        <span className="p-2 rounded-lg bg-indigo-50 text-indigo-600"><CreditCard size={20} /></span>
-                        <span className="px-2.5 py-1 text-xs font-semibold rounded-full bg-green-100 text-green-800">Active</span>
+              {/* Grid of Plans (Matching screenshot: Free trial, Monthly, Yearly) */}
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+                {plans.map((p) => {
+                  const isSelected = activeInlinePlan?.id === p.id;
+                  return (
+                    <div
+                      key={p.id}
+                      className="rounded-2xl p-6 border flex flex-col justify-between"
+                      style={{
+                        background: "#16231e",
+                        borderColor: isSelected ? "#52b788" : "#223b32",
+                      }}
+                    >
+                      <div>
+                        <span className="text-sm font-semibold text-gray-300">{p.name}</span>
+                        <div className="text-3xl font-extrabold text-white mt-4 mb-2">
+                          {p.price === 0 ? "₹0" : money(p.price)}
+                        </div>
+                        <div className="text-xs text-gray-400 font-medium mb-3">{p.period}</div>
+                        <p className="text-xs text-gray-300 leading-relaxed mb-6">{p.features}</p>
                       </div>
-                      <h2 className="text-xl font-bold">{p.name}</h2>
-                      <div className="text-2xl font-black my-2">{money(p.price)} <span className="text-sm font-normal text-muted-foreground">/ {p.period}</span></div>
-                      <p className="text-sm text-muted-foreground mt-2">{p.features}</p>
+
+                      {p.price > 0 ? (
+                        <button
+                          onClick={() => setActiveInlinePlan(p)}
+                          className="w-full py-2.5 px-4 rounded-xl text-xs font-bold transition-all text-gray-900"
+                          style={{
+                            background: isSelected ? "#74c69d" : "#52b788",
+                          }}
+                        >
+                          Choose {p.name.toLowerCase()}
+                        </button>
+                      ) : (
+                        <div className="text-center py-2 text-xs font-semibold text-gray-400">
+                          Active trial tier
+                        </div>
+                      )}
                     </div>
-                    <div className="mt-6 pt-4 border-t">
-                      <button className="primary-btn w-full flex items-center justify-center gap-2" onClick={() => handleChoosePlan(p)}>
-                        Choose Plan <ArrowUpRight size={16} />
-                      </button>
-                    </div>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
 
-              <div className="settings-grid">
-                <section className="panel settings-panel">
-                  <h2>Request validity extension & upload proof</h2>
-                  <p>After completing payment via the QR code or UPI ID, upload your payment receipt screenshot below.</p>
-                  <label className="block space-y-1 mt-3">
-                    <span className="text-sm font-medium">Payment Screenshot</span>
-                    <input type="file" accept="image/*" onChange={(e) => setExtensionFile(e.target.files?.[0] || null)} className="block w-full text-sm" />
-                  </label>
-                  <label className="block space-y-1 pt-3">
-                    <span className="text-sm font-medium">Transaction Note</span>
-                    <textarea value={extensionMessage} onChange={(e) => setExtensionMessage(e.target.value)} placeholder="UTR / Reference ID..." className="w-full p-2 border rounded-md text-sm bg-transparent" />
-                  </label>
-                  <button className="primary-btn mt-4" onClick={requestExtension} disabled={extensionBusy}>
-                    <Upload size={16} /> {extensionBusy ? "Uploading…" : "Submit Proof to Admin"}
+              {/* DYNAMIC PAYMENT BOX UNDER CARDS (MATCHING THE ATTACHED SCREENSHOT) */}
+              {activeInlinePlan && activeInlinePlan.price > 0 && (
+                <div
+                  className="max-w-md mx-auto rounded-2xl p-6 border text-center shadow-lg my-8"
+                  style={{
+                    background: "#16231e",
+                    borderColor: "#223b32",
+                  }}
+                >
+                  <div className="text-sm font-bold text-white mb-4">
+                    Pay {money(activeInlinePlan.price)}
+                  </div>
+
+                  {/* Scannable Live QR Code */}
+                  <div className="bg-white p-3 rounded-2xl inline-block mx-auto mb-4 border border-gray-200">
+                    <img
+                      src={inlineQrImageUrl}
+                      alt="UPI Payment QR Code"
+                      className="w-56 h-56 object-contain rounded-lg"
+                    />
+                  </div>
+
+                  {/* Open UPI App Button */}
+                  <button
+                    onClick={() => {
+                      window.location.href = inlineUpiPayUri;
+                    }}
+                    className="w-full py-2.5 px-4 rounded-xl text-xs font-bold text-gray-900 mb-3"
+                    style={{ background: "#52b788" }}
+                  >
+                    Open UPI app
                   </button>
-                </section>
-              </div>
+
+                  {/* Upload payment screenshot button */}
+                  <div className="mb-4">
+                    <input
+                      type="file"
+                      ref={fileInputRef}
+                      accept="image/*"
+                      onChange={(e) => setInlineScreenshotFile(e.target.files?.[0] || null)}
+                      className="hidden"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => fileInputRef.current?.click()}
+                      className="w-full py-2.5 px-4 rounded-xl text-xs font-semibold text-gray-200 border border-gray-600 bg-gray-800/80 hover:bg-gray-700/80"
+                    >
+                      {inlineScreenshotFile ? `✓ ${inlineScreenshotFile.name.slice(0, 24)}` : "Upload payment screenshot"}
+                    </button>
+                  </div>
+
+                  {/* UPI transaction reference input */}
+                  <div className="text-left mb-4">
+                    <label className="text-[11px] font-semibold text-gray-400 block mb-1">
+                      <span className="text-red-500 mr-1">*</span>UPI transaction reference
+                    </label>
+                    <input
+                      type="text"
+                      required
+                      value={inlineRefId}
+                      onChange={(e) => setInlineRefId(e.target.value)}
+                      placeholder="Enter 12-digit UPI / UTR reference ID"
+                      className="w-full p-2.5 rounded-xl text-xs text-white border border-gray-700 bg-gray-900/90 focus:outline-none focus:border-green-500"
+                    />
+                  </div>
+
+                  {/* Submit payment reference button */}
+                  <button
+                    onClick={handleInlineSubmitReference}
+                    disabled={inlineSubmitBusy}
+                    className="w-full py-2.5 px-4 rounded-xl text-xs font-bold text-gray-200 border border-gray-600 bg-gray-800/90 hover:bg-gray-700"
+                  >
+                    {inlineSubmitBusy ? "Submitting..." : "Submit payment reference"}
+                  </button>
+                </div>
+              )}
             </>
           )}
 
@@ -1882,7 +2038,7 @@ export default function Home() {
             </>
           )}
 
-          {/* 10. ADMIN: RESTAURANT DIRECTORY (CLEAN VIEW - PENDING APPROVALS MOVED OUT) */}
+          {/* 10. ADMIN: RESTAURANT DIRECTORY */}
           {view === "restaurants" && isAdmin && (
             <>
               <div className="page-head flex justify-between items-center">
@@ -1927,7 +2083,7 @@ export default function Home() {
             </>
           )}
 
-          {/* 11. ADMIN: APPROVALS (CONSOLIDATES REAL RESTAURANT ONBOARDING + SUBSCRIPTION RENEWAL QUEUES) */}
+          {/* 11. ADMIN: APPROVALS QUEUE */}
           {view === "approvals" && isAdmin && (
             <>
               <div className="page-head flex justify-between items-center">
@@ -1936,22 +2092,18 @@ export default function Home() {
                   <h1>Pending Approvals</h1>
                   <p>Review restaurant onboarding applications and incoming subscription payment proofs.</p>
                 </div>
-                <div className="flex gap-2">
-                  <button className="quiet-btn flex items-center gap-1.5" onClick={() => { fetchRealApprovals(); fetchSubscriptionRequests(); toast.success("Refreshed queues"); }}>
-                    <RefreshCw size={14} /> Refresh
-                  </button>
-                </div>
+                <button className="quiet-btn flex items-center gap-1.5" onClick={() => { fetchRealApprovals(); fetchSubscriptionRequests(); toast.success("Refreshed queues"); }}>
+                  <RefreshCw size={14} /> Refresh
+                </button>
               </div>
 
               {/* 11A. SUBSCRIPTION PAYMENT PROOFS QUEUE */}
               <section className="panel management-panel mb-8 mt-4">
-                <div className="panel-header flex justify-between items-center border-b pb-3 mb-4">
-                  <div>
-                    <h2 className="text-lg font-bold flex items-center gap-2">
-                      Subscription Renewal Approvals <span className="count-pill">{subscriptionRequests.length}</span>
-                    </h2>
-                    <p className="text-sm text-muted-foreground">Approve payment proofs to automatically renew plan validity.</p>
-                  </div>
+                <div className="panel-header border-b pb-3 mb-4">
+                  <h2 className="text-lg font-bold flex items-center gap-2">
+                    Subscription Renewal Approvals <span className="count-pill">{subscriptionRequests.length}</span>
+                  </h2>
+                  <p className="text-sm text-muted-foreground">Approve payment proofs to automatically renew plan validity.</p>
                 </div>
                 <div className="table-scroll">
                   <table>
@@ -2018,13 +2170,12 @@ export default function Home() {
                 </div>
               </section>
 
-              {/* 11B. NEW RESTAURANT REGISTRATIONS QUEUE */}
+              {/* 11B. ONBOARDING APPLICATIONS QUEUE */}
               <section className="panel management-panel">
                 <div className="panel-header border-b pb-3 mb-4">
                   <h2 className="text-lg font-bold flex items-center gap-2">
                     Restaurant Onboarding Applications <span className="count-pill">{approvals.length}</span>
                   </h2>
-                  <p className="text-sm text-muted-foreground">Review and activate new restaurants joining RestoPulse.</p>
                 </div>
                 <div className="approval-grid">
                   {approvals.map((a) => (
@@ -2035,11 +2186,6 @@ export default function Home() {
                       </div>
                       <h2 className="text-lg font-bold mt-2">{a.name}</h2>
                       <p className="text-xs text-muted-foreground">{a.city} · Submitted {a.submitted}</p>
-                      <div className="text-xs text-muted-foreground space-y-1 mt-3">
-                        {a.owner && <div>Owner: <b>{a.owner}</b></div>}
-                        {a.email && <div>Email: <b>{a.email}</b></div>}
-                        {a.plan && <div>Plan: <b className="text-indigo-600">{a.plan}</b> (+{getPlanDurationDays(a.plan)} days)</div>}
-                      </div>
                       <div className="approval-actions mt-4 flex gap-2">
                         <button className="primary-btn" onClick={() => handleReviewRestaurantApproval(a.id, "approve", a.plan)}>
                           Approve & Activate
@@ -2051,9 +2197,7 @@ export default function Home() {
                     </div>
                   ))}
                   {!approvals.length && (
-                    <div className="panel empty-state">
-                      No pending restaurant onboarding applications.
-                    </div>
+                    <div className="panel empty-state">No pending restaurant onboarding applications.</div>
                   )}
                 </div>
               </section>
@@ -2067,7 +2211,6 @@ export default function Home() {
                 <div>
                   <div className="eyebrow">SUBSCRIPTION MANAGEMENT</div>
                   <h1>Pricing plans & Admin UPI Configuration</h1>
-                  <p>Configure plans and update the UPI ID used by restaurants for payments.</p>
                 </div>
                 <button className="primary-btn" onClick={() => open("plan")}><Plus size={17} /> Add plan</button>
               </div>
@@ -2078,21 +2221,6 @@ export default function Home() {
                 </div>
                 <button className="primary-btn mt-3" onClick={saveAdminUpi} disabled={adminUpiBusy}>Save Admin UPI ID</button>
               </section>
-              <div className="pricing-grid grid md:grid-cols-4 gap-4">
-                {plans.map((p) => (
-                  <div key={p.id} className="p-4 bg-card border rounded-xl flex flex-col justify-between">
-                    <div>
-                      <h3 className="font-bold text-lg">{p.name}</h3>
-                      <p className="text-xl font-black mt-1">{money(p.price)} <small className="text-xs font-normal">/{p.period}</small></p>
-                      <p className="text-xs text-muted-foreground mt-2">{p.features}</p>
-                    </div>
-                    <div className="mt-4 flex gap-2 border-t pt-3">
-                      <button className="text-xs quiet-btn" onClick={() => open("plan", p.id)}><Pencil size={14} /> Edit</button>
-                      <button className="text-xs text-red-600 quiet-btn" onClick={() => setPlans((old) => old.filter((x) => x.id !== p.id))}><Trash2 size={14} /> Delete</button>
-                    </div>
-                  </div>
-                ))}
-              </div>
             </>
           )}
         </main>
@@ -2137,115 +2265,132 @@ export default function Home() {
       <Dialog open={!!modal && modal !== "inventory"} onOpenChange={(v) => !v && setModal(null)}>
         <DialogContent className="modal-content">
           <DialogHeader>
-            <DialogTitle>
-              {modal === "plan" ? (editing ? "Edit Plan" : "Add Plan")
-                : modal === "dish" ? (editing ? "Edit Dish" : "Add Dish")
-                : modal === "supplier" ? (editing ? "Edit Supplier" : "Add Supplier")
-                : modal === "employee" ? (editing ? "Edit Employee" : "Add Employee")
-                : modal === "expense" ? "Log Expense"
-                : modal === "restaurant" ? "Add Restaurant"
-                : "Record Payment"}
-            </DialogTitle>
+            <DialogTitle>Add / Edit Details</DialogTitle>
           </DialogHeader>
           <div className="modal-fields">
-            {modal === "plan" && (
-              <>
-                <label>Plan name<input value={form.name || ""} onChange={(e) => setForm({ ...form, name: e.target.value })} /></label>
-                <label>Price (₹)<input type="number" value={form.price || ""} onChange={(e) => setForm({ ...form, price: e.target.value })} /></label>
-                <label>Billing Period (14 days / month / year)<input value={form.period || ""} onChange={(e) => setForm({ ...form, period: e.target.value })} placeholder="month" /></label>
-                <label>Features<input value={form.features || ""} onChange={(e) => setForm({ ...form, features: e.target.value })} /></label>
-              </>
-            )}
-            {modal === "restaurant" && (
-              <>
-                <label>Restaurant name<input value={form.name || ""} onChange={(e) => setForm({ ...form, name: e.target.value })} /></label>
-                <label>Owner name<input value={form.owner || ""} onChange={(e) => setForm({ ...form, owner: e.target.value })} /></label>
-                <label>Plan
-                  <select value={form.plan || "Growth"} onChange={(e) => setForm({ ...form, plan: e.target.value })}>
-                    {plans.map(p => <option key={p.id} value={p.name}>{p.name}</option>)}
-                  </select>
-                </label>
-              </>
-            )}
             {modal === "dish" && (
               <>
                 <label>Dish name<input value={form.name || ""} onChange={(e) => setForm({ ...form, name: e.target.value })} /></label>
                 <label>Price (₹)<input type="number" value={form.price || ""} onChange={(e) => setForm({ ...form, price: e.target.value })} /></label>
               </>
             )}
+            {modal === "expense" && (
+              <>
+                <label>Description<input value={form.name || ""} onChange={(e) => setForm({ ...form, name: e.target.value })} /></label>
+                <label>Amount (₹)<input type="number" value={form.amount || ""} onChange={(e) => setForm({ ...form, amount: e.target.value })} /></label>
+              </>
+            )}
+            {modal === "employee" && (
+              <>
+                <label>Full name<input value={form.name || ""} onChange={(e) => setForm({ ...form, name: e.target.value })} /></label>
+                <label>Role<input value={form.role || ""} onChange={(e) => setForm({ ...form, role: e.target.value })} /></label>
+              </>
+            )}
           </div>
           <DialogFooter>
             <button className="quiet-btn" onClick={() => setModal(null)}>Cancel</button>
-            <button className="primary-btn" onClick={save}>Save changes</button>
+            <button className="primary-btn" onClick={save}>Save</button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
 
-      {/* RECEIPT POPUP DIALOG */}
+      {/* RECEIPT POPUP DIALOG - EXACT PROFESSIONAL THERMAL ALIGNMENT */}
       <Dialog open={!!receipt} onOpenChange={(v) => !v && setReceipt(null)}>
-        <DialogContent className="receipt-dialog max-w-sm">
-          <DialogHeader>
-            <DialogTitle>Bill Details & Receipt</DialogTitle>
+        <DialogContent className="max-w-md p-6 bg-slate-900 border border-slate-800 text-white">
+          <DialogHeader className="dialog-header">
+            <DialogTitle className="text-lg font-bold">Bill Details & Receipt</DialogTitle>
           </DialogHeader>
+
           {receipt && (
-            <div className="p-4 bg-white text-gray-900 rounded-lg font-mono text-xs space-y-2 border">
-              <div className="text-center font-bold text-sm">{receipt.business?.name || "The Saffron Table"}</div>
-              <div className="border-b border-dashed my-2" />
-              <div className="flex justify-between">
+            <div
+              id="printable-receipt-area"
+              className="p-6 bg-white text-black rounded-2xl shadow-xl font-mono text-xs space-y-3"
+            >
+              {/* Header */}
+              <div className="text-center space-y-1">
+                <div className="text-base font-extrabold uppercase tracking-wider">
+                  {receipt.business?.name || "The Saffron Table"}
+                </div>
+                <div className="text-[11px] text-gray-600">
+                  {receipt.business?.address || "12 Church Street, Bengaluru"}
+                </div>
+                {receipt.business?.business_phone && (
+                  <div className="text-[11px] text-gray-600">
+                    Ph: {receipt.business.business_phone}
+                  </div>
+                )}
+              </div>
+
+              {/* Separator */}
+              <div className="border-b border-dashed border-gray-400 my-2" />
+
+              {/* Order Meta */}
+              <div className="flex justify-between text-[11px] font-bold">
                 <span>Bill: {receipt.id}</span>
                 <span>{receipt.type}</span>
               </div>
-              <div className="border-b border-dashed my-2" />
-              <div className="space-y-1">
+              <div className="text-[10px] text-gray-500">{receipt.issuedAt}</div>
+
+              {/* Separator */}
+              <div className="border-b border-dashed border-gray-400 my-2" />
+
+              {/* Items List */}
+              <div className="space-y-1.5 text-[11px]">
                 {receipt.items.map((item, idx) => (
-                  <div key={idx} className="flex justify-between">
-                    <span>{item.qty}x {item.name}</span>
-                    <span>{money(item.qty * item.unitPrice)}</span>
+                  <div key={idx} className="flex justify-between items-start">
+                    <span className="flex-1 pr-2">
+                      {item.qty}x {item.name}
+                    </span>
+                    <span className="font-semibold">{money(item.qty * item.unitPrice)}</span>
                   </div>
                 ))}
               </div>
-              <div className="border-b border-dashed my-2" />
-              <div className="flex justify-between font-bold text-sm pt-1 border-t"><span>Total:</span><span>{money(receipt.total)}</span></div>
+
+              {/* Separator */}
+              <div className="border-b border-dashed border-gray-400 my-2" />
+
+              {/* Financial Totals */}
+              <div className="space-y-1 text-[11px]">
+                <div className="flex justify-between">
+                  <span>Subtotal:</span>
+                  <span>{money(receipt.subtotal)}</span>
+                </div>
+                {receipt.discount > 0 && (
+                  <div className="flex justify-between text-green-700">
+                    <span>Discount:</span>
+                    <span>−{money(receipt.discount)}</span>
+                  </div>
+                )}
+                <div className="flex justify-between">
+                  <span>Tax (5%):</span>
+                  <span>{money(receipt.tax)}</span>
+                </div>
+                <div className="border-b border-solid border-gray-800 my-1" />
+                <div className="flex justify-between text-sm font-extrabold pt-0.5">
+                  <span>Total:</span>
+                  <span>{money(receipt.total)}</span>
+                </div>
+              </div>
+
+              {/* Footer */}
+              <div className="text-center text-[10px] text-gray-500 pt-3 border-t border-dashed border-gray-300">
+                {receipt.business?.receipt_footer || "Thank you for dining with us!"}
+              </div>
             </div>
           )}
-          <DialogFooter className="flex gap-2">
-            <button className="quiet-btn" onClick={() => setReceipt(null)}>Close</button>
-            <button className="primary-btn flex items-center gap-1.5" onClick={() => window.print()}>
+
+          <DialogFooter className="dialog-footer mt-4 flex gap-2">
+            <button className="quiet-btn" onClick={() => setReceipt(null)}>
+              Close
+            </button>
+            <button
+              className="primary-btn flex items-center gap-1.5"
+              onClick={() => {
+                window.print();
+              }}
+            >
               <Printer size={16} /> Print Receipt
             </button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-
-      {/* DYNAMIC SCANNABLE QR CODE MODAL FOR CHOSEN SUBSCRIPTION PLAN */}
-      <Dialog open={showQrModal} onOpenChange={setShowQrModal}>
-        <DialogContent className="max-w-sm text-center">
-          <DialogHeader>
-            <DialogTitle>Pay for {selectedPlanForPayment?.name || 'Subscription'}</DialogTitle>
-            <DialogDescription>
-              Amount to Pay: <strong className="text-base text-gray-900 dark:text-gray-100">{money(selectedPlanForPayment?.price || 0)}</strong>
-            </DialogDescription>
-          </DialogHeader>
-          <div className="flex flex-col items-center justify-center p-4 bg-white rounded-xl border space-y-3">
-            <div className="p-2 border-2 border-dashed border-gray-300 rounded-xl bg-white shadow-inner flex items-center justify-center">
-              <img
-                src={qrImageUrl}
-                alt="UPI Payment QR Code"
-                className="w-48 h-48 object-contain rounded-lg"
-              />
-            </div>
-            <div className="text-center">
-              <span className="text-[11px] text-gray-500 block">Scan using any UPI App (GPay / PhonePe / Paytm)</span>
-              <p className="text-xs font-mono font-bold text-indigo-600 mt-1 select-all">{subscriptionUpiId}</p>
-            </div>
-          </div>
-          <div className="space-y-2 pt-1">
-            <button className="primary-btn w-full flex items-center justify-center gap-2" onClick={paySelectedPlan}>
-              <ExternalLink size={16} /> Open UPI App Directly
-            </button>
-          </div>
-          <DialogFooter>
-            <button className="quiet-btn w-full" onClick={() => setShowQrModal(false)}>Close</button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

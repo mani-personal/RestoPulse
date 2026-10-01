@@ -186,10 +186,10 @@ type SupplierPayment = {
 };
 
 const initialExpenses: Expense[] = [
-  { id: 1, name: "Fresh produce delivery", category: "Inventory", vendor: "Green Acres Co.", amount: 4850, date: "2026-09-26" },
-  { id: 2, name: "Monthly electricity", category: "Utilities", vendor: "BESCOM", amount: 12400, date: "2026-09-25" },
-  { id: 3, name: "Kitchen equipment service", category: "Maintenance", vendor: "ProChef Services", amount: 3200, date: "2026-09-24" },
-  { id: 4, name: "Social media campaign", category: "Marketing", vendor: "Studio North", amount: 6500, date: "2026-09-22" },
+  { id: 1, name: "Fresh produce delivery", category: "Inventory", vendor: "Green Acres Co.", amount: 4850, date: "2026-09-26", supplierId: "sp-1" },
+  { id: 2, name: "Monthly electricity", category: "Utilities", vendor: "BESCOM", amount: 12400, date: "2026-09-25", supplierId: null },
+  { id: 3, name: "Kitchen equipment service", category: "Maintenance", vendor: "ProChef Services", amount: 3200, date: "2026-09-24", supplierId: "sp-2" },
+  { id: 4, name: "Social media campaign", category: "Marketing", vendor: "Studio North", amount: 6500, date: "2026-09-22", supplierId: null },
 ];
 
 type Staff = {
@@ -234,6 +234,8 @@ type Bill = {
   subtotal: number;
   discount: number;
   tax: number;
+  cgst: number;
+  sgst: number;
   total: number;
   type: string;
   table: string;
@@ -260,11 +262,11 @@ const initialStaff: Staff[] = [
 
 const initialWages: Wage[] = [
   { id: 1, staffId: 1, date: "2026-09-25", amount: 1800, status: "Paid", note: "Day shift" },
-  { id: 2, staffId: 1, date: "2026-09-24", amount: 1800, status: "Paid", note: "" },
+  { id: 2, staffId: 1, date: "2026-09-24", amount: 1800, status: "Paid", note: "Regular" },
   { id: 3, staffId: 2, date: "2026-09-25", amount: 900, status: "Paid", note: "Day shift" },
   { id: 4, staffId: 2, date: "2026-09-26", amount: 900, status: "Unpaid", note: "Evening cover" },
-  { id: 5, staffId: 3, date: "2026-09-25", amount: 2100, status: "Paid", note: "" },
-  { id: 6, staffId: 4, date: "2026-09-25", amount: 750, status: "Paid", note: "" },
+  { id: 5, staffId: 3, date: "2026-09-25", amount: 2100, status: "Paid", note: "Regular" },
+  { id: 6, staffId: 4, date: "2026-09-25", amount: 750, status: "Paid", note: "Regular" },
 ];
 
 function seededSale(
@@ -280,6 +282,7 @@ function seededSale(
   const subtotal = items.reduce((n, i) => n + i.unitPrice * i.qty, 0);
   const discount = items.reduce((n, i) => n + i.discount * i.qty, 0);
   const total = subtotal - discount + tax;
+  const halfTax = Math.round(tax / 2);
   return {
     id,
     time,
@@ -294,6 +297,8 @@ function seededSale(
       subtotal,
       discount,
       tax,
+      cgst: halfTax,
+      sgst: halfTax,
       total,
       type,
       table,
@@ -307,7 +312,6 @@ const initialSales: Sale[] = [
   seededSale("RP-10842", "12:42 PM", "Dine-in", "Paid", [{ name: "Truffle Mushroom Risotto", qty: 2, unitPrice: 680, discount: 0 }, { name: "Citrus Mint Cooler", qty: 2, unitPrice: 240, discount: 0 }], 92, "T04", "UPI"),
   seededSale("RP-10841", "12:18 PM", "Takeaway", "Paid", [{ name: "Margherita Flatbread", qty: 2, unitPrice: 470, discount: 0 }, { name: "Citrus Mint Cooler", qty: 1, unitPrice: 240, discount: 0 }], 59, "", "Card"),
   seededSale("RP-10840", "11:55 AM", "Dine-in", "Paid", [{ name: "Grilled Salmon Bowl", qty: 2, unitPrice: 790, discount: 0 }, { name: "Burrata & Heirloom Tomato", qty: 2, unitPrice: 520, discount: 0 }], 131, "T02", "Cash"),
-  seededSale("RP-10839", "11:32 AM", "Delivery", "Refunded", [{ name: "Smoked Chicken Tacos", qty: 1, unitPrice: 560, discount: 0 }, { name: "Citrus Mint Cooler", qty: 1, unitPrice: 240, discount: 0 }], 40, "", "UPI"),
 ];
 
 const chart = [
@@ -348,44 +352,62 @@ export default function Home() {
   const [loginPassword, setLoginPassword] = useState("");
   const [loginBusy, setLoginBusy] = useState(false);
   const [tenantId, setTenantId] = useState<string | null>("1");
+
+  // Settings State with complete GST breakdown
   const [tenantInfo, setTenantInfo] = useState<{
     name: string;
     logo_url: string | null;
     address: string;
     business_phone: string;
     gstin: string;
+    gst_percent: number;
+    cgst_percent: number;
+    sgst_percent: number;
     receipt_footer: string;
-  } | null>({
+  }>({
     name: "The Saffron Table",
     logo_url: null,
     address: "12 Church Street, Bengaluru",
     business_phone: "+91 98765 43210",
     gstin: "29AAAAA0000A1Z5",
+    gst_percent: 5,
+    cgst_percent: 2.5,
+    sgst_percent: 2.5,
     receipt_footer: "Thank you for dining with us!",
   });
+
   const [storeForm, setStoreForm] = useState({
     name: "The Saffron Table",
     phone: "+91 98765 43210",
     address: "12 Church Street, Bengaluru",
     gstin: "29AAAAA0000A1Z5",
+    gst_percent: "5",
+    cgst_percent: "2.5",
+    sgst_percent: "2.5",
     footer: "Thank you for dining with us!",
   });
+
   const [isAdmin, setIsAdmin] = useState(false);
   const [suppliers, setSuppliers] = useState<Supplier[]>([
     { id: "sp-1", name: "Green Acres Co.", contact: "Vikram Shah", phone: "+91 98765 00001", email: "vikram@greenacres.in" },
     { id: "sp-2", name: "ProChef Supplies", contact: "Sunita Roy", phone: "+91 98765 00002", email: "sunita@prochef.in" }
   ]);
   const [supplierPayments, setSupplierPayments] = useState<SupplierPayment[]>([
-    { id: "pay-1", supplierId: "sp-1", amount: 2500, date: "2026-09-26", method: "UPI", note: "Weekly vegetable delivery advance" }
+    { id: "pay-1", supplierId: "sp-1", amount: 2500, date: "2026-09-26", method: "UPI", note: "Weekly vegetables" }
   ]);
   const [supplierDetail, setSupplierDetail] = useState<string | null>("sp-1");
-  const [dishFile, setDishFile] = useState<File | null>(null);
+
   const [view, setView] = useState<View>("dashboard");
   const [profileMenu, setProfileMenu] = useState(false);
   const [accountRole, setAccountRole] = useState<"admin" | "restaurant">("restaurant");
   const [staff, setStaff] = useState<Staff[]>(initialStaff);
   const [wages, setWages] = useState<Wage[]>(initialWages);
   const [wageForm, setWageForm] = useState({ date: new Date().toLocaleDateString("en-CA"), amount: "", note: "" });
+  const [selectedStaff, setSelectedStaff] = useState<Staff | null>(null);
+
+  // Print paper sizing: 58mm, 80mm, A4
+  const [printPaperSize, setPrintPaperSize] = useState<"58mm" | "80mm" | "A4">("80mm");
+
   const [dark, setDark] = useState(false);
   const [mobileNav, setMobileNav] = useState(false);
   const [notifications, setNotifications] = useState(false);
@@ -408,7 +430,6 @@ export default function Home() {
   const [modal, setModal] = useState<"plan" | "dish" | "expense" | "restaurant" | "extend" | "employee" | "supplier" | "payment" | "inventory" | null>(null);
   const [editing, setEditing] = useState<number | string | null>(null);
   const [form, setForm] = useState<Record<string, string>>({});
-  const [selectedStaff, setSelectedStaff] = useState<Staff | null>(null);
   const [dateRange, setDateRange] = useState("This week");
 
   // Inventory State
@@ -426,31 +447,29 @@ export default function Home() {
   const [adminUpiBusy, setAdminUpiBusy] = useState(false);
   const [subscriptionUpiId, setSubscriptionUpiId] = useState<string>("admin-restopulse@upi");
 
-  // INLINE Selected Plan & Payment under Subscription Cards (matching reference screenshot)
+  // Inline Subscription Cards Section
   const [activeInlinePlan, setActiveInlinePlan] = useState<Plan | null>(null);
   const [inlineRefId, setInlineRefId] = useState("");
   const [inlineScreenshotFile, setInlineScreenshotFile] = useState<File | null>(null);
   const [inlineSubmitBusy, setInlineSubmitBusy] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  // Password reset state
+  // Password Reset
   const [newPassword, setNewPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [pwdBusy, setPwdBusy] = useState(false);
 
-  // Helper to determine plan duration in days
   const getPlanDurationDays = (planName: string) => {
     const found = plans.find((p) => p.name.toLowerCase() === planName.toLowerCase());
     if (found) {
       if (found.period.includes("7")) return 7;
       if (found.period.includes("14")) return 14;
       if (found.period.includes("365") || found.period.includes("year")) return 365;
-      return 30; // default month
+      return 30;
     }
     return 30;
   };
 
-  // Real Restaurant Onboarding Applications Fetcher
   const fetchRealApprovals = useCallback(async () => {
     try {
       if (db) {
@@ -508,7 +527,6 @@ export default function Home() {
     }
   }, [db, restaurants]);
 
-  // Real Subscription Renewal Proofs Fetcher
   const fetchSubscriptionRequests = useCallback(async () => {
     try {
       if (db) {
@@ -616,7 +634,6 @@ export default function Home() {
       .catch(() => {});
   }, [isAdmin, tenantId]);
 
-  // Real-time synchronization
   useEffect(() => {
     fetchSubscriptionRequests();
     fetchRealApprovals();
@@ -747,7 +764,12 @@ export default function Home() {
   }, 0);
   const lineDiscount = cart.reduce((sum, l) => sum + l.discount * l.qty, 0);
   const totalDiscount = Math.min(subtotal, lineDiscount + orderDiscount);
-  const tax = Math.round((subtotal - totalDiscount) * 0.05);
+  
+  // Tax calculations based on active GST percentage
+  const effectiveGst = tenantInfo.gst_percent || 5;
+  const tax = Math.round((subtotal - totalDiscount) * (effectiveGst / 100));
+  const cgstAmount = Math.round(tax / 2);
+  const sgstAmount = tax - cgstAmount;
   const total = subtotal - totalDiscount + tax;
 
   const addCart = (id: number | string) => {
@@ -793,7 +815,6 @@ export default function Home() {
       });
     } else if (which === "dish" && id) {
       const d = dishes.find((x) => x.id === id)!;
-      setDishFile(null);
       setForm({
         name: d.name,
         category: d.category,
@@ -816,7 +837,7 @@ export default function Home() {
         id: editing !== null ? Number(editing) : Date.now(),
         name: form.name.trim(),
         price: Number(form.price),
-        period: form.period || "month",
+        period: form.period || "30 days",
         features: form.features || "",
         active: true,
       };
@@ -859,22 +880,6 @@ export default function Home() {
       };
       setExpenses((old) => [newExp, ...old]);
       toast.success("Expense recorded");
-    }
-    if (modal === "restaurant") {
-      const newRest = {
-        id: Date.now(),
-        name: form.name || "New Restaurant",
-        owner: form.owner || "Owner",
-        email: form.email || "owner@example.com",
-        phone: form.phone || "+91 98765 00000",
-        city: form.city || "Bengaluru",
-        plan: form.plan || "Monthly",
-        status: "Active",
-        renewal: "2026-10-30",
-        initial: (form.name || "NR").slice(0, 2).toUpperCase(),
-      };
-      setRestaurants((old) => [newRest, ...old]);
-      toast.success("Restaurant added successfully!");
     }
     if (modal === "supplier") {
       const name = form.name?.trim();
@@ -927,10 +932,6 @@ export default function Home() {
       setStaff((old) => (editing !== null ? old.map((x) => (x.id === editing ? person : x)) : [...old, person]));
       toast.success(editing !== null ? "Employee updated" : "Employee added");
     }
-    if (modal === "extend" && editing) {
-      setRestaurants((old) => old.map((r) => (r.id === editing ? { ...r, renewal: form.renewal || r.renewal } : r)));
-      toast.success("Subscription extended");
-    }
     setModal(null);
   };
 
@@ -942,18 +943,11 @@ export default function Home() {
     const now = new Date();
     const id = "RP-" + now.toISOString().replace(/[-:TZ.]/g, "").slice(0, 14) + "-" + crypto.randomUUID().slice(0, 4).toUpperCase();
     const time = now.toLocaleTimeString("en-IN", { hour: "numeric", minute: "2-digit" });
-    
+
     const bill: Bill = {
       id,
       issuedAt: now.toLocaleString("en-IN"),
-      business: tenantInfo || {
-        name: currentRestaurant?.name || "The Saffron Table",
-        logo_url: null,
-        address: "12 Church Street, Bengaluru",
-        business_phone: "+91 98765 43210",
-        gstin: "29AAAAA0000A1Z5",
-        receipt_footer: "Thank you for dining with us!",
-      },
+      business: tenantInfo,
       items: cart.map((l) => ({
         name: dishes.find((d) => d.id === l.id)?.name || "Menu item",
         qty: l.qty,
@@ -963,6 +957,8 @@ export default function Home() {
       subtotal,
       discount: totalDiscount,
       tax,
+      cgst: cgstAmount,
+      sgst: sgstAmount,
       total,
       type: orderType,
       table: orderType === "Dine-in" ? table : "",
@@ -1008,21 +1004,11 @@ export default function Home() {
     setAdminUpiBusy(false);
   };
 
-  const copyUpi = async () => {
-    const targetUpi = subscriptionUpiId || adminUpiId || "admin-restopulse@upi";
-    try {
-      await navigator.clipboard.writeText(targetUpi);
-      toast.success("UPI ID copied to clipboard!");
-    } catch {
-      toast.info(`UPI ID: ${targetUpi}`);
-    }
-  };
-
-  // INLINE SUBMISSION HANDLER (MATCHING ATTACHED SCREENSHOT)
+  // INLINE SUBSCRIPTION PAYMENT REFERENCE SUBMISSION (MATCHING REFERENCE IMAGE)
   const handleInlineSubmitReference = async () => {
     if (!activeInlinePlan) return;
     if (!inlineRefId.trim()) {
-      toast.error("Please enter the UPI transaction reference ID");
+      toast.error("Please enter the UPI transaction reference");
       return;
     }
     setInlineSubmitBusy(true);
@@ -1089,7 +1075,6 @@ export default function Home() {
     }
   };
 
-  // AUTOMATIC PLAN & DAYS UPDATE ON SUBSCRIPTION PROOF APPROVAL
   const reviewExtensionRequest = async (requestId: string, restId?: string, reqPlanName?: string) => {
     try {
       const planName = reqPlanName || "Monthly";
@@ -1097,7 +1082,7 @@ export default function Home() {
 
       const nextDate = new Date();
       nextDate.setDate(nextDate.getDate() + daysToAdd);
-      const renewalStr = nextDate.toLocaleDateString("en-CA"); // YYYY-MM-DD
+      const renewalStr = nextDate.toLocaleDateString("en-CA");
 
       if (db) {
         await db.from("subscription_requests").update({ status: "Approved" }).eq("id", requestId);
@@ -1139,7 +1124,6 @@ export default function Home() {
     }
   };
 
-  // Real Restaurant Onboarding Approval Handler
   const handleReviewRestaurantApproval = async (approvalId: string | number, action: "approve" | "reject", requestedPlan?: string) => {
     try {
       const planName = requestedPlan || "Free trial";
@@ -1277,7 +1261,6 @@ export default function Home() {
       </div>
     );
 
-  // Generate QR URI based on active plan
   const activePlanPrice = activeInlinePlan ? activeInlinePlan.price : 2999;
   const inlineUpiPayUri = `upi://pay?pa=${encodeURIComponent(subscriptionUpiId)}&pn=${encodeURIComponent("RestoPulse")}&am=${encodeURIComponent(activePlanPrice.toFixed(2))}&cu=INR&tn=${encodeURIComponent(`${currentRestaurant?.name || 'Restaurant'} ${activeInlinePlan?.name || 'Subscription'}`)}`;
   const inlineQrImageUrl = `https://api.qrserver.com/v1/create-qr-code/?size=240x240&data=${encodeURIComponent(inlineUpiPayUri)}`;
@@ -1286,28 +1269,32 @@ export default function Home() {
     <div className="app-shell">
       <Toaster richColors position="top-right" />
 
-      {/* DEDICATED PRINT STYLES FOR CRISP THERMAL RECEIPT ALIGNMENT */}
+      {/* DYNAMIC THERMAL & A4 PRINT RULES */}
       <style jsx global>{`
         @media print {
+          @page {
+            size: ${printPaperSize === "A4" ? "A4" : printPaperSize === "58mm" ? "58mm auto" : "80mm auto"};
+            margin: ${printPaperSize === "A4" ? "12mm" : "0mm"};
+          }
           body * {
             visibility: hidden;
           }
-          #printable-receipt-area, #printable-receipt-area * {
+          #printable-receipt-card, #printable-receipt-card * {
             visibility: visible;
           }
-          #printable-receipt-area {
+          #printable-receipt-card {
             position: absolute;
             left: 0;
             top: 0;
-            width: 80mm;
-            max-width: 80mm;
-            padding: 4mm 6mm !important;
-            margin: 0 !important;
+            width: ${printPaperSize === "A4" ? "190mm" : printPaperSize === "58mm" ? "52mm" : "74mm"} !important;
+            max-width: ${printPaperSize === "A4" ? "190mm" : printPaperSize === "58mm" ? "52mm" : "74mm"} !important;
+            margin: 0 auto !important;
+            padding: 4mm !important;
             background: #ffffff !important;
             color: #000000 !important;
             font-family: 'Courier New', Courier, monospace !important;
           }
-          .receipt-print-actions, .dialog-header, .dialog-footer {
+          .no-print {
             display: none !important;
           }
         }
@@ -1609,7 +1596,7 @@ export default function Home() {
             </>
           )}
 
-          {/* 2. POS TERMINAL */}
+          {/* 2. POS TERMINAL - WITH PADDING AND BUTTON CENTERING FIX */}
           {view === "pos" && (
             <>
               <div className="page-head pos-head">
@@ -1652,37 +1639,60 @@ export default function Home() {
                     ))}
                   </div>
                 </section>
-                <aside className="order-panel">
-                  <div className="order-head">
-                    <h2>Current order</h2>
-                    <span className="order-count">{cart.reduce((a, x) => a + x.qty, 0)} items</span>
-                  </div>
-                  <div className="cart-items">
-                    {cart.map((l) => {
-                      const d = dishes.find((x) => x.id === l.id)!;
-                      return (
-                        <div className="cart-item" key={l.id}>
-                          <span className="cart-emoji">{d.emoji}</span>
-                          <div className="cart-item-main">
-                            <b>{d.name}</b>
-                            <small>{money(l.override ?? d.price)} each</small>
-                            <div className="cart-controls">
-                              <button onClick={() => qty(l.id, -1)}><Minus size={13} /></button>
-                              <span>{l.qty}</span>
-                              <button onClick={() => qty(l.id, 1)}><Plus size={13} /></button>
+
+                <aside className="order-panel flex flex-col justify-between p-4 bg-card border rounded-2xl">
+                  <div>
+                    <div className="order-head flex justify-between items-center mb-4 pb-2 border-b">
+                      <h2 className="text-base font-bold">Current order</h2>
+                      <span className="order-count text-xs px-2.5 py-1 rounded-full bg-secondary font-semibold">
+                        {cart.reduce((a, x) => a + x.qty, 0)} items
+                      </span>
+                    </div>
+
+                    <div className="cart-items space-y-2 max-h-[460px] overflow-y-auto pr-1">
+                      {cart.map((l) => {
+                        const d = dishes.find((x) => x.id === l.id)!;
+                        return (
+                          <div className="cart-item flex items-center justify-between p-2 rounded-xl border bg-background" key={l.id}>
+                            <div className="flex items-center gap-2">
+                              <span className="text-xl">{d.emoji}</span>
+                              <div>
+                                <b className="text-xs block leading-tight">{d.name}</b>
+                                <small className="text-[11px] text-muted-foreground">{money(l.override ?? d.price)} each</small>
+                              </div>
+                            </div>
+                            <div className="flex items-center gap-2">
+                              <div className="cart-controls flex items-center border rounded-lg bg-secondary/30">
+                                <button className="p-1 hover:bg-secondary rounded-l" onClick={() => qty(l.id, -1)}><Minus size={12} /></button>
+                                <span className="px-2 text-xs font-bold">{l.qty}</span>
+                                <button className="p-1 hover:bg-secondary rounded-r" onClick={() => qty(l.id, 1)}><Plus size={12} /></button>
+                              </div>
+                              <strong className="text-xs w-16 text-right">{money(((l.override ?? d.price) - l.discount) * l.qty)}</strong>
                             </div>
                           </div>
-                          <strong>{money(((l.override ?? d.price) - l.discount) * l.qty)}</strong>
+                        );
+                      })}
+                      {!cart.length && (
+                        <div className="text-center py-12 text-muted-foreground text-xs">
+                          Your order is empty. Tap dishes to add.
                         </div>
-                      );
-                    })}
-                  </div>
-                  <div className="cart-footer">
-                    <div className="totals">
-                      <div><span>Total due</span><strong>{money(total)}</strong></div>
+                      )}
                     </div>
-                    <button className="checkout-btn" disabled={!cart.length} onClick={checkout}>
-                      <CreditCard size={19} /> Charge {money(total)}
+                  </div>
+
+                  {/* PROPERLY PADDED & CENTERED TOTAL DUE AND CHARGE BUTTON */}
+                  <div className="cart-footer mt-4 pt-3 border-t space-y-3">
+                    <div className="flex justify-between items-center px-1">
+                      <span className="text-xs font-medium text-muted-foreground">Total due</span>
+                      <strong className="text-lg font-bold">{money(total)}</strong>
+                    </div>
+
+                    <button
+                      className="w-full flex items-center justify-center gap-2 py-3 px-4 rounded-xl font-bold text-sm bg-amber-500 hover:bg-amber-600 text-white transition-all shadow-md active:scale-[0.99] disabled:opacity-50 disabled:cursor-not-allowed"
+                      disabled={!cart.length}
+                      onClick={checkout}
+                    >
+                      <CreditCard size={18} /> Charge {money(total)}
                     </button>
                   </div>
                 </aside>
@@ -1783,53 +1793,117 @@ export default function Home() {
             </>
           )}
 
-          {/* 5. TEAM & PAYROLL */}
+          {/* 5. TEAM & PAYROLL - FULLY RESTORED WITH EMPLOYEE DETAILS SHEET */}
           {view === "staff" && (
             <>
-              <div className="page-head">
+              <div className="page-head flex justify-between items-center">
                 <div>
-                  <div className="eyebrow">STAFF</div>
+                  <div className="eyebrow">YOUR PEOPLE</div>
                   <h1>Team & payroll</h1>
+                  <p>Profiles, shifts, and compensation in one place.</p>
                 </div>
-                <button className="primary-btn" onClick={() => open("employee")}><Plus size={17} /> Add employee</button>
+                <button className="primary-btn" onClick={() => open("employee")}>
+                  <Plus size={17} /> Add employee
+                </button>
               </div>
-              <div className="staff-grid">
+
+              <div className="staff-grid grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mt-6">
                 {staff.map((s, i) => (
-                  <div className="staff-card" key={s.name} role="button" tabIndex={0} onClick={() => openStaff(s)}>
-                    <span className={"staff-avatar a" + i}>{s.initial}</span>
-                    <span className="staff-name">{s.name}</span>
-                    <span className="staff-role">{s.role}</span>
-                    <span className="staff-meta"><span>Shift</span><b>{s.shift}</b></span>
-                    <span className="staff-meta"><span>Daily pay</span><b>{money(s.dailyRate)}</b></span>
+                  <div
+                    className="staff-card p-5 rounded-2xl border bg-card hover:border-indigo-500 cursor-pointer transition-all space-y-3"
+                    key={s.name}
+                    onClick={() => openStaff(s)}
+                  >
+                    <div className="flex justify-between items-start">
+                      <span className="w-10 h-10 rounded-full bg-indigo-100 text-indigo-700 font-bold flex items-center justify-center">
+                        {s.initial}
+                      </span>
+                      <div className="flex gap-1" onClick={(e) => e.stopPropagation()}>
+                        <button className="p-1 hover:bg-muted rounded" onClick={() => open("employee", s.id)}>
+                          <Pencil size={14} />
+                        </button>
+                        <button className="p-1 hover:bg-red-50 text-red-600 rounded" onClick={() => setStaff(old => old.filter(x => x.id !== s.id))}>
+                          <Trash2 size={14} />
+                        </button>
+                      </div>
+                    </div>
+                    <div>
+                      <div className="font-bold text-sm">{s.name}</div>
+                      <div className="text-xs text-muted-foreground">{s.role}</div>
+                    </div>
+                    <div className="pt-2 border-t text-xs space-y-1">
+                      <div className="flex justify-between">
+                        <span className="text-muted-foreground">Shift</span>
+                        <b>{s.shift}</b>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-muted-foreground">Base pay</span>
+                        <b>{money(s.dailyRate)} / day</b>
+                      </div>
+                    </div>
                   </div>
                 ))}
+              </div>
+
+              <div className="panel pay-note mt-6 p-4 rounded-xl border bg-secondary/30 flex items-center gap-3">
+                <Wallet size={20} className="text-indigo-600" />
+                <div className="text-xs">
+                  <b>Payroll overview:</b> {money(wages.filter((w) => w.status === "Paid").reduce((sum, w) => sum + w.amount, 0))} paid ·{" "}
+                  {money(wages.filter((w) => w.status === "Unpaid").reduce((sum, w) => sum + w.amount, 0))} due across recorded daily wages.
+                </div>
               </div>
             </>
           )}
 
-          {/* 6. EXPENSES */}
+          {/* 6. EXPENSES - FULLY RESTORED WITH CATEGORY DROPDOWN & SUMMARY */}
           {view === "expenses" && (
             <>
-              <div className="page-head">
+              <div className="page-head flex justify-between items-center">
                 <div>
-                  <div className="eyebrow">FINANCE</div>
+                  <div className="eyebrow">COST CONTROL</div>
                   <h1>Expenses</h1>
+                  <p>Every operational cost accounted for.</p>
                 </div>
-                <button className="primary-btn" onClick={() => open("expense")}><Plus size={17} /> Log expense</button>
+                <button className="primary-btn" onClick={() => open("expense")}>
+                  <Plus size={17} /> Log expense
+                </button>
               </div>
-              <div className="panel management-panel">
+
+              <div className="platform-stats grid grid-cols-3 gap-4 my-6">
+                <div className="p-4 bg-card rounded-xl border">
+                  <strong>{money(expenses.reduce((a, x) => a + x.amount, 0))}</strong>
+                  <span>Total Recorded Expenses</span>
+                </div>
+                <div className="p-4 bg-card rounded-xl border">
+                  <strong>{expenses.length}</strong>
+                  <span>Transactions Logged</span>
+                </div>
+                <div className="p-4 bg-card rounded-xl border">
+                  <strong>{expenses.length ? [...expenses].sort((a, b) => b.amount - a.amount)[0].category : "—"}</strong>
+                  <span>Largest Expense Category</span>
+                </div>
+              </div>
+
+              <div className="panel management-panel bg-card border rounded-xl p-4">
                 <div className="table-scroll">
-                  <table>
+                  <table className="w-full text-left">
                     <thead>
-                      <tr><th>DESCRIPTION</th><th>CATEGORY</th><th>VENDOR</th><th>AMOUNT</th></tr>
+                      <tr className="border-b text-xs text-muted-foreground">
+                        <th className="p-3">DESCRIPTION</th>
+                        <th className="p-3">CATEGORY</th>
+                        <th className="p-3">VENDOR</th>
+                        <th className="p-3">DATE</th>
+                        <th className="p-3">AMOUNT</th>
+                      </tr>
                     </thead>
                     <tbody>
                       {expenses.map((e) => (
-                        <tr key={e.id}>
-                          <td className="strong">{e.name}</td>
-                          <td>{e.category}</td>
-                          <td>{e.vendor}</td>
-                          <td className="strong">{money(e.amount)}</td>
+                        <tr key={e.id} className="border-b hover:bg-muted/40 text-xs">
+                          <td className="p-3 font-semibold">{e.name}</td>
+                          <td className="p-3"><span className="px-2 py-0.5 rounded bg-secondary text-[11px] font-medium">{e.category}</span></td>
+                          <td className="p-3 text-muted-foreground">{e.vendor}</td>
+                          <td className="p-3 font-mono">{e.date}</td>
+                          <td className="p-3 font-bold">{money(e.amount)}</td>
                         </tr>
                       ))}
                     </tbody>
@@ -1839,38 +1913,120 @@ export default function Home() {
             </>
           )}
 
-          {/* 7. SUPPLIERS */}
+          {/* 7. SUPPLIERS - FULLY RESTORED WITH DETAILED LEDGER */}
           {view === "suppliers" && (
             <>
-              <div className="page-head">
+              <div className="page-head flex justify-between items-center">
                 <div>
                   <div className="eyebrow">ACCOUNTS</div>
                   <h1>Suppliers</h1>
+                  <p>Track purchases, payments, and balances due for each supplier.</p>
                 </div>
-                <button className="primary-btn" onClick={() => open("supplier")}><Plus size={17} /> Add supplier</button>
+                <div className="flex gap-2">
+                  <button className="quiet-btn flex items-center gap-1.5" onClick={() => open("payment")}>
+                    <Wallet size={15} /> Record payment
+                  </button>
+                  <button className="primary-btn flex items-center gap-1.5" onClick={() => open("supplier")}>
+                    <Plus size={15} /> Add supplier
+                  </button>
+                </div>
               </div>
-              <div className="supplier-layout">
-                <section className="panel supplier-list">
-                  {suppliers.map((sp) => (
-                    <button key={sp.id} className={"supplier-row " + (supplierDetail === sp.id ? "selected" : "")} onClick={() => setSupplierDetail(sp.id)}>
-                      <span className="supplier-monogram">{sp.name.slice(0, 2).toUpperCase()}</span>
-                      <span className="supplier-main"><b>{sp.name}</b><small>{sp.phone}</small></span>
-                    </button>
-                  ))}
-                </section>
-                <section className="panel supplier-ledger">
+
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mt-6">
+                <div className="panel p-4 border rounded-xl bg-card space-y-2">
+                  <h2 className="text-sm font-bold mb-3">Supplier Directory</h2>
+                  {suppliers.map((sp) => {
+                    const billed = expenses.filter((x) => x.supplierId === sp.id).reduce((n, x) => n + x.amount, 0);
+                    const paid = supplierPayments.filter((x) => x.supplierId === sp.id).reduce((n, x) => n + x.amount, 0);
+                    const due = Math.max(0, billed - paid);
+                    return (
+                      <div
+                        key={sp.id}
+                        onClick={() => setSupplierDetail(sp.id)}
+                        className={`p-3 rounded-xl border cursor-pointer transition-all flex justify-between items-center ${
+                          supplierDetail === sp.id ? "border-indigo-500 bg-indigo-50/10" : "hover:bg-muted/40"
+                        }`}
+                      >
+                        <div>
+                          <b className="text-xs block">{sp.name}</b>
+                          <small className="text-[11px] text-muted-foreground">{sp.phone || sp.contact}</small>
+                        </div>
+                        <span className="text-xs font-mono font-bold text-amber-600">{money(due)}</span>
+                      </div>
+                    );
+                  })}
+                </div>
+
+                <div className="md:col-span-2 panel p-6 border rounded-xl bg-card">
                   {supplierDetail ? (
-                    <div className="p-4">
-                      <h3>{suppliers.find(x => x.id === supplierDetail)?.name}</h3>
-                      <p className="text-sm text-muted-foreground">{suppliers.find(x => x.id === supplierDetail)?.contact}</p>
+                    (() => {
+                      const sp = suppliers.find((x) => x.id === supplierDetail);
+                      const billed = expenses.filter((x) => x.supplierId === supplierDetail).reduce((n, x) => n + x.amount, 0);
+                      const paid = supplierPayments.filter((x) => x.supplierId === supplierDetail).reduce((n, x) => n + x.amount, 0);
+                      const due = Math.max(0, billed - paid);
+                      const transactions = [
+                        ...expenses.filter(x => x.supplierId === supplierDetail).map(x => ({ id: String(x.id), date: x.date, label: x.name, type: "Purchase", amount: x.amount })),
+                        ...supplierPayments.filter(x => x.supplierId === supplierDetail).map(x => ({ id: x.id, date: x.date, label: x.note || x.method, type: "Payment", amount: x.amount }))
+                      ].sort((a, b) => b.date.localeCompare(a.date));
+
+                      return (
+                        <div className="space-y-4">
+                          <div className="flex justify-between items-start pb-4 border-b">
+                            <div>
+                              <h3 className="text-lg font-bold">{sp?.name}</h3>
+                              <p className="text-xs text-muted-foreground">{sp?.email} · {sp?.phone}</p>
+                            </div>
+                            <div className="text-right">
+                              <span className="text-xs text-muted-foreground block">Balance Due</span>
+                              <strong className="text-xl text-amber-600">{money(due)}</strong>
+                            </div>
+                          </div>
+
+                          <div className="grid grid-cols-2 gap-4 text-xs">
+                            <div className="p-3 bg-secondary/30 rounded-lg">Total Purchases: <b>{money(billed)}</b></div>
+                            <div className="p-3 bg-secondary/30 rounded-lg">Total Paid: <b>{money(paid)}</b></div>
+                          </div>
+
+                          <div className="table-scroll mt-4">
+                            <table className="w-full text-left text-xs">
+                              <thead>
+                                <tr className="border-b text-muted-foreground">
+                                  <th className="py-2">DATE</th>
+                                  <th className="py-2">NOTE</th>
+                                  <th className="py-2">TYPE</th>
+                                  <th className="py-2">AMOUNT</th>
+                                </tr>
+                              </thead>
+                              <tbody>
+                                {transactions.map(t => (
+                                  <tr key={t.id} className="border-b">
+                                    <td className="py-2 font-mono">{t.date}</td>
+                                    <td className="py-2">{t.label}</td>
+                                    <td className="py-2">
+                                      <span className={`px-2 py-0.5 rounded text-[10px] font-bold ${t.type === "Payment" ? "bg-green-100 text-green-800" : "bg-blue-100 text-blue-800"}`}>
+                                        {t.type}
+                                      </span>
+                                    </td>
+                                    <td className="py-2 font-bold">{t.type === "Payment" ? "−" : "+"}{money(t.amount)}</td>
+                                  </tr>
+                                ))}
+                              </tbody>
+                            </table>
+                          </div>
+                        </div>
+                      );
+                    })()
+                  ) : (
+                    <div className="text-center py-16 text-muted-foreground text-xs">
+                      Select a supplier from the directory to view complete purchase and payment history.
                     </div>
-                  ) : <div className="empty-state">Select a supplier to see records.</div>}
-                </section>
+                  )}
+                </div>
               </div>
             </>
           )}
 
-          {/* 8. RESTAURANT SUBSCRIPTION (EXACTLY MATCHING ATTACHED SCREENSHOT) */}
+          {/* 8. RESTAURANT SUBSCRIPTION (MATCHING REFERENCE ATTACHED SCREENSHOT) */}
           {view === "subscription" && (
             <>
               <div className="page-head">
@@ -1881,7 +2037,7 @@ export default function Home() {
                 </div>
               </div>
 
-              {/* Grid of Plans (Matching screenshot: Free trial, Monthly, Yearly) */}
+              {/* Grid of Plans */}
               <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
                 {plans.map((p) => {
                   const isSelected = activeInlinePlan?.id === p.id;
@@ -1923,7 +2079,7 @@ export default function Home() {
                 })}
               </div>
 
-              {/* DYNAMIC PAYMENT BOX UNDER CARDS (MATCHING THE ATTACHED SCREENSHOT) */}
+              {/* DYNAMIC QR AND PROOF BOX UNDER CARDS[cite: 4] */}
               {activeInlinePlan && activeInlinePlan.price > 0 && (
                 <div
                   className="max-w-md mx-auto rounded-2xl p-6 border text-center shadow-lg my-8"
@@ -1936,7 +2092,6 @@ export default function Home() {
                     Pay {money(activeInlinePlan.price)}
                   </div>
 
-                  {/* Scannable Live QR Code */}
                   <div className="bg-white p-3 rounded-2xl inline-block mx-auto mb-4 border border-gray-200">
                     <img
                       src={inlineQrImageUrl}
@@ -1945,7 +2100,6 @@ export default function Home() {
                     />
                   </div>
 
-                  {/* Open UPI App Button */}
                   <button
                     onClick={() => {
                       window.location.href = inlineUpiPayUri;
@@ -1956,7 +2110,6 @@ export default function Home() {
                     Open UPI app
                   </button>
 
-                  {/* Upload payment screenshot button */}
                   <div className="mb-4">
                     <input
                       type="file"
@@ -1974,7 +2127,6 @@ export default function Home() {
                     </button>
                   </div>
 
-                  {/* UPI transaction reference input */}
                   <div className="text-left mb-4">
                     <label className="text-[11px] font-semibold text-gray-400 block mb-1">
                       <span className="text-red-500 mr-1">*</span>UPI transaction reference
@@ -1989,7 +2141,6 @@ export default function Home() {
                     />
                   </div>
 
-                  {/* Submit payment reference button */}
                   <button
                     onClick={handleInlineSubmitReference}
                     disabled={inlineSubmitBusy}
@@ -2002,34 +2153,136 @@ export default function Home() {
             </>
           )}
 
-          {/* 9. SETTINGS WITH PASSWORD RESET */}
+          {/* 9. SETTINGS - WITH GST, CGST, SGST & PASSWORD RESET */}
           {view === "settings" && (
             <>
               <div className="page-head">
-                <h1>Settings & Preferences</h1>
+                <div className="eyebrow">PREFERENCES</div>
+                <h1>Settings & Tax Details</h1>
+                <p>Configure restaurant identity, GST tax slabs, and account security.</p>
               </div>
-              <div className="settings-grid">
-                <section className="panel settings-panel">
-                  <h2>Restaurant identity</h2>
-                  <div className="settings-fields">
-                    <label>Restaurant name<input value={storeForm.name} onChange={(e) => setStoreForm({ ...storeForm, name: e.target.value })} /></label>
-                    <label>Phone number<input value={storeForm.phone} onChange={(e) => setStoreForm({ ...storeForm, phone: e.target.value })} /></label>
+
+              <div className="settings-grid grid grid-cols-1 md:grid-cols-2 gap-6 mt-6">
+                <section className="panel p-6 border rounded-2xl bg-card space-y-4">
+                  <h2 className="text-base font-bold">Restaurant & GST Details</h2>
+                  <div className="space-y-3">
+                    <label className="block space-y-1">
+                      <span className="text-xs font-medium text-muted-foreground">Restaurant Name</span>
+                      <input
+                        value={storeForm.name}
+                        onChange={(e) => setStoreForm({ ...storeForm, name: e.target.value })}
+                        className="w-full p-2 border rounded-lg text-xs bg-background"
+                      />
+                    </label>
+                    <label className="block space-y-1">
+                      <span className="text-xs font-medium text-muted-foreground">Phone Number</span>
+                      <input
+                        value={storeForm.phone}
+                        onChange={(e) => setStoreForm({ ...storeForm, phone: e.target.value })}
+                        className="w-full p-2 border rounded-lg text-xs bg-background"
+                      />
+                    </label>
+                    <label className="block space-y-1">
+                      <span className="text-xs font-medium text-muted-foreground">Address</span>
+                      <input
+                        value={storeForm.address}
+                        onChange={(e) => setStoreForm({ ...storeForm, address: e.target.value })}
+                        className="w-full p-2 border rounded-lg text-xs bg-background"
+                      />
+                    </label>
+
+                    {/* COMPLETE GST BREAKDOWN FIELDS */}
+                    <div className="pt-2 border-t space-y-2">
+                      <label className="block space-y-1">
+                        <span className="text-xs font-medium text-muted-foreground">GSTIN (GST Number)</span>
+                        <input
+                          value={storeForm.gstin}
+                          onChange={(e) => setStoreForm({ ...storeForm, gstin: e.target.value })}
+                          placeholder="29AAAAA0000A1Z5"
+                          className="w-full p-2 border rounded-lg text-xs font-mono bg-background"
+                        />
+                      </label>
+                      <div className="grid grid-cols-3 gap-2">
+                        <label className="block space-y-1">
+                          <span className="text-xs font-medium text-muted-foreground">GST Total %</span>
+                          <input
+                            type="number"
+                            value={storeForm.gst_percent}
+                            onChange={(e) => setStoreForm({ ...storeForm, gst_percent: e.target.value })}
+                            className="w-full p-2 border rounded-lg text-xs bg-background"
+                          />
+                        </label>
+                        <label className="block space-y-1">
+                          <span className="text-xs font-medium text-muted-foreground">CGST %</span>
+                          <input
+                            type="number"
+                            value={storeForm.cgst_percent}
+                            onChange={(e) => setStoreForm({ ...storeForm, cgst_percent: e.target.value })}
+                            className="w-full p-2 border rounded-lg text-xs bg-background"
+                          />
+                        </label>
+                        <label className="block space-y-1">
+                          <span className="text-xs font-medium text-muted-foreground">SGST %</span>
+                          <input
+                            type="number"
+                            value={storeForm.sgst_percent}
+                            onChange={(e) => setStoreForm({ ...storeForm, sgst_percent: e.target.value })}
+                            className="w-full p-2 border rounded-lg text-xs bg-background"
+                          />
+                        </label>
+                      </div>
+                    </div>
                   </div>
-                  <button className="primary-btn mt-3" onClick={() => toast.success("Saved")}>Save details</button>
+
+                  <button
+                    className="primary-btn w-full mt-2"
+                    onClick={() => {
+                      setTenantInfo({
+                        ...tenantInfo,
+                        name: storeForm.name,
+                        address: storeForm.address,
+                        business_phone: storeForm.phone,
+                        gstin: storeForm.gstin,
+                        gst_percent: Number(storeForm.gst_percent) || 5,
+                        cgst_percent: Number(storeForm.cgst_percent) || 2.5,
+                        sgst_percent: Number(storeForm.sgst_percent) || 2.5,
+                      });
+                      toast.success("Restaurant & GST settings saved!");
+                    }}
+                  >
+                    Save Details
+                  </button>
                 </section>
 
-                <section className="panel settings-panel">
-                  <h2>Password & Security</h2>
-                  <form onSubmit={handleResetPassword} className="space-y-4">
+                <section className="panel p-6 border rounded-2xl bg-card space-y-4">
+                  <h2 className="text-base font-bold">Password & Security</h2>
+                  <p className="text-xs text-muted-foreground">Reset the account login password.</p>
+                  <form onSubmit={handleResetPassword} className="space-y-3">
                     <label className="block space-y-1">
-                      <span className="text-sm font-medium">New Password</span>
-                      <input type="password" required minLength={6} value={newPassword} onChange={(e) => setNewPassword(e.target.value)} placeholder="••••••••" className="w-full p-2 border rounded-md text-sm bg-transparent" />
+                      <span className="text-xs font-medium text-muted-foreground">New Password</span>
+                      <input
+                        type="password"
+                        required
+                        minLength={6}
+                        value={newPassword}
+                        onChange={(e) => setNewPassword(e.target.value)}
+                        placeholder="••••••••"
+                        className="w-full p-2 border rounded-lg text-xs bg-background"
+                      />
                     </label>
                     <label className="block space-y-1">
-                      <span className="text-sm font-medium">Confirm New Password</span>
-                      <input type="password" required minLength={6} value={confirmPassword} onChange={(e) => setConfirmPassword(e.target.value)} placeholder="••••••••" className="w-full p-2 border rounded-md text-sm bg-transparent" />
+                      <span className="text-xs font-medium text-muted-foreground">Confirm New Password</span>
+                      <input
+                        type="password"
+                        required
+                        minLength={6}
+                        value={confirmPassword}
+                        onChange={(e) => setConfirmPassword(e.target.value)}
+                        placeholder="••••••••"
+                        className="w-full p-2 border rounded-lg text-xs bg-background"
+                      />
                     </label>
-                    <button type="submit" className="primary-btn flex items-center gap-2" disabled={pwdBusy}>
+                    <button type="submit" className="primary-btn w-full flex items-center justify-center gap-2" disabled={pwdBusy}>
                       <KeyRound size={16} /> {pwdBusy ? "Resetting…" : "Reset Password"}
                     </button>
                   </form>
@@ -2097,13 +2350,12 @@ export default function Home() {
                 </button>
               </div>
 
-              {/* 11A. SUBSCRIPTION PAYMENT PROOFS QUEUE */}
+              {/* SUBSCRIPTION PROOFS QUEUE */}
               <section className="panel management-panel mb-8 mt-4">
                 <div className="panel-header border-b pb-3 mb-4">
                   <h2 className="text-lg font-bold flex items-center gap-2">
                     Subscription Renewal Approvals <span className="count-pill">{subscriptionRequests.length}</span>
                   </h2>
-                  <p className="text-sm text-muted-foreground">Approve payment proofs to automatically renew plan validity.</p>
                 </div>
                 <div className="table-scroll">
                   <table>
@@ -2111,7 +2363,7 @@ export default function Home() {
                       <tr>
                         <th>RESTAURANT</th>
                         <th>OWNER</th>
-                        <th>REQUESTED PLAN</th>
+                        <th>PLAN</th>
                         <th>PAYMENT PROOF</th>
                         <th>TRANSACTION NOTE</th>
                         <th>ACTION</th>
@@ -2170,7 +2422,7 @@ export default function Home() {
                 </div>
               </section>
 
-              {/* 11B. ONBOARDING APPLICATIONS QUEUE */}
+              {/* ONBOARDING REGISTRATIONS */}
               <section className="panel management-panel">
                 <div className="panel-header border-b pb-3 mb-4">
                   <h2 className="text-lg font-bold flex items-center gap-2">
@@ -2204,7 +2456,7 @@ export default function Home() {
             </>
           )}
 
-          {/* 12. ADMIN: PRICING & UPI CONFIGURATION */}
+          {/* 12. ADMIN: PRICING PLANS */}
           {view === "pricing" && isAdmin && (
             <>
               <div className="page-head flex justify-between items-center">
@@ -2221,6 +2473,15 @@ export default function Home() {
                 </div>
                 <button className="primary-btn mt-3" onClick={saveAdminUpi} disabled={adminUpiBusy}>Save Admin UPI ID</button>
               </section>
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                {plans.map((p) => (
+                  <div key={p.id} className="p-5 border rounded-2xl bg-card space-y-2">
+                    <h3 className="font-bold text-sm">{p.name}</h3>
+                    <div className="text-2xl font-black">{money(p.price)} <small className="text-xs font-normal text-muted-foreground">/{p.period}</small></div>
+                    <p className="text-xs text-muted-foreground">{p.features}</p>
+                  </div>
+                ))}
+              </div>
             </>
           )}
         </main>
@@ -2228,7 +2489,7 @@ export default function Home() {
 
       {mobileNav && <button className="nav-backdrop" aria-label="Close navigation" onClick={() => setMobileNav(false)} />}
 
-      {/* Inventory Add/Edit Modal */}
+      {/* MODAL: INVENTORY ADD / EDIT */}
       <Dialog open={modal === "inventory"} onOpenChange={(v) => !v && setModal(null)}>
         <DialogContent className="max-w-md">
           <DialogHeader>
@@ -2261,84 +2522,245 @@ export default function Home() {
         </DialogContent>
       </Dialog>
 
-      {/* Global Add/Edit Entity Modal */}
+      {/* MODAL: GENERAL ENTITY ADD / EDIT */}
       <Dialog open={!!modal && modal !== "inventory"} onOpenChange={(v) => !v && setModal(null)}>
         <DialogContent className="modal-content">
           <DialogHeader>
-            <DialogTitle>Add / Edit Details</DialogTitle>
+            <DialogTitle>
+              {modal === "plan" ? (editing ? "Edit Plan" : "Add Plan")
+                : modal === "dish" ? (editing ? "Edit Dish" : "Add Dish")
+                : modal === "supplier" ? (editing ? "Edit Supplier" : "Add Supplier")
+                : modal === "employee" ? (editing ? "Edit Employee" : "Add Employee")
+                : modal === "expense" ? "Log Expense"
+                : modal === "restaurant" ? "Add Restaurant"
+                : "Record Payment"}
+            </DialogTitle>
           </DialogHeader>
           <div className="modal-fields">
+            {modal === "plan" && (
+              <>
+                <label>Plan name<input value={form.name || ""} onChange={(e) => setForm({ ...form, name: e.target.value })} /></label>
+                <label>Price (₹)<input type="number" value={form.price || ""} onChange={(e) => setForm({ ...form, price: e.target.value })} /></label>
+                <label>Period (7 days / 30 days / 365 days)<input value={form.period || ""} onChange={(e) => setForm({ ...form, period: e.target.value })} /></label>
+                <label>Features<input value={form.features || ""} onChange={(e) => setForm({ ...form, features: e.target.value })} /></label>
+              </>
+            )}
             {modal === "dish" && (
               <>
                 <label>Dish name<input value={form.name || ""} onChange={(e) => setForm({ ...form, name: e.target.value })} /></label>
+                <label>Category<input value={form.category || "Mains"} onChange={(e) => setForm({ ...form, category: e.target.value })} /></label>
                 <label>Price (₹)<input type="number" value={form.price || ""} onChange={(e) => setForm({ ...form, price: e.target.value })} /></label>
               </>
             )}
             {modal === "expense" && (
               <>
                 <label>Description<input value={form.name || ""} onChange={(e) => setForm({ ...form, name: e.target.value })} /></label>
+                <label>
+                  Category
+                  <select value={form.category || "Inventory"} onChange={(e) => setForm({ ...form, category: e.target.value })}>
+                    <option value="Inventory">Inventory</option>
+                    <option value="Utilities">Utilities</option>
+                    <option value="Maintenance">Maintenance</option>
+                    <option value="Marketing">Marketing</option>
+                    <option value="Rent">Rent</option>
+                    <option value="Staff welfare">Staff welfare</option>
+                  </select>
+                </label>
+                <label>
+                  Linked Supplier (optional)
+                  <select value={form.supplierId || ""} onChange={(e) => setForm({ ...form, supplierId: e.target.value })}>
+                    <option value="">None</option>
+                    {suppliers.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
+                  </select>
+                </label>
                 <label>Amount (₹)<input type="number" value={form.amount || ""} onChange={(e) => setForm({ ...form, amount: e.target.value })} /></label>
+              </>
+            )}
+            {modal === "supplier" && (
+              <>
+                <label>Supplier name<input value={form.name || ""} onChange={(e) => setForm({ ...form, name: e.target.value })} /></label>
+                <label>Contact person<input value={form.contact || ""} onChange={(e) => setForm({ ...form, contact: e.target.value })} /></label>
+                <label>Phone<input value={form.phone || ""} onChange={(e) => setForm({ ...form, phone: e.target.value })} /></label>
               </>
             )}
             {modal === "employee" && (
               <>
                 <label>Full name<input value={form.name || ""} onChange={(e) => setForm({ ...form, name: e.target.value })} /></label>
                 <label>Role<input value={form.role || ""} onChange={(e) => setForm({ ...form, role: e.target.value })} /></label>
+                <label>Daily rate (₹)<input type="number" value={form.dailyRate || ""} onChange={(e) => setForm({ ...form, dailyRate: e.target.value })} /></label>
+              </>
+            )}
+            {modal === "payment" && (
+              <>
+                <label>
+                  Supplier
+                  <select value={form.supplierId || ""} onChange={(e) => setForm({ ...form, supplierId: e.target.value })}>
+                    <option value="">Select</option>
+                    {suppliers.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
+                  </select>
+                </label>
+                <label>Amount (₹)<input type="number" value={form.amount || ""} onChange={(e) => setForm({ ...form, amount: e.target.value })} /></label>
               </>
             )}
           </div>
           <DialogFooter>
             <button className="quiet-btn" onClick={() => setModal(null)}>Cancel</button>
-            <button className="primary-btn" onClick={save}>Save</button>
+            <button className="primary-btn" onClick={save}>Save changes</button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
 
-      {/* RECEIPT POPUP DIALOG - EXACT PROFESSIONAL THERMAL ALIGNMENT */}
+      {/* EMPLOYEE DETAILS SHEET */}
+      <Sheet open={!!selectedStaff} onOpenChange={(v) => !v && setSelectedStaff(null)}>
+        <SheetContent className="profile-sheet">
+          <SheetHeader>
+            <SheetTitle>Employee & Wage Record</SheetTitle>
+          </SheetHeader>
+          {selectedStaff && (
+            <div className="space-y-4 py-4 text-xs">
+              <div className="flex items-center gap-3 p-3 bg-secondary/30 rounded-xl">
+                <span className="w-10 h-10 rounded-full bg-indigo-200 text-indigo-800 font-bold flex items-center justify-center">
+                  {selectedStaff.initial}
+                </span>
+                <div>
+                  <h3 className="text-sm font-bold">{selectedStaff.name}</h3>
+                  <p className="text-muted-foreground">{selectedStaff.role} · {selectedStaff.phone}</p>
+                </div>
+              </div>
+
+              <div className="space-y-2 p-3 border rounded-xl">
+                <div className="font-bold">Record Day's Wage</div>
+                <div className="grid grid-cols-2 gap-2">
+                  <label className="space-y-1">
+                    <span>Date</span>
+                    <input
+                      type="date"
+                      value={wageForm.date}
+                      onChange={(e) => setWageForm({ ...wageForm, date: e.target.value })}
+                      className="w-full p-1.5 border rounded"
+                    />
+                  </label>
+                  <label className="space-y-1">
+                    <span>Amount (₹)</span>
+                    <input
+                      type="number"
+                      value={wageForm.amount}
+                      onChange={(e) => setWageForm({ ...wageForm, amount: e.target.value })}
+                      className="w-full p-1.5 border rounded"
+                    />
+                  </label>
+                </div>
+                <button
+                  className="primary-btn w-full mt-2"
+                  onClick={() => {
+                    if (!wageForm.amount) return;
+                    setWages([
+                      { id: Date.now(), staffId: selectedStaff.id, date: wageForm.date, amount: Number(wageForm.amount), status: "Unpaid", note: "Wage" },
+                      ...wages
+                    ]);
+                    toast.success("Wage logged");
+                  }}
+                >
+                  Save Wage Entry
+                </button>
+              </div>
+
+              <div className="space-y-2">
+                <div className="font-bold">Wage History</div>
+                <div className="space-y-1.5 max-h-48 overflow-y-auto">
+                  {wages.filter(w => w.staffId === selectedStaff.id).map(w => (
+                    <div key={w.id} className="p-2 border rounded-lg flex justify-between items-center">
+                      <div>
+                        <div>{w.date}</div>
+                        <small className="text-muted-foreground">{w.note || "Daily wage"}</small>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <b>{money(w.amount)}</b>
+                        <button
+                          className={`px-2 py-0.5 rounded text-[10px] font-bold ${w.status === "Paid" ? "bg-green-100 text-green-800" : "bg-amber-100 text-amber-800"}`}
+                          onClick={() => {
+                            setWages(old => old.map(item => item.id === w.id ? { ...item, status: item.status === "Paid" ? "Unpaid" : "Paid" } : item));
+                          }}
+                        >
+                          {w.status}
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+          )}
+        </SheetContent>
+      </Sheet>
+
+      {/* PRINTABLE RECEIPT DIALOG - FIXED ALIGNMENT WITH 58mm, 80mm & A4 SELECTION */}
       <Dialog open={!!receipt} onOpenChange={(v) => !v && setReceipt(null)}>
         <DialogContent className="max-w-md p-6 bg-slate-900 border border-slate-800 text-white">
-          <DialogHeader className="dialog-header">
-            <DialogTitle className="text-lg font-bold">Bill Details & Receipt</DialogTitle>
+          <DialogHeader className="no-print">
+            <DialogTitle className="text-base font-bold">Bill Details & Receipt</DialogTitle>
+            <DialogDescription className="text-xs text-muted-foreground">Select print format size and print</DialogDescription>
           </DialogHeader>
+
+          {/* Paper Size Selector (58mm, 80mm, A4) */}
+          <div className="no-print flex items-center justify-between p-2.5 mb-2 rounded-xl bg-slate-800/80 border border-slate-700 text-xs">
+            <span className="font-semibold text-gray-300">Format:</span>
+            <div className="flex gap-1.5">
+              {(["58mm", "80mm", "A4"] as const).map((sz) => (
+                <button
+                  key={sz}
+                  onClick={() => setPrintPaperSize(sz)}
+                  className={`px-2.5 py-1 rounded-lg text-xs font-bold transition-all ${
+                    printPaperSize === sz
+                      ? "bg-amber-500 text-white"
+                      : "bg-slate-700 text-gray-300 hover:bg-slate-600"
+                  }`}
+                >
+                  {sz}
+                </button>
+              ))}
+            </div>
+          </div>
 
           {receipt && (
             <div
-              id="printable-receipt-area"
-              className="p-6 bg-white text-black rounded-2xl shadow-xl font-mono text-xs space-y-3"
+              id="printable-receipt-card"
+              className="p-5 bg-white text-black rounded-xl font-mono text-xs space-y-2 border shadow-lg"
             >
-              {/* Header */}
-              <div className="text-center space-y-1">
-                <div className="text-base font-extrabold uppercase tracking-wider">
+              <div className="text-center space-y-0.5">
+                <div className="text-sm font-extrabold uppercase tracking-wide">
                   {receipt.business?.name || "The Saffron Table"}
                 </div>
-                <div className="text-[11px] text-gray-600">
-                  {receipt.business?.address || "12 Church Street, Bengaluru"}
+                <div className="text-[10px] text-gray-600 leading-tight">
+                  {receipt.business?.address}
                 </div>
                 {receipt.business?.business_phone && (
-                  <div className="text-[11px] text-gray-600">
+                  <div className="text-[10px] text-gray-600">
                     Ph: {receipt.business.business_phone}
+                  </div>
+                )}
+                {receipt.business?.gstin && (
+                  <div className="text-[10px] font-bold text-gray-700">
+                    GSTIN: {receipt.business.gstin}
                   </div>
                 )}
               </div>
 
-              {/* Separator */}
-              <div className="border-b border-dashed border-gray-400 my-2" />
+              <div className="border-b border-dashed border-gray-400 my-1.5" />
 
-              {/* Order Meta */}
               <div className="flex justify-between text-[11px] font-bold">
                 <span>Bill: {receipt.id}</span>
                 <span>{receipt.type}</span>
               </div>
               <div className="text-[10px] text-gray-500">{receipt.issuedAt}</div>
 
-              {/* Separator */}
-              <div className="border-b border-dashed border-gray-400 my-2" />
+              <div className="border-b border-dashed border-gray-400 my-1.5" />
 
               {/* Items List */}
-              <div className="space-y-1.5 text-[11px]">
+              <div className="space-y-1 text-[11px]">
                 {receipt.items.map((item, idx) => (
                   <div key={idx} className="flex justify-between items-start">
-                    <span className="flex-1 pr-2">
+                    <span className="flex-1 pr-2 truncate">
                       {item.qty}x {item.name}
                     </span>
                     <span className="font-semibold">{money(item.qty * item.unitPrice)}</span>
@@ -2346,11 +2768,10 @@ export default function Home() {
                 ))}
               </div>
 
-              {/* Separator */}
-              <div className="border-b border-dashed border-gray-400 my-2" />
+              <div className="border-b border-dashed border-gray-400 my-1.5" />
 
-              {/* Financial Totals */}
-              <div className="space-y-1 text-[11px]">
+              {/* Totals & GST Slabs */}
+              <div className="space-y-0.5 text-[11px]">
                 <div className="flex justify-between">
                   <span>Subtotal:</span>
                   <span>{money(receipt.subtotal)}</span>
@@ -2361,9 +2782,13 @@ export default function Home() {
                     <span>−{money(receipt.discount)}</span>
                   </div>
                 )}
-                <div className="flex justify-between">
-                  <span>Tax (5%):</span>
-                  <span>{money(receipt.tax)}</span>
+                <div className="flex justify-between text-gray-600 text-[10px]">
+                  <span>CGST ({tenantInfo.cgst_percent}%):</span>
+                  <span>{money(receipt.cgst)}</span>
+                </div>
+                <div className="flex justify-between text-gray-600 text-[10px]">
+                  <span>SGST ({tenantInfo.sgst_percent}%):</span>
+                  <span>{money(receipt.sgst)}</span>
                 </div>
                 <div className="border-b border-solid border-gray-800 my-1" />
                 <div className="flex justify-between text-sm font-extrabold pt-0.5">
@@ -2372,14 +2797,13 @@ export default function Home() {
                 </div>
               </div>
 
-              {/* Footer */}
-              <div className="text-center text-[10px] text-gray-500 pt-3 border-t border-dashed border-gray-300">
+              <div className="text-center text-[10px] text-gray-500 pt-2 border-t border-dashed border-gray-300">
                 {receipt.business?.receipt_footer || "Thank you for dining with us!"}
               </div>
             </div>
           )}
 
-          <DialogFooter className="dialog-footer mt-4 flex gap-2">
+          <DialogFooter className="no-print mt-4 flex gap-2">
             <button className="quiet-btn" onClick={() => setReceipt(null)}>
               Close
             </button>
@@ -2389,7 +2813,7 @@ export default function Home() {
                 window.print();
               }}
             >
-              <Printer size={16} /> Print Receipt
+              <Printer size={16} /> Print Receipt ({printPaperSize})
             </button>
           </DialogFooter>
         </DialogContent>

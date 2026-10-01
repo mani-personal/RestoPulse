@@ -384,6 +384,7 @@ export default function Home() {
   const [staff, setStaff] = useState<Staff[]>(initialStaff);
   const [wages, setWages] = useState<Wage[]>(initialWages);
   const [wageForm, setWageForm] = useState({ date: new Date().toLocaleDateString("en-CA"), amount: "", note: "" });
+  const [printSize, setPrintSize] = useState<"58mm" | "85mm" | "A4">("58mm");
   const [dark, setDark] = useState(false);
   const [mobileNav, setMobileNav] = useState(false);
   const [notifications, setNotifications] = useState(false);
@@ -497,7 +498,6 @@ export default function Home() {
     };
   }, [db, authUser]);
 
-  // Load Admin UPI ID from persistent storage and backend
   useEffect(() => {
     const savedUpi = localStorage.getItem("rp-admin-upi");
     if (savedUpi) {
@@ -857,7 +857,6 @@ export default function Home() {
     setWageForm({ date: new Date().toLocaleDateString("en-CA"), amount: String(person.dailyRate), note: "" });
   };
 
-  // Save Admin UPI ID and synchronize locally and on server
   const saveAdminUpi = async () => {
     setAdminUpiBusy(true);
     const trimmed = adminUpiId.trim();
@@ -872,6 +871,17 @@ export default function Home() {
     } catch {}
     toast.success("Admin payment UPI ID saved successfully!");
     setAdminUpiBusy(false);
+  };
+
+  // Copy UPI Functionality
+  const copyUpi = async () => {
+    const targetUpi = subscriptionUpiId || adminUpiId || "admin-restopulse@upi";
+    try {
+      await navigator.clipboard.writeText(targetUpi);
+      toast.success("UPI ID copied to clipboard!");
+    } catch {
+      toast.info(`UPI ID: ${targetUpi}`);
+    }
   };
 
   const handleChoosePlan = (plan: Plan) => {
@@ -898,7 +908,6 @@ export default function Home() {
     }, 600);
   };
 
-  // Reset Password Handler
   const handleResetPassword = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!newPassword || newPassword.length < 6) {
@@ -992,7 +1001,6 @@ export default function Home() {
       </div>
     );
 
-  // Formatted UPI URI for instant QR generation
   const upiPayUri = selectedPlanForPayment
     ? `upi://pay?pa=${encodeURIComponent(subscriptionUpiId)}&pn=${encodeURIComponent("RestoPulse")}&am=${encodeURIComponent(selectedPlanForPayment.price.toFixed(2))}&cu=INR&tn=${encodeURIComponent(`${currentRestaurant?.name || 'Restaurant'} ${selectedPlanForPayment.name}`)}`
     : `upi://pay?pa=${encodeURIComponent(subscriptionUpiId)}&pn=${encodeURIComponent("RestoPulse")}&cu=INR`;
@@ -2147,7 +2155,6 @@ export default function Home() {
             </DialogDescription>
           </DialogHeader>
           <div className="flex flex-col items-center justify-center p-4 bg-white rounded-xl border space-y-3">
-            {/* Scannable live QR image with encoded amount and admin UPI ID */}
             <div className="p-2 border-2 border-dashed border-gray-300 rounded-xl bg-white shadow-inner flex items-center justify-center">
               <img
                 src={qrImageUrl}

@@ -44,6 +44,7 @@ import {
   RefreshCw,
   Clock,
   X,
+  ImageIcon,
 } from "lucide-react";
 import {
   AreaChart,
@@ -343,16 +344,9 @@ export default function Home() {
   const [view, setView] = useState<View>("dashboard");
   const [profileMenu, setProfileMenu] = useState(false);
   const [accountRole, setAccountRole] = useState<"admin" | "restaurant">("restaurant");
-  const [staff, setStaff] = useState<Staff[]>([]);
-  const [wages, setWages] = useState<Wage[]>([]);
-  const [wageForm, setWageForm] = useState({ date: new Date().toLocaleDateString("en-CA"), amount: "", note: "" });
-  const [selectedStaff, setSelectedStaff] = useState<Staff | null>(null);
-
-  const [printPaperSize, setPrintPaperSize] = useState<"58mm" | "80mm" | "A4">("80mm");
-
-  const [dark, setDark] = useState(false);
   const [mobileNav, setMobileNav] = useState(false);
   const [notifications, setNotifications] = useState(false);
+  const [dark, setDark] = useState(false);
   const [dishes, setDishes] = useState<Dish[]>(initialDishes);
 
   // Dynamic Plans state synced with server
@@ -362,6 +356,11 @@ export default function Home() {
   const [approvals, setApprovals] = useState<RestaurantApproval[]>([]);
   const [subscriptionRequests, setSubscriptionRequests] = useState<Array<any>>([]);
   const [expenses, setExpenses] = useState<Expense[]>([]);
+  const [staff, setStaff] = useState<Staff[]>([]);
+  const [wages, setWages] = useState<Wage[]>([]);
+  const [wageForm, setWageForm] = useState({ date: new Date().toLocaleDateString("en-CA"), amount: "", note: "" });
+  const [selectedStaff, setSelectedStaff] = useState<Staff | null>(null);
+
   const [cart, setCart] = useState<CartLine[]>([]);
   const [category, setCategory] = useState("All items");
   const [query, setQuery] = useState("");
@@ -391,6 +390,11 @@ export default function Home() {
   const [inlineSubmitBusy, setInlineSubmitBusy] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
+  // Dish Image Upload Ref
+  const dishImageInputRef = useRef<HTMLInputElement>(null);
+  const [dishImageUploading, setDishImageUploading] = useState(false);
+
+  const [printPaperSize, setPrintPaperSize] = useState<"58mm" | "80mm" | "A4">("80mm");
   const [newPassword, setNewPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [pwdBusy, setPwdBusy] = useState(false);
@@ -644,8 +648,11 @@ export default function Home() {
   useEffect(() => {
     if (!tenantId) return;
     try {
-      const raw = localStorage.getItem(`rp-inventory-list:${tenantId}`);
-      if (raw) setInventoryList(JSON.parse(raw));
+      const savedInv = localStorage.getItem(`rp-inventory-list:${tenantId}`);
+      if (savedInv) setInventoryList(JSON.parse(savedInv));
+
+      const savedDishes = localStorage.getItem(`rp-dishes:${tenantId}`);
+      if (savedDishes) setDishes(JSON.parse(savedDishes));
     } catch {}
   }, [tenantId]);
 
@@ -653,6 +660,13 @@ export default function Home() {
     setInventoryList(updated);
     if (tenantId) {
       localStorage.setItem(`rp-inventory-list:${tenantId}`, JSON.stringify(updated));
+    }
+  };
+
+  const saveDishesToStorage = (updated: Dish[]) => {
+    setDishes(updated);
+    if (tenantId) {
+      localStorage.setItem(`rp-dishes:${tenantId}`, JSON.stringify(updated));
     }
   };
 
@@ -716,6 +730,49 @@ export default function Home() {
       setInvForm({ name: "", category: "Grains", onHand: "", unit: "bags", reorderLevel: "5" });
     }
     setModal("inventory");
+  };
+
+  // Image upload handler for Dishes
+  const handleDishImageChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    if (file.size > 5 * 1024 * 1024) {
+      toast.error("Image file size should be less than 5MB");
+      return;
+    }
+
+    setDishImageUploading(true);
+    try {
+      let uploadedUrl = "";
+      if (db) {
+        const filePath = `dishes/${Date.now()}-${file.name.replace(/\s+/g, "_")}`;
+        const { error: uploadErr } = await db.storage
+          .from("restaurant-media")
+          .upload(filePath, file, { contentType: file.type, upsert: true });
+
+        if (!uploadErr) {
+          const { data: pubData } = db.storage.from("restaurant-media").getPublicUrl(filePath);
+          uploadedUrl = pubData.publicUrl;
+        }
+      }
+
+      if (!uploadedUrl) {
+        // Fallback to base64 encoding if storage bucket is not configured
+        uploadedUrl = await new Promise((resolve) => {
+          const reader = new FileReader();
+          reader.onload = () => resolve(reader.result as string);
+          reader.readAsDataURL(file);
+        });
+      }
+
+      setForm((prev) => ({ ...prev, imageUrl: uploadedUrl }));
+      toast.success("Dish image uploaded successfully!");
+    } catch {
+      toast.error("Failed to process image file");
+    } finally {
+      setDishImageUploading(false);
+    }
   };
 
   useEffect(() => {
@@ -803,18 +860,40 @@ export default function Home() {
         email: member.email,
         phone: member.phone,
       });
-    } else if (which === "dish" && id) {
-      const d = dishes.find((x) => x.id === id)!;
-      setForm({
-        name: d.name,
-        category: d.category,
-        price: String(d.price),
-        cost: String(d.cost),
-        emoji: d.emoji,
-        diet: d.diet,
-        time: String(d.time),
-      });
+    } else if (which === "dish") {
+      if (id) {
+        const d = dishes.find((x) => x.id === id)!;
+        setForm({
+          name: d.name,
+          category: d.category,
+          price: String(d.price),
+          cost: String(d.cost),
+          emoji: d.emoji || "🍽",
+          imageUrl: d.imageUrl || "",
+          diet: d.diet || "",
+          time: String(d.time || 15),
+        });
+      } else {
+        setForm({
+          name: "",
+          category: "Mains",
+          price: "",
+          cost: "",
+          emoji: "🍽",
+          imageUrl: "",
+          diet: "",
+          time: "15",
+        });
+      }
     } else setForm({});
+  };
+
+  // Dish deletion handler
+  const handleDeleteDish = (dishId: number | string) => {
+    if (!confirm("Are you sure you want to delete this dish from the menu?")) return;
+    const updated = dishes.filter((d) => d.id !== dishId);
+    saveDishesToStorage(updated);
+    toast.success("Dish deleted successfully!");
   };
 
   // ADMIN PLAN EDITING & CREATION (SAVES DIRECTLY TO DATABASE)
@@ -860,11 +939,13 @@ export default function Home() {
         cost: Number(form.cost) || 0,
         stock: true,
         emoji: form.emoji || "🍽",
+        imageUrl: form.imageUrl?.trim() || undefined,
         diet: form.diet || "",
         time: Number(form.time) || 15,
       };
-      setDishes((old) => (editing ? old.map((x) => (x.id === editing ? { ...d, stock: x.stock } : x)) : [...old, d]));
-      toast.success(editing ? "Dish updated" : "Dish added");
+      const updated = editing ? dishes.map((x) => (x.id === editing ? { ...d, stock: x.stock } : x)) : [...dishes, d];
+      saveDishesToStorage(updated);
+      toast.success(editing ? "Dish updated successfully!" : "Dish added successfully!");
     }
     if (modal === "expense") {
       if (!form.name?.trim() || Number(form.amount) <= 0) {
@@ -1272,7 +1353,6 @@ export default function Home() {
   const nav = (v: View) => {
     setView(v);
     setMobileNav(false);
-    setNotifications(false);
     setProfileMenu(false);
   };
 
@@ -1436,7 +1516,7 @@ export default function Home() {
           ))}
         </nav>
 
-        {/* PLATFORM ADMIN NAVIGATION */}
+        {/* PLATFORM ADMIN NAVIGATION (SHOWN ONLY IF LOGGED IN AS ADMIN) */}
         {isAdmin && (
           <>
             <div className="nav-heading admin-heading">PLATFORM ADMIN</div>
@@ -1672,15 +1752,21 @@ export default function Home() {
                   <div className="panel-header">
                     <div><h2>Top performing dishes</h2></div>
                   </div>
-                  {initialDishes.slice(0, 4).map((d, i) => (
+                  {dishes.slice(0, 4).map((d, i) => (
                     <div className="leader-row" key={d.id}>
                       <span className="leader-rank">0{i + 1}</span>
-                      <span className="dish-thumb">{d.emoji}</span>
+                      <span className="dish-thumb overflow-hidden flex items-center justify-center">
+                        {d.imageUrl ? (
+                          <img src={d.imageUrl} alt={d.name} className="w-full h-full object-cover rounded-lg" />
+                        ) : (
+                          d.emoji
+                        )}
+                      </span>
                       <div className="leader-info">
                         <b>{d.name}</b>
-                        <small>{[82, 67, 54, 42][i]} orders</small>
+                        <small>{[82, 67, 54, 42][i] || 35} orders</small>
                       </div>
-                      <strong>{money([55760, 52930, 28080, 23520][i])}</strong>
+                      <strong>{money([55760, 52930, 28080, 23520][i] || d.price * 20)}</strong>
                     </div>
                   ))}
                 </section>
@@ -1722,7 +1808,13 @@ export default function Home() {
                         onClick={() => d.stock && addCart(d.id)}
                         disabled={!d.stock}
                       >
-                        <span className="dish-photo"><span>{d.emoji}</span></span>
+                        <span className="dish-photo overflow-hidden flex items-center justify-center">
+                          {d.imageUrl ? (
+                            <img src={d.imageUrl} alt={d.name} className="w-full h-full object-cover rounded-lg" />
+                          ) : (
+                            <span>{d.emoji}</span>
+                          )}
+                        </span>
                         <span className="dish-body">
                           <span className="dish-name">{d.name}</span>
                           <span className="dish-price">{money(d.price)}</span>
@@ -1751,7 +1843,13 @@ export default function Home() {
                           >
                             <div className="flex items-start justify-between gap-2">
                               <div className="flex items-center gap-2.5 min-w-0">
-                                <span className="text-xl flex-shrink-0">{d.emoji}</span>
+                                <span className="w-8 h-8 rounded-lg overflow-hidden flex-shrink-0 flex items-center justify-center bg-muted text-lg">
+                                  {d.imageUrl ? (
+                                    <img src={d.imageUrl} alt={d.name} className="w-full h-full object-cover" />
+                                  ) : (
+                                    d.emoji
+                                  )}
+                                </span>
                                 <div className="min-w-0">
                                   <h4 className="font-bold text-xs leading-snug truncate text-foreground">
                                     {d.name}
@@ -1826,36 +1924,87 @@ export default function Home() {
             </>
           )}
 
-          {/* 3. MENU & DISHES */}
+          {/* 3. MENU & DISHES (WITH IMAGE PREVIEWS, EDIT, AND DELETE) */}
           {view === "menu" && (
             <>
-              <div className="page-head">
+              <div className="page-head flex flex-col sm:flex-row sm:items-center justify-between gap-4">
                 <div>
                   <div className="eyebrow">CATALOG</div>
                   <h1>Menu & dishes</h1>
+                  <p className="text-xs text-muted-foreground">Manage recipes, dish images, pricing, and stock status.</p>
                 </div>
-                <button className="primary-btn" onClick={() => open("dish")}><Plus size={17} /> Add dish</button>
+                <button className="primary-btn flex items-center gap-1.5" onClick={() => open("dish")}>
+                  <Plus size={17} /> Add dish
+                </button>
               </div>
-              <div className="panel management-panel">
-                <div className="table-scroll">
-                  <table>
+
+              <div className="panel management-panel mt-4">
+                <div className="table-scroll overflow-x-auto">
+                  <table className="w-full text-left border-collapse text-xs">
                     <thead>
-                      <tr><th>DISH</th><th>CATEGORY</th><th>PRICE</th><th>AVAILABILITY</th><th>ACTION</th></tr>
+                      <tr className="border-b">
+                        <th className="p-3">PHOTO</th>
+                        <th className="p-3">DISH NAME</th>
+                        <th className="p-3">CATEGORY</th>
+                        <th className="p-3">PRICE</th>
+                        <th className="p-3">AVAILABILITY</th>
+                        <th className="p-3 text-right">ACTIONS</th>
+                      </tr>
                     </thead>
                     <tbody>
                       {dishes.map((d) => (
-                        <tr key={d.id}>
-                          <td><b>{d.name}</b></td>
-                          <td>{d.category}</td>
-                          <td className="strong">{money(d.price)}</td>
-                          <td>
-                            <Switch checked={d.stock} onCheckedChange={(v) => setDishes((old) => old.map((x) => (x.id === d.id ? { ...x, stock: v } : x)))} />
+                        <tr key={d.id} className="border-b hover:bg-muted/40 transition-colors">
+                          <td className="p-3">
+                            <div className="w-10 h-10 rounded-xl overflow-hidden bg-muted flex items-center justify-center border text-base">
+                              {d.imageUrl ? (
+                                <img src={d.imageUrl} alt={d.name} className="w-full h-full object-cover" />
+                              ) : (
+                                <span>{d.emoji}</span>
+                              )}
+                            </div>
                           </td>
-                          <td>
-                            <button onClick={() => open("dish", d.id)}><Pencil size={15} /></button>
+                          <td className="p-3">
+                            <b className="text-sm text-foreground block">{d.name}</b>
+                            <span className="text-[11px] text-muted-foreground">{d.diet || "Standard"} · {d.time || 15} mins</span>
+                          </td>
+                          <td className="p-3 font-semibold text-muted-foreground">{d.category}</td>
+                          <td className="p-3 font-bold text-sm text-foreground">{money(d.price)}</td>
+                          <td className="p-3">
+                            <Switch
+                              checked={d.stock}
+                              onCheckedChange={(v) => {
+                                const updated = dishes.map((x) => (x.id === d.id ? { ...x, stock: v } : x));
+                                saveDishesToStorage(updated);
+                              }}
+                            />
+                          </td>
+                          <td className="p-3 text-right">
+                            <div className="flex items-center justify-end gap-1.5">
+                              <button
+                                className="p-2 border rounded-xl hover:bg-muted text-muted-foreground hover:text-foreground transition-colors"
+                                onClick={() => open("dish", d.id)}
+                                title="Edit Dish"
+                              >
+                                <Pencil size={14} />
+                              </button>
+                              <button
+                                className="p-2 border rounded-xl hover:bg-red-50 text-muted-foreground hover:text-red-500 transition-colors"
+                                onClick={() => handleDeleteDish(d.id)}
+                                title="Delete Dish"
+                              >
+                                <Trash2 size={14} />
+                              </button>
+                            </div>
                           </td>
                         </tr>
                       ))}
+                      {!dishes.length && (
+                        <tr>
+                          <td colSpan={6} className="text-center py-10 text-muted-foreground">
+                            No dishes added yet. Click &quot;Add dish&quot; to build your menu.
+                          </td>
+                        </tr>
+                      )}
                     </tbody>
                   </table>
                 </div>
@@ -2649,6 +2798,177 @@ export default function Home() {
         </DialogContent>
       </Dialog>
 
+      {/* DEDICATED DISH MODAL (WITH IMAGE UPLOAD, EDIT, AND DELETE) */}
+      <Dialog open={modal === "dish"} onOpenChange={(v) => !v && setModal(null)}>
+        <DialogContent className="max-w-md max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>{editing ? "Edit Dish" : "Add New Dish"}</DialogTitle>
+            <DialogDescription>
+              Upload dish photos, customize categories, pricing, and ingredients.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-2 text-xs">
+            {/* Image Upload Area */}
+            <div className="space-y-2">
+              <label className="font-semibold text-muted-foreground block">Dish Photo</label>
+              <div className="flex items-center gap-4">
+                <div className="w-20 h-20 rounded-2xl border bg-muted flex items-center justify-center overflow-hidden shrink-0 relative group">
+                  {form.imageUrl ? (
+                    <img src={form.imageUrl} alt="Dish preview" className="w-full h-full object-cover" />
+                  ) : (
+                    <div className="text-center p-2 text-muted-foreground">
+                      <ImageIcon className="mx-auto mb-1 text-muted-foreground" size={20} />
+                      <span className="text-[10px] block">No image</span>
+                    </div>
+                  )}
+                  {form.imageUrl && (
+                    <button
+                      type="button"
+                      onClick={() => setForm((prev) => ({ ...prev, imageUrl: "" }))}
+                      className="absolute inset-0 bg-black/60 text-white flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
+                    >
+                      <Trash2 size={16} />
+                    </button>
+                  )}
+                </div>
+
+                <div className="space-y-2 flex-1">
+                  <input
+                    type="file"
+                    ref={dishImageInputRef}
+                    accept="image/*"
+                    onChange={handleDishImageChange}
+                    className="hidden"
+                  />
+                  <button
+                    type="button"
+                    disabled={dishImageUploading}
+                    onClick={() => dishImageInputRef.current?.click()}
+                    className="w-full py-2 px-3 border border-dashed rounded-xl flex items-center justify-center gap-2 hover:bg-muted font-medium text-xs transition-colors"
+                  >
+                    <Upload size={14} />
+                    {dishImageUploading ? "Processing..." : form.imageUrl ? "Change photo" : "Upload dish image"}
+                  </button>
+                  <input
+                    type="text"
+                    value={form.imageUrl || ""}
+                    onChange={(e) => setForm({ ...form, imageUrl: e.target.value })}
+                    placeholder="Or paste image URL"
+                    className="w-full p-2 border rounded-lg bg-background text-[11px]"
+                  />
+                </div>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-3 gap-2">
+              <label className="col-span-2 block space-y-1">
+                <span className="font-semibold text-muted-foreground">Dish Name</span>
+                <input
+                  value={form.name || ""}
+                  onChange={(e) => setForm({ ...form, name: e.target.value })}
+                  placeholder="e.g. Paneer Butter Masala"
+                  className="w-full p-2 border rounded-lg bg-background text-xs font-semibold"
+                />
+              </label>
+              <label className="block space-y-1">
+                <span className="font-semibold text-muted-foreground">Emoji Icon</span>
+                <input
+                  value={form.emoji || "🍽"}
+                  onChange={(e) => setForm({ ...form, emoji: e.target.value })}
+                  placeholder="🍛"
+                  className="w-full p-2 border rounded-lg bg-background text-center text-sm"
+                />
+              </label>
+            </div>
+
+            <div className="grid grid-cols-2 gap-3">
+              <label className="block space-y-1">
+                <span className="font-semibold text-muted-foreground">Category</span>
+                <select
+                  value={form.category || "Mains"}
+                  onChange={(e) => setForm({ ...form, category: e.target.value })}
+                  className="w-full p-2 border rounded-lg bg-background text-xs"
+                >
+                  <option value="Appetizers">Appetizers</option>
+                  <option value="Mains">Mains</option>
+                  <option value="Breads">Breads</option>
+                  <option value="Rice & Biryani">Rice & Biryani</option>
+                  <option value="Desserts">Desserts</option>
+                  <option value="Drinks">Drinks</option>
+                </select>
+              </label>
+              <label className="block space-y-1">
+                <span className="font-semibold text-muted-foreground">Dietary Tag</span>
+                <select
+                  value={form.diet || ""}
+                  onChange={(e) => setForm({ ...form, diet: e.target.value })}
+                  className="w-full p-2 border rounded-lg bg-background text-xs"
+                >
+                  <option value="">Standard</option>
+                  <option value="Vegetarian">Vegetarian</option>
+                  <option value="Non-Vegetarian">Non-Vegetarian</option>
+                  <option value="Vegan">Vegan</option>
+                  <option value="Gluten-free">Gluten-free</option>
+                </select>
+              </label>
+            </div>
+
+            <div className="grid grid-cols-3 gap-2">
+              <label className="block space-y-1">
+                <span className="font-semibold text-muted-foreground">Price (₹)</span>
+                <input
+                  type="number"
+                  value={form.price || ""}
+                  onChange={(e) => setForm({ ...form, price: e.target.value })}
+                  placeholder="350"
+                  className="w-full p-2 border rounded-lg bg-background font-mono text-xs"
+                />
+              </label>
+              <label className="block space-y-1">
+                <span className="font-semibold text-muted-foreground">Cost (₹)</span>
+                <input
+                  type="number"
+                  value={form.cost || ""}
+                  onChange={(e) => setForm({ ...form, cost: e.target.value })}
+                  placeholder="120"
+                  className="w-full p-2 border rounded-lg bg-background font-mono text-xs"
+                />
+              </label>
+              <label className="block space-y-1">
+                <span className="font-semibold text-muted-foreground">Prep Time (mins)</span>
+                <input
+                  type="number"
+                  value={form.time || "15"}
+                  onChange={(e) => setForm({ ...form, time: e.target.value })}
+                  placeholder="15"
+                  className="w-full p-2 border rounded-lg bg-background font-mono text-xs"
+                />
+              </label>
+            </div>
+          </div>
+          <DialogFooter className="flex items-center justify-between gap-2 sm:justify-between">
+            {editing ? (
+              <button
+                type="button"
+                className="quiet-btn text-red-600 hover:bg-red-50 flex items-center gap-1.5"
+                onClick={() => {
+                  handleDeleteDish(editing);
+                  setModal(null);
+                }}
+              >
+                <Trash2 size={14} /> Delete
+              </button>
+            ) : <span />}
+            <div className="flex gap-2">
+              <button className="quiet-btn" onClick={() => setModal(null)}>Cancel</button>
+              <button className="primary-btn font-bold" onClick={save}>
+                {editing ? "Save Changes" : "Create Dish"}
+              </button>
+            </div>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
       {/* INVENTORY ADD / EDIT MODAL */}
       <Dialog open={modal === "inventory"} onOpenChange={(v) => !v && setModal(null)}>
         <DialogContent className="max-w-md">
@@ -2753,25 +3073,17 @@ export default function Home() {
         </DialogContent>
       </Dialog>
 
-      {/* GLOBAL ENTITY MODAL (DISH, SUPPLIER, EXPENSE, PAYMENT) */}
-      <Dialog open={!!modal && modal !== "inventory" && modal !== "employee" && modal !== "plan"} onOpenChange={(v) => !v && setModal(null)}>
+      {/* GLOBAL ENTITY MODAL (SUPPLIER, EXPENSE, PAYMENT) */}
+      <Dialog open={!!modal && modal !== "inventory" && modal !== "employee" && modal !== "plan" && modal !== "dish"} onOpenChange={(v) => !v && setModal(null)}>
         <DialogContent className="modal-content">
           <DialogHeader>
             <DialogTitle>
-              {modal === "dish" ? (editing ? "Edit Dish" : "Add Dish")
-                : modal === "supplier" ? (editing ? "Edit Supplier" : "Add Supplier")
+              {modal === "supplier" ? (editing ? "Edit Supplier" : "Add Supplier")
                 : modal === "expense" ? "Log Expense"
                 : "Record Payment"}
             </DialogTitle>
           </DialogHeader>
           <div className="modal-fields">
-            {modal === "dish" && (
-              <>
-                <label>Dish name<input value={form.name || ""} onChange={(e) => setForm({ ...form, name: e.target.value })} /></label>
-                <label>Category<input value={form.category || "Mains"} onChange={(e) => setForm({ ...form, category: e.target.value })} /></label>
-                <label>Price (₹)<input type="number" value={form.price || ""} onChange={(e) => setForm({ ...form, price: e.target.value })} /></label>
-              </>
-            )}
             {modal === "expense" && (
               <>
                 <label>Description<input value={form.name || ""} onChange={(e) => setForm({ ...form, name: e.target.value })} /></label>

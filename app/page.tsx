@@ -45,7 +45,6 @@ import {
   Clock,
   X,
   TrendingDown,
-  FileSpreadsheet,
 } from "lucide-react";
 import {
   AreaChart,
@@ -89,7 +88,6 @@ type View =
 
 type Dish = {
   id: number | string;
-  imageUrl?: string;
   name: string;
   category: string;
   price: number;
@@ -286,7 +284,7 @@ export default function Home() {
   const [loginPassword, setLoginPassword] = useState("");
   const [loginBusy, setLoginBusy] = useState(false);
 
-  // Strict Tenant Scoping
+  // Tenant Scoping & Identity
   const [tenantId, setTenantId] = useState<string | null>(null);
   const tenantIdRef = useRef<string | null>(null);
   tenantIdRef.current = tenantId;
@@ -295,9 +293,9 @@ export default function Home() {
   const [currentUserRole, setCurrentUserRole] = useState<string>("owner");
 
   // Dynamic Workspace Identity
-  const [activePlanName, setActivePlanName] = useState<string>("Free trial");
-  const [activeRenewalDate, setActiveRenewalDate] = useState<string>("—");
-  const [activeRestaurantName, setActiveRestaurantName] = useState<string>("");
+  const [activePlanName, setActivePlanName] = useState<string>("Monthly");
+  const [activeRenewalDate, setActiveRenewalDate] = useState<string>("2026-11-12");
+  const [activeRestaurantName, setActiveRestaurantName] = useState<string>("Mani");
 
   const [tenantInfo, setTenantInfo] = useState<{
     id?: string;
@@ -311,11 +309,11 @@ export default function Home() {
     sgst_percent: number;
     receipt_footer: string;
   }>({
-    name: "",
+    name: "Mani",
     logo_url: null,
-    address: "",
-    business_phone: "",
-    gstin: "",
+    address: "Tamilnadu",
+    business_phone: "8098047039",
+    gstin: "GSTIN2435345893",
     gst_percent: 5,
     cgst_percent: 2.5,
     sgst_percent: 2.5,
@@ -323,10 +321,10 @@ export default function Home() {
   });
 
   const [storeForm, setStoreForm] = useState({
-    name: "",
-    phone: "",
-    address: "",
-    gstin: "",
+    name: "Mani",
+    phone: "8098047039",
+    address: "Tamilnadu",
+    gstin: "GSTIN2435345893",
     gst_percent: "5",
     cgst_percent: "2.5",
     sgst_percent: "2.5",
@@ -346,9 +344,12 @@ export default function Home() {
   const [wages, setWages] = useState<Wage[]>([]);
   const [wageForm, setWageForm] = useState({ date: new Date().toLocaleDateString("en-CA"), amount: "", note: "" });
   const [selectedStaff, setSelectedStaff] = useState<Staff | null>(null);
-  const [suppliers, setSuppliers] = useState<Supplier[]>([]);
+  const [suppliers, setSuppliers] = useState<Supplier[]>([
+    { id: "sp-1", name: "Green Acres Co.", contact: "Vikram Shah", phone: "+91 98765 00001", email: "vikram@greenacres.in" },
+    { id: "sp-2", name: "ProChef Supplies", contact: "Sunita Roy", phone: "+91 98765 00002", email: "sunita@prochef.in" }
+  ]);
   const [supplierPayments, setSupplierPayments] = useState<SupplierPayment[]>([]);
-  const [supplierDetail, setSupplierDetail] = useState<string | null>(null);
+  const [supplierDetail, setSupplierDetail] = useState<string | null>("sp-1");
   const [expenses, setExpenses] = useState<Expense[]>([]);
   const [orders, setOrders] = useState<Sale[]>([]);
 
@@ -362,13 +363,12 @@ export default function Home() {
   const [invForm, setInvForm] = useState({ name: "", category: "Grains", onHand: "", unit: "kg", costPerUnit: "", reorderLevel: "5" });
   const [editingInvId, setEditingInvId] = useState<string | number | null>(null);
 
-  // Inventory Usage / Consumption Modal State
+  // Inventory Kitchen Consumption Modal State
   const [usageModalOpen, setUsageModalOpen] = useState(false);
   const [selectedStockForUsage, setSelectedStockForUsage] = useState<InventoryItem | null>(null);
   const [usageQuantity, setUsageQuantity] = useState("");
-  const [usageNotes, setUsageNotes] = useState("");
 
-  // Platform Admin Data (Only visible to admin)
+  // Platform Admin Data
   const [restaurants, setRestaurants] = useState<any[]>([]);
   const [approvals, setApprovals] = useState<RestaurantApproval[]>([]);
   const [subscriptionRequests, setSubscriptionRequests] = useState<Array<any>>([]);
@@ -387,7 +387,7 @@ export default function Home() {
   const [printPaperSize, setPrintPaperSize] = useState<"58mm" | "80mm" | "A4">("80mm");
   const [dateRange, setDateRange] = useState("This week");
 
-  // Admin UPI & Subscription Modal
+  // Admin UPI & Subscription
   const [adminUpiId, setAdminUpiId] = useState<string>("admin-restopulse@upi");
   const [adminUpiBusy, setAdminUpiBusy] = useState(false);
   const [subscriptionUpiId, setSubscriptionUpiId] = useState<string>("admin-restopulse@upi");
@@ -419,7 +419,7 @@ export default function Home() {
           setTenantId(data.restaurant.id);
         }
         setActiveRestaurantName(data.restaurant.name);
-        setActivePlanName(data.restaurant.plan || "Free trial");
+        setActivePlanName(data.restaurant.plan || "Monthly");
         setActiveRenewalDate(data.restaurant.renewal_on || "—");
         setTenantInfo((prev) => ({
           ...prev,
@@ -443,7 +443,7 @@ export default function Home() {
     } catch {}
   }, [authUser, loginEmail]);
 
-  // Load Platform Plans (Read-only for restaurant)
+  // Load Platform Plans
   const fetchLivePlans = useCallback(async () => {
     try {
       const res = await fetch("/api/admin/pricing");
@@ -458,7 +458,7 @@ export default function Home() {
     } catch {}
   }, [activeInlinePlan]);
 
-  // Scoped Data Persisters
+  // Load Persisted Storage for active tenant
   useEffect(() => {
     if (!tenantId) return;
     try {
@@ -526,7 +526,6 @@ export default function Home() {
     setUsageModalOpen(false);
     setSelectedStockForUsage(null);
     setUsageQuantity("");
-    setUsageNotes("");
   };
 
   // Auth & Roles Initializer
@@ -583,7 +582,7 @@ export default function Home() {
     fetchLivePlans();
     const interval = setInterval(() => {
       syncLiveSubscriptionStatus();
-    }, 3000);
+    }, 4000);
     return () => clearInterval(interval);
   }, [syncLiveSubscriptionStatus, fetchLivePlans]);
 
@@ -777,7 +776,7 @@ export default function Home() {
     }
   };
 
-  // Navigation filtering (strictly isolates platform admin pages for non-admin accounts)
+  // Navigation Filter
   const normalizedRole = (currentUserRole || "").toLowerCase();
   const visibleNavTenant = navTenant.filter((item) => {
     if (isAdmin) return true;
@@ -790,18 +789,18 @@ export default function Home() {
     setProfileMenu(false);
   };
 
-  if (authLoading) return <div className="auth-page flex items-center justify-center min-h-screen">Loading RestoPulse…</div>;
+  if (authLoading) return <div className="flex items-center justify-center min-h-screen bg-white">Loading RestoPulse…</div>;
 
   return (
-    <div className="app-shell flex flex-col lg:flex-row min-h-screen bg-background text-foreground">
+    <div className="flex min-h-screen bg-[#f8fafc] text-slate-800 font-sans">
       <Toaster richColors position="top-right" />
 
-      {/* DYNAMIC THERMAL & A4 PRINT RULES */}
+      {/* DYNAMIC THERMAL PRINT CSS */}
       <style jsx global>{`
         @media print {
           @page {
             size: ${printPaperSize === "A4" ? "A4" : printPaperSize === "58mm" ? "58mm auto" : "80mm auto"};
-            margin: ${printPaperSize === "A4" ? "10mm" : "0mm"};
+            margin: 0mm;
           }
           body * { visibility: hidden !important; }
           #printable-receipt-card, #printable-receipt-card * { visibility: visible !important; }
@@ -812,7 +811,7 @@ export default function Home() {
             width: ${printPaperSize === "A4" ? "100%" : printPaperSize === "58mm" ? "48mm" : "72mm"} !important;
             max-width: ${printPaperSize === "A4" ? "100%" : printPaperSize === "58mm" ? "48mm" : "72mm"} !important;
             margin: 0 auto !important;
-            padding: 4mm !important;
+            padding: 3mm !important;
             background: #ffffff !important;
             color: #000000 !important;
             font-family: 'Courier New', Courier, monospace !important;
@@ -821,73 +820,61 @@ export default function Home() {
         }
       `}</style>
 
-      {/* RESPONSIVE MOBILE TOPBAR */}
-      <header className="lg:hidden flex items-center justify-between p-4 border-b bg-card">
-        <div className="flex items-center gap-3">
-          <button onClick={() => setMobileNav(!mobileNav)} className="p-2 border rounded-lg">
-            <Menu size={20} />
-          </button>
-          <div>
-            <b className="text-sm block">{activeRestaurantName || "RestoPulse"}</b>
-            <span className="text-[10px] text-muted-foreground uppercase">{currentUserRole}</span>
-          </div>
-        </div>
-        <div className="flex items-center gap-2">
-          <span className="text-xs px-2.5 py-1 rounded-full font-bold bg-amber-500/10 text-amber-500 border border-amber-500/20 capitalize">
-            {activePlanName}
-          </span>
-          <button onClick={() => setProfileMenu(!profileMenu)} className="w-8 h-8 rounded-full bg-primary/10 font-bold flex items-center justify-center text-xs">
-            {activeRestaurantName ? activeRestaurantName.slice(0, 2).toUpperCase() : "RS"}
-          </button>
-        </div>
-      </header>
-
-      {/* RESPONSIVE SIDEBAR */}
-      <aside className={`fixed inset-y-0 left-0 z-50 w-64 bg-card border-r flex flex-col justify-between transform transition-transform duration-200 lg:static lg:translate-x-0 ${mobileNav ? "translate-x-0 shadow-2xl" : "-translate-x-full"}`}>
+      {/* SIDEBAR MATCHING IMAGE_1FCCDE.PNG[cite: 10] */}
+      <aside className={`w-64 border-r border-slate-200 bg-white flex flex-col justify-between shrink-0 fixed inset-y-0 left-0 z-40 transition-transform lg:static lg:translate-x-0 ${mobileNav ? "translate-x-0 shadow-2xl" : "-translate-x-full"}`}>
         <div className="p-4 space-y-4">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-2">
-              <div className="w-9 h-9 rounded-xl bg-amber-500 text-white flex items-center justify-center font-bold">RP</div>
-              <div>
-                <strong className="block text-sm">RestoPulse</strong>
-                <small className="text-[10px] text-muted-foreground">GASTRONOMY POS</small>
-              </div>
+          {/* Brand[cite: 10] */}
+          <div className="flex items-center gap-3 px-1">
+            <div className="w-9 h-9 rounded-full bg-[#f59e0b] text-white flex items-center justify-center font-bold text-xs shadow-sm">
+              RP
             </div>
-            <button className="lg:hidden p-1 text-muted-foreground" onClick={() => setMobileNav(false)}>
-              <X size={18} />
-            </button>
+            <div>
+              <strong className="block text-sm font-bold text-slate-900 leading-tight">RestoPulse</strong>
+              <small className="text-[10px] tracking-wider text-slate-400 font-semibold uppercase">GASTRONOMY POS</small>
+            </div>
           </div>
 
-          <div className="p-3 border rounded-xl bg-secondary/30">
-            <small className="text-[10px] font-bold text-muted-foreground block uppercase">RESTAURANT WORKSPACE</small>
-            <b className="text-sm block truncate mt-0.5">{activeRestaurantName || "My Restaurant"}</b>
-            <span className="text-xs text-muted-foreground capitalize">{currentUserRole} account</span>
+          {/* Restaurant Workspace Box[cite: 10] */}
+          <div className="p-3 rounded-2xl border border-slate-200 bg-white shadow-xs">
+            <small className="text-[10px] font-bold text-slate-400 block tracking-wider uppercase">RESTAURANT WORKSPACE</small>
+            <b className="text-sm font-bold text-slate-900 block truncate mt-0.5">{activeRestaurantName || "Mani"}</b>
+            <span className="text-xs text-slate-500 capitalize">{currentUserRole} Account</span>
           </div>
 
+          {/* Navigation Links[cite: 10] */}
           <nav className="space-y-1">
-            {visibleNavTenant.map((item) => (
-              <button
-                key={item.id}
-                className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-xs font-semibold transition-all ${view === item.id ? "bg-amber-500 text-white shadow-sm" : "text-muted-foreground hover:bg-muted"}`}
-                onClick={() => nav(item.id)}
-              >
-                <item.icon size={17} />
-                {item.label}
-              </button>
-            ))}
+            {visibleNavTenant.map((item) => {
+              const isActive = view === item.id;
+              return (
+                <button
+                  key={item.id}
+                  onClick={() => nav(item.id)}
+                  className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-2xl text-xs font-bold transition-all text-left ${
+                    isActive
+                      ? "bg-[#f59e0b] text-white shadow-sm"
+                      : "text-slate-600 hover:bg-slate-50 hover:text-slate-900"
+                  }`}
+                >
+                  <item.icon size={16} />
+                  {item.label}
+                </button>
+              );
+            })}
           </nav>
 
-          {/* ADMIN-ONLY NAVIGATION (HIDDEN FROM RESTAURANT LOGINS) */}
+          {/* Platform Admin Links */}
           {isAdmin && (
-            <div className="pt-3 border-t space-y-1">
-              <small className="text-[10px] font-bold text-muted-foreground px-3 block uppercase">PLATFORM ADMIN</small>
+            <div className="pt-3 border-t border-slate-100 space-y-1">
+              <small className="text-[10px] font-bold text-slate-400 px-3 block uppercase tracking-wider">PLATFORM ADMIN</small>
               {navPlatform.map((item) => (
                 <button
                   key={item.id}
-                  className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-xs font-semibold transition-all ${view === item.id ? "bg-amber-500 text-white shadow-sm" : "text-muted-foreground hover:bg-muted"}`}
                   onClick={() => nav(item.id)}
+                  className={`w-full flex items-center gap-3 px-3 py-2 rounded-xl text-xs font-bold transition-all text-left ${
+                    view === item.id ? "bg-[#f59e0b] text-white shadow-sm" : "text-slate-600 hover:bg-slate-50"
+                  }`}
                 >
-                  <item.icon size={17} />
+                  <item.icon size={16} />
                   {item.label}
                 </button>
               ))}
@@ -895,97 +882,133 @@ export default function Home() {
           )}
         </div>
 
-        <div className="p-4 border-t space-y-3">
-          <div className="p-3 rounded-xl border bg-secondary/20">
-            <span className="text-[10px] text-muted-foreground uppercase font-bold block">Current Plan</span>
-            <b className="text-sm block capitalize text-foreground">{activePlanName}</b>
-            <span className="text-[10px] text-muted-foreground block mt-0.5">Expires: {activeRenewalDate}</span>
+        {/* Bottom Current Plan Box[cite: 10] */}
+        <div className="p-4 space-y-3">
+          <div className="p-3.5 rounded-2xl border border-slate-200 bg-white shadow-xs">
+            <span className="text-[10px] text-slate-400 uppercase font-bold tracking-wider block">CURRENT PLAN</span>
+            <b className="text-sm font-bold text-slate-900 block capitalize mt-0.5">{activePlanName || "Monthly"}</b>
+            <span className="text-[11px] text-slate-400 block mt-0.5">Expires: {activeRenewalDate || "2026-11-12"}</span>
           </div>
 
-          <button onClick={async () => { if (db) await db.auth.signOut(); }} className="w-full flex items-center justify-center gap-2 py-2 text-xs font-bold text-red-500 hover:bg-red-500/10 rounded-xl transition-all">
-            <LogOut size={15} /> Sign Out
+          <button
+            onClick={async () => { if (db) await db.auth.signOut(); }}
+            className="w-full flex items-center justify-center gap-2 py-2 text-xs font-bold text-rose-600 hover:bg-rose-50 rounded-xl transition-all"
+          >
+            <LogOut size={14} /> Sign Out
           </button>
         </div>
       </aside>
 
-      {/* MAIN CONTENT AREA */}
+      {/* MAIN VIEWPORT */}
       <div className="flex-1 flex flex-col min-w-0">
-        <header className="hidden lg:flex items-center justify-between p-4 border-b bg-card">
-          <div className="flex items-center gap-2 text-xs text-muted-foreground">
-            <span>Workspace</span> / <strong className="text-foreground capitalize">{view}</strong>
+        {/* Topbar[cite: 10] */}
+        <header className="h-16 border-b border-slate-200 bg-white px-6 flex items-center justify-between">
+          <div className="flex items-center gap-2 text-xs text-slate-400 font-semibold">
+            <button className="lg:hidden mr-2 p-1 border rounded-lg" onClick={() => setMobileNav(!mobileNav)}>
+              <Menu size={18} />
+            </button>
+            <span>Workspace</span>
+            <span>/</span>
+            <strong className="text-slate-800 capitalize font-bold">{view === "dashboard" ? "Dashboard" : view}</strong>
           </div>
+
           <div className="flex items-center gap-3">
-            <button className="p-2 border rounded-xl" onClick={() => setDark(!dark)}>
-              {dark ? <Sun size={16} /> : <Moon size={16} />}
+            <button className="p-2 border border-slate-200 rounded-full hover:bg-slate-50 text-slate-600">
+              <Sun size={15} />
             </button>
             <div className="text-right">
-              <b className="text-xs block">{activeRestaurantName || "Restaurant"}</b>
-              <small className="text-[10px] text-muted-foreground">{loginEmail}</small>
+              <b className="text-xs font-bold text-slate-900 block leading-tight">{activeRestaurantName || "Mani"}</b>
+              <small className="text-[11px] text-slate-400 font-medium">{loginEmail || "mani@gmail.com"}</small>
             </div>
           </div>
         </header>
 
-        <main className="flex-1 p-4 lg:p-6 overflow-y-auto">
-          {/* 1. OVERVIEW DASHBOARD */}
+        {/* Content View[cite: 10] */}
+        <main className="flex-1 p-6 lg:p-8 overflow-y-auto">
+          {/* 1. OVERVIEW DASHBOARD MATCHING IMAGE_1FCCDE.PNG[cite: 10] */}
           {view === "dashboard" && (
-            <div className="space-y-6">
+            <div className="space-y-6 max-w-7xl">
+              {/* Header with Title and New Order Button[cite: 10] */}
               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
                 <div>
-                  <h1 className="text-2xl font-black">Good afternoon, {activeRestaurantName || "Owner"}</h1>
-                  <p className="text-xs text-muted-foreground">Operational snapshot for {activeRestaurantName || "your workspace"}.</p>
+                  <h1 className="text-2xl lg:text-3xl font-black text-slate-900">Good afternoon, {activeRestaurantName || "Mani"}</h1>
+                  <p className="text-xs text-slate-500 mt-1">Operational snapshot for {activeRestaurantName || "Mani"}.</p>
                 </div>
-                <button className="primary-btn flex items-center justify-center gap-2" onClick={() => nav("pos")}>
+                <button
+                  onClick={() => nav("pos")}
+                  className="bg-[#f59e0b] hover:bg-amber-600 text-white font-bold text-xs py-2.5 px-4 rounded-xl flex items-center gap-1.5 transition-all shadow-sm active:scale-95"
+                >
                   <Plus size={16} /> New Order
                 </button>
               </div>
 
-              {/* KPI Grid */}
+              {/* Four Top Metrics[cite: 10] */}
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-                {[
-                  { label: "Gross sales", value: money(orders.reduce((n, o) => n + o.bill.subtotal, 0)), note: "Total registered sales" },
-                  { label: "Net revenue", value: money(orders.filter(o => o.status === "Paid").reduce((n, o) => n + o.bill.total, 0)), note: "Paid sales" },
-                  { label: "Operating expenses", value: money(expenses.reduce((a, x) => a + x.amount, 0)), note: "Ingredients & overheads" },
-                  {
-                    label: "Real net profit",
-                    value: money(orders.filter(o => o.status === "Paid").reduce((n, o) => n + o.bill.total, 0) - expenses.reduce((a, x) => a + x.amount, 0)),
-                    note: "Net sales minus expenses",
-                  },
-                ].map((k) => (
-                  <div key={k.label} className="p-4 rounded-2xl border bg-card space-y-1 shadow-sm">
-                    <span className="text-xs text-muted-foreground">{k.label}</span>
-                    <div className="text-2xl font-black">{k.value}</div>
-                    <small className="text-[10px] text-muted-foreground block">{k.note}</small>
+                <div className="p-5 rounded-2xl border border-slate-200 bg-white shadow-xs">
+                  <span className="text-xs font-semibold text-slate-500">Gross sales</span>
+                  <div className="text-2xl font-black text-slate-900 mt-1">
+                    {money(orders.reduce((sum, o) => sum + o.bill.subtotal, 0))}
                   </div>
-                ))}
+                  <small className="text-[10px] text-slate-400 block mt-1">Total registered sales</small>
+                </div>
+
+                <div className="p-5 rounded-2xl border border-slate-200 bg-white shadow-xs">
+                  <span className="text-xs font-semibold text-slate-500">Net revenue</span>
+                  <div className="text-2xl font-black text-slate-900 mt-1">
+                    {money(orders.filter(o => o.status === "Paid").reduce((sum, o) => sum + o.bill.total, 0))}
+                  </div>
+                  <small className="text-[10px] text-slate-400 block mt-1">Paid sales</small>
+                </div>
+
+                <div className="p-5 rounded-2xl border border-slate-200 bg-white shadow-xs">
+                  <span className="text-xs font-semibold text-slate-500">Operating expenses</span>
+                  <div className="text-2xl font-black text-slate-900 mt-1">
+                    {money(expenses.reduce((sum, e) => sum + e.amount, 0))}
+                  </div>
+                  <small className="text-[10px] text-slate-400 block mt-1">Ingredients & overheads</small>
+                </div>
+
+                <div className="p-5 rounded-2xl border border-slate-200 bg-white shadow-xs">
+                  <span className="text-xs font-semibold text-slate-500">Real net profit</span>
+                  <div className="text-2xl font-black text-slate-900 mt-1">
+                    {money(
+                      orders.filter(o => o.status === "Paid").reduce((sum, o) => sum + o.bill.total, 0) -
+                      expenses.reduce((sum, e) => sum + e.amount, 0)
+                    )}
+                  </div>
+                  <small className="text-[10px] text-slate-400 block mt-1">Net sales minus expenses</small>
+                </div>
               </div>
 
-              {/* Weekly Analytics Chart */}
+              {/* Charts & Top Dishes Layout[cite: 10] */}
               <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-                <div className="lg:col-span-2 p-5 rounded-2xl border bg-card space-y-3">
-                  <h3 className="font-bold text-sm">Revenue Trends</h3>
-                  <div className="h-64">
+                {/* Revenue Trends Chart[cite: 10] */}
+                <div className="lg:col-span-2 p-6 rounded-2xl border border-slate-200 bg-white shadow-xs space-y-4">
+                  <h3 className="font-bold text-sm text-slate-900">Revenue Trends</h3>
+                  <div className="h-72">
                     <ResponsiveContainer width="100%" height="100%">
-                      <AreaChart data={chart}>
-                        <CartesianGrid strokeDasharray="3 3" vertical={false} />
-                        <XAxis dataKey="day" tick={{ fontSize: 11 }} />
-                        <YAxis tick={{ fontSize: 11 }} tickFormatter={(v) => `₹${v / 1000}k`} />
-                        <Tooltip formatter={(v) => money(Number(v))} />
-                        <Area type="monotone" dataKey="revenue" stroke="#f59e0b" fill="#f59e0b" fillOpacity={0.15} />
+                      <AreaChart data={chart} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
+                        <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
+                        <XAxis dataKey="day" tick={{ fontSize: 11, fill: "#94a3b8" }} axisLine={false} tickLine={false} />
+                        <YAxis tick={{ fontSize: 11, fill: "#94a3b8" }} axisLine={false} tickLine={false} tickFormatter={(v) => `₹${v / 1000}k`} />
+                        <Tooltip formatter={(v) => money(Number(v))} contentStyle={{ borderRadius: 12, border: "1px solid #e2e8f0" }} />
+                        <Area type="monotone" dataKey="revenue" stroke="#f59e0b" strokeWidth={2.5} fill="#fef3c7" fillOpacity={0.6} />
                       </AreaChart>
                     </ResponsiveContainer>
                   </div>
                 </div>
 
-                <div className="p-5 rounded-2xl border bg-card space-y-3">
-                  <h3 className="font-bold text-sm">Top Dishes</h3>
-                  <div className="space-y-3">
+                {/* Top Dishes Ranking[cite: 10] */}
+                <div className="p-6 rounded-2xl border border-slate-200 bg-white shadow-xs space-y-4">
+                  <h3 className="font-bold text-sm text-slate-900">Top Dishes</h3>
+                  <div className="space-y-3 pt-2">
                     {dishes.slice(0, 4).map((d) => (
-                      <div key={d.id} className="flex items-center justify-between text-xs pb-2 border-b last:border-0">
-                        <div className="flex items-center gap-2 truncate">
-                          <span>{d.emoji}</span>
-                          <span className="truncate font-semibold">{d.name}</span>
+                      <div key={d.id} className="flex items-center justify-between text-xs pb-3 border-b border-slate-100 last:border-0 last:pb-0">
+                        <div className="flex items-center gap-2.5 truncate">
+                          <span className="text-base">{d.emoji}</span>
+                          <span className="truncate font-bold text-slate-800">{d.name}</span>
                         </div>
-                        <b className="font-mono">{money(d.price)}</b>
+                        <b className="font-bold font-mono text-slate-900">{money(d.price)}</b>
                       </div>
                     ))}
                   </div>
@@ -1000,12 +1023,12 @@ export default function Home() {
               <div className="flex-1 space-y-4">
                 <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3">
                   <div className="relative flex-1">
-                    <Search className="absolute left-3 top-2.5 text-muted-foreground" size={16} />
+                    <Search className="absolute left-3 top-2.5 text-slate-400" size={16} />
                     <input
                       value={query}
                       onChange={(e) => setQuery(e.target.value)}
                       placeholder="Search menu dishes..."
-                      className="w-full pl-9 pr-3 py-2 border rounded-xl text-xs bg-background"
+                      className="w-full pl-9 pr-3 py-2 border border-slate-200 rounded-xl text-xs bg-white"
                     />
                   </div>
                   <div className="flex gap-2 overflow-x-auto pb-1 sm:pb-0">
@@ -1013,7 +1036,7 @@ export default function Home() {
                       <button
                         key={cat}
                         onClick={() => setCategory(cat)}
-                        className={`px-3 py-1.5 rounded-xl text-xs font-semibold whitespace-nowrap ${category === cat ? "bg-amber-500 text-white" : "border hover:bg-muted"}`}
+                        className={`px-3 py-1.5 rounded-xl text-xs font-bold whitespace-nowrap transition-all ${category === cat ? "bg-[#f59e0b] text-white" : "border border-slate-200 bg-white text-slate-600 hover:bg-slate-50"}`}
                       >
                         {cat}
                       </button>
@@ -1026,12 +1049,12 @@ export default function Home() {
                     <button
                       key={d.id}
                       onClick={() => addCart(d.id)}
-                      className="p-3 border rounded-2xl text-left bg-card hover:border-amber-500 transition-all flex flex-col justify-between space-y-2 shadow-sm"
+                      className="p-3.5 border border-slate-200 rounded-2xl text-left bg-white hover:border-[#f59e0b] transition-all flex flex-col justify-between space-y-3 shadow-xs"
                     >
                       <div className="text-2xl">{d.emoji}</div>
                       <div>
-                        <b className="text-xs block line-clamp-1">{d.name}</b>
-                        <span className="text-[11px] font-bold text-amber-500 block">{money(d.price)}</span>
+                        <b className="text-xs font-bold text-slate-900 block truncate">{d.name}</b>
+                        <span className="text-[11px] font-black text-[#f59e0b] block mt-0.5">{money(d.price)}</span>
                       </div>
                     </button>
                   ))}
@@ -1039,11 +1062,11 @@ export default function Home() {
               </div>
 
               {/* Order Cart Drawer */}
-              <div className="w-full lg:w-80 p-4 border rounded-2xl bg-card flex flex-col justify-between space-y-4 shadow-sm">
+              <div className="w-full lg:w-80 p-5 border border-slate-200 rounded-2xl bg-white flex flex-col justify-between space-y-4 shadow-xs">
                 <div>
-                  <div className="flex justify-between items-center pb-3 border-b">
-                    <h3 className="font-bold text-sm">Current Order</h3>
-                    <span className="text-xs px-2 py-0.5 rounded-full bg-secondary font-semibold">
+                  <div className="flex justify-between items-center pb-3 border-b border-slate-100">
+                    <h3 className="font-bold text-sm text-slate-900">Current Order</h3>
+                    <span className="text-xs px-2.5 py-0.5 rounded-full bg-slate-100 text-slate-600 font-bold">
                       {cart.reduce((a, b) => a + b.qty, 0)} items
                     </span>
                   </div>
@@ -1053,33 +1076,39 @@ export default function Home() {
                       const d = dishes.find((x) => x.id === line.id);
                       if (!d) return null;
                       return (
-                        <div key={line.id} className="p-2 border rounded-xl flex items-center justify-between text-xs bg-background">
+                        <div key={line.id} className="p-2.5 border border-slate-100 rounded-xl flex items-center justify-between text-xs bg-slate-50/50">
                           <div className="truncate pr-2">
-                            <span className="font-semibold block truncate">{d.name}</span>
-                            <small className="text-muted-foreground">{money(d.price)} each</small>
+                            <span className="font-bold text-slate-800 block truncate">{d.name}</span>
+                            <small className="text-slate-400">{money(d.price)} each</small>
                           </div>
-                          <div className="flex items-center gap-1.5">
-                            <div className="flex items-center border rounded-lg">
+                          <div className="flex items-center gap-2">
+                            <div className="flex items-center border border-slate-200 rounded-lg bg-white">
                               <button className="px-2 py-0.5" onClick={() => qty(line.id, -1)}>-</button>
                               <span className="px-1.5 font-bold font-mono">{line.qty}</span>
                               <button className="px-2 py-0.5" onClick={() => qty(line.id, 1)}>+</button>
                             </div>
-                            <b className="w-14 text-right">{money(d.price * line.qty)}</b>
+                            <b className="w-14 text-right font-mono font-bold text-slate-900">{money(d.price * line.qty)}</b>
                           </div>
                         </div>
                       );
                     })}
-                    {!cart.length && <div className="text-center py-10 text-muted-foreground text-xs">Order is empty</div>}
+                    {!cart.length && <div className="text-center py-10 text-slate-400 text-xs">Order is empty</div>}
                   </div>
                 </div>
 
-                <div className="pt-3 border-t space-y-3">
-                  <div className="space-y-1 text-xs">
+                <div className="pt-3 border-t border-slate-100 space-y-3">
+                  <div className="space-y-1 text-xs text-slate-600 font-medium">
                     <div className="flex justify-between"><span>Subtotal:</span><span>{money(subtotal)}</span></div>
                     <div className="flex justify-between"><span>GST ({effectiveGst}%):</span><span>{money(tax)}</span></div>
-                    <div className="flex justify-between font-black text-sm pt-1 border-t"><span>Total Due:</span><span>{money(total)}</span></div>
+                    <div className="flex justify-between font-black text-sm text-slate-900 pt-1 border-t border-slate-100">
+                      <span>Total Due:</span><span>{money(total)}</span>
+                    </div>
                   </div>
-                  <button onClick={checkout} disabled={!cart.length} className="w-full primary-btn py-3 font-bold text-sm disabled:opacity-50">
+                  <button
+                    onClick={checkout}
+                    disabled={!cart.length}
+                    className="w-full bg-[#f59e0b] hover:bg-amber-600 text-white font-bold py-3 rounded-xl text-sm transition-all shadow-sm disabled:opacity-50"
+                  >
                     Charge {money(total)}
                   </button>
                 </div>
@@ -1087,51 +1116,54 @@ export default function Home() {
             </div>
           )}
 
-          {/* 3. INVENTORY MANAGEMENT (WITH KITCHEN USAGE & COST TRACKING) */}
+          {/* 3. INVENTORY WITH KITCHEN CONSUMPTION & COSTING */}
           {view === "inventory" && (
             <div className="space-y-6">
               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
                 <div>
-                  <h1 className="text-2xl font-black">Warehouse & Stock Control</h1>
-                  <p className="text-xs text-muted-foreground">Track inventory levels, set thresholds, and log kitchen usage costs.</p>
+                  <h1 className="text-2xl font-black text-slate-900">Warehouse & Stock Control</h1>
+                  <p className="text-xs text-slate-500">Track raw stock levels, set reorder points, and log kitchen ingredient usage costs.</p>
                 </div>
-                <button className="primary-btn flex items-center gap-1.5 text-xs font-bold" onClick={() => openInventoryModal()}>
+                <button
+                  className="bg-[#f59e0b] hover:bg-amber-600 text-white font-bold text-xs py-2.5 px-4 rounded-xl flex items-center gap-1.5 shadow-sm"
+                  onClick={() => openInventoryModal()}
+                >
                   <Plus size={16} /> Add Stock Item
                 </button>
               </div>
 
-              {/* Inventory Metric Cards */}
+              {/* Metric Cards */}
               <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
-                <div className="p-4 rounded-2xl border bg-card">
-                  <span className="text-xs text-muted-foreground">Stock Items</span>
-                  <div className="text-2xl font-black">{inventoryList.length}</div>
+                <div className="p-4 rounded-2xl border border-slate-200 bg-white">
+                  <span className="text-xs text-slate-400 font-semibold">Stock Items</span>
+                  <div className="text-2xl font-black text-slate-900 mt-1">{inventoryList.length}</div>
                 </div>
-                <div className="p-4 rounded-2xl border bg-card">
-                  <span className="text-xs text-muted-foreground">Total Stock Value</span>
-                  <div className="text-2xl font-black text-emerald-500">
+                <div className="p-4 rounded-2xl border border-slate-200 bg-white">
+                  <span className="text-xs text-slate-400 font-semibold">Total Stock Value</span>
+                  <div className="text-2xl font-black text-emerald-600 mt-1">
                     {money(inventoryList.reduce((acc, i) => acc + i.onHand * (i.costPerUnit || 0), 0))}
                   </div>
                 </div>
-                <div className="p-4 rounded-2xl border bg-card border-amber-500/20 bg-amber-500/5">
-                  <span className="text-xs text-amber-500 font-bold">Low Stock Warning</span>
-                  <div className="text-2xl font-black text-amber-500">
+                <div className="p-4 rounded-2xl border border-amber-200 bg-amber-50/40">
+                  <span className="text-xs text-amber-700 font-bold">Low Stock Alert</span>
+                  <div className="text-2xl font-black text-amber-700 mt-1">
                     {inventoryList.filter((i) => i.onHand > 0 && i.onHand <= i.reorderLevel).length}
                   </div>
                 </div>
-                <div className="p-4 rounded-2xl border bg-card border-red-500/20 bg-red-500/5">
-                  <span className="text-xs text-red-500 font-bold">Out of Stock</span>
-                  <div className="text-2xl font-black text-red-500">
+                <div className="p-4 rounded-2xl border border-rose-200 bg-rose-50/40">
+                  <span className="text-xs text-rose-700 font-bold">Out of Stock</span>
+                  <div className="text-2xl font-black text-rose-700 mt-1">
                     {inventoryList.filter((i) => i.onHand === 0).length}
                   </div>
                 </div>
               </div>
 
-              {/* Inventory Stock Table */}
-              <div className="p-5 border rounded-2xl bg-card space-y-4">
-                <div className="table-scroll overflow-x-auto">
+              {/* Table */}
+              <div className="p-5 border border-slate-200 rounded-2xl bg-white shadow-xs">
+                <div className="overflow-x-auto">
                   <table className="w-full text-left text-xs border-collapse">
                     <thead>
-                      <tr className="border-b text-muted-foreground">
+                      <tr className="border-b border-slate-100 text-slate-400 font-bold">
                         <th className="p-3">ITEM NAME</th>
                         <th className="p-3">CATEGORY</th>
                         <th className="p-3">UNIT COST</th>
@@ -1146,15 +1178,15 @@ export default function Home() {
                         const isOut = item.onHand === 0;
                         const isLow = item.onHand > 0 && item.onHand <= item.reorderLevel;
                         return (
-                          <tr key={item.id} className="border-b hover:bg-muted/30">
-                            <td className="p-3 font-bold">{item.name}</td>
-                            <td className="p-3">{item.category}</td>
-                            <td className="p-3 font-mono">{money(item.costPerUnit || 0)} / {item.unit}</td>
-                            <td className="p-3 font-mono font-bold">{item.onHand} {item.unit}</td>
-                            <td className="p-3 font-mono font-bold text-emerald-500">{money(item.onHand * (item.costPerUnit || 0))}</td>
+                          <tr key={item.id} className="border-b border-slate-50 hover:bg-slate-50/60">
+                            <td className="p-3 font-bold text-slate-900">{item.name}</td>
+                            <td className="p-3 text-slate-600">{item.category}</td>
+                            <td className="p-3 font-mono text-slate-700">{money(item.costPerUnit || 0)} / {item.unit}</td>
+                            <td className="p-3 font-mono font-bold text-slate-900">{item.onHand} {item.unit}</td>
+                            <td className="p-3 font-mono font-bold text-emerald-600">{money(item.onHand * (item.costPerUnit || 0))}</td>
                             <td className="p-3">
                               {isOut ? (
-                                <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-red-100 text-red-800">Out of Stock</span>
+                                <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-rose-100 text-rose-800">Out of Stock</span>
                               ) : isLow ? (
                                 <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-100 text-amber-800">Low Stock</span>
                               ) : (
@@ -1164,7 +1196,7 @@ export default function Home() {
                             <td className="p-3 text-right">
                               <div className="flex items-center justify-end gap-1.5">
                                 <button
-                                  className="px-2.5 py-1 rounded-lg text-[11px] font-bold bg-amber-500/10 text-amber-500 hover:bg-amber-500 hover:text-white transition-all flex items-center gap-1"
+                                  className="px-2.5 py-1 rounded-lg text-[11px] font-bold bg-amber-100 text-amber-800 hover:bg-[#f59e0b] hover:text-white transition-all flex items-center gap-1"
                                   onClick={() => {
                                     setSelectedStockForUsage(item);
                                     setUsageQuantity("");
@@ -1174,10 +1206,10 @@ export default function Home() {
                                 >
                                   <TrendingDown size={13} /> Use Stock
                                 </button>
-                                <button className="p-1.5 border rounded-lg hover:bg-muted" onClick={() => openInventoryModal(item)}>
+                                <button className="p-1.5 border border-slate-200 rounded-lg hover:bg-slate-50" onClick={() => openInventoryModal(item)}>
                                   <Pencil size={13} />
                                 </button>
-                                <button className="p-1.5 border rounded-lg text-red-500 hover:bg-red-50" onClick={() => handleDeleteInventory(item.id)}>
+                                <button className="p-1.5 border border-slate-200 rounded-lg text-rose-600 hover:bg-rose-50" onClick={() => handleDeleteInventory(item.id)}>
                                   <Trash2 size={13} />
                                 </button>
                               </div>
@@ -1185,11 +1217,6 @@ export default function Home() {
                           </tr>
                         );
                       })}
-                      {!inventoryList.length && (
-                        <tr>
-                          <td colSpan={7} className="text-center py-6 text-muted-foreground">No stock items found. Add items to track your inventory.</td>
-                        </tr>
-                      )}
                     </tbody>
                   </table>
                 </div>
@@ -1197,92 +1224,51 @@ export default function Home() {
             </div>
           )}
 
-          {/* 4. TEAM & PAYROLL */}
-          {view === "staff" && (
-            <div className="space-y-6">
-              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-                <div>
-                  <h1 className="text-2xl font-black">Team & Payroll</h1>
-                  <p className="text-xs text-muted-foreground">Manage employees, wage structures, and shifts for this restaurant.</p>
-                </div>
-                <button className="primary-btn flex items-center gap-1 text-xs font-bold" onClick={() => open("employee")}>
-                  <Plus size={15} /> Add Employee
-                </button>
-              </div>
-
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-                {staff.map((s) => (
-                  <div key={s.id} className="p-4 rounded-2xl border bg-card space-y-3 shadow-sm">
-                    <div className="flex justify-between items-start">
-                      <span className="w-9 h-9 rounded-full bg-primary/10 text-primary font-bold flex items-center justify-center text-xs">
-                        {s.initial}
-                      </span>
-                      <button className="text-red-500 p-1" onClick={() => setStaff(staff.filter((x) => x.id !== s.id))}>
-                        <Trash2 size={14} />
-                      </button>
-                    </div>
-                    <div>
-                      <b className="text-sm block">{s.name}</b>
-                      <span className="text-xs text-muted-foreground">{s.role}</span>
-                    </div>
-                    <div className="pt-2 border-t text-xs space-y-1">
-                      <div className="flex justify-between">
-                        <span className="text-muted-foreground">Shift:</span>
-                        <b>{s.shift}</b>
-                      </div>
-                      <div className="flex justify-between">
-                        <span className="text-muted-foreground">Salary:</span>
-                        <b>{s.payType === "Monthly" ? money(s.monthlySalary) : `${money(s.dailyRate)}/day`}</b>
-                      </div>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
-
-          {/* 5. EXPENSES LEDGER */}
+          {/* 4. EXPENSES WITH AUTOMATIC INVENTORY CONSUMPTION REFLECTION */}
           {view === "expenses" && (
             <div className="space-y-6">
               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
                 <div>
-                  <h1 className="text-2xl font-black">Expenses Ledger</h1>
-                  <p className="text-xs text-muted-foreground">Includes operating expenses and automatically calculated kitchen inventory usage.</p>
+                  <h1 className="text-2xl font-black text-slate-900">Expenses Ledger</h1>
+                  <p className="text-xs text-slate-500">Tracks operating expenditures alongside automatic kitchen inventory consumption costs.</p>
                 </div>
-                <button className="primary-btn flex items-center gap-1 text-xs font-bold" onClick={() => open("expense")}>
+                <button
+                  className="bg-[#f59e0b] hover:bg-amber-600 text-white font-bold text-xs py-2 px-4 rounded-xl flex items-center gap-1 shadow-sm"
+                  onClick={() => setModal("expense")}
+                >
                   <Plus size={15} /> Log Expense
                 </button>
               </div>
 
-              <div className="p-5 border rounded-2xl bg-card">
-                <div className="table-scroll overflow-x-auto">
+              <div className="p-5 border border-slate-200 rounded-2xl bg-white shadow-xs">
+                <div className="overflow-x-auto">
                   <table className="w-full text-left text-xs border-collapse">
                     <thead>
-                      <tr className="border-b text-muted-foreground">
+                      <tr className="border-b border-slate-100 text-slate-400 font-bold">
                         <th className="p-3">DESCRIPTION</th>
                         <th className="p-3">CATEGORY</th>
-                        <th className="p-3">VENDOR / SOURCE</th>
+                        <th className="p-3">VENDOR / CONSUMPTION</th>
                         <th className="p-3">DATE</th>
                         <th className="p-3 text-right">AMOUNT</th>
                       </tr>
                     </thead>
                     <tbody>
                       {expenses.map((e) => (
-                        <tr key={e.id} className="border-b hover:bg-muted/30">
-                          <td className="p-3 font-semibold">{e.name}</td>
+                        <tr key={e.id} className="border-b border-slate-50 hover:bg-slate-50/60">
+                          <td className="p-3 font-bold text-slate-900">{e.name}</td>
                           <td className="p-3">
-                            <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-secondary">
+                            <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-slate-100 text-slate-700">
                               {e.category}
                             </span>
                           </td>
-                          <td className="p-3 text-muted-foreground">{e.vendor}</td>
-                          <td className="p-3 font-mono">{e.date}</td>
-                          <td className="p-3 font-bold text-right">{money(e.amount)}</td>
+                          <td className="p-3 text-slate-500">{e.vendor}</td>
+                          <td className="p-3 font-mono text-slate-600">{e.date}</td>
+                          <td className="p-3 font-bold font-mono text-right text-slate-900">{money(e.amount)}</td>
                         </tr>
                       ))}
                       {!expenses.length && (
                         <tr>
-                          <td colSpan={5} className="text-center py-6 text-muted-foreground">No expenses recorded yet.</td>
+                          <td colSpan={5} className="text-center py-6 text-slate-400">No expenses recorded yet.</td>
                         </tr>
                       )}
                     </tbody>
@@ -1292,224 +1278,179 @@ export default function Home() {
             </div>
           )}
 
-          {/* 6. RESTAURANT SUBSCRIPTION (READ-ONLY FOR RESTAURANT) */}
+          {/* 5. MENU & DISHES */}
+          {view === "menu" && (
+            <div className="space-y-6">
+              <div className="flex justify-between items-center">
+                <div>
+                  <h1 className="text-2xl font-black text-slate-900">Menu Catalog</h1>
+                  <p className="text-xs text-slate-500">Configure dishes, pricing, and live availability.</p>
+                </div>
+                <button
+                  className="bg-[#f59e0b] hover:bg-amber-600 text-white font-bold text-xs py-2 px-4 rounded-xl shadow-sm"
+                  onClick={() => setModal("dish")}
+                >
+                  <Plus size={15} /> Add Dish
+                </button>
+              </div>
+
+              <div className="p-5 border border-slate-200 rounded-2xl bg-white shadow-xs overflow-x-auto">
+                <table className="w-full text-left text-xs border-collapse">
+                  <thead>
+                    <tr className="border-b border-slate-100 text-slate-400 font-bold">
+                      <th className="p-3">DISH</th>
+                      <th className="p-3">CATEGORY</th>
+                      <th className="p-3">PRICE</th>
+                      <th className="p-3">AVAILABILITY</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {dishes.map((d) => (
+                      <tr key={d.id} className="border-b border-slate-50 hover:bg-slate-50/60">
+                        <td className="p-3 font-bold text-slate-900 flex items-center gap-2">
+                          <span>{d.emoji}</span> {d.name}
+                        </td>
+                        <td className="p-3 text-slate-600">{d.category}</td>
+                        <td className="p-3 font-mono font-bold text-slate-900">{money(d.price)}</td>
+                        <td className="p-3">
+                          <Switch checked={d.stock} onCheckedChange={(val) => setDishes(dishes.map(x => x.id === d.id ? { ...x, stock: val } : x))} />
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )}
+
+          {/* 6. SETTINGS */}
+          {view === "settings" && (
+            <div className="space-y-6 max-w-xl">
+              <div>
+                <h1 className="text-2xl font-black text-slate-900">Restaurant Settings</h1>
+                <p className="text-xs text-slate-500">Update restaurant details and billing identity.</p>
+              </div>
+
+              <div className="p-6 border border-slate-200 rounded-2xl bg-white shadow-xs space-y-4">
+                <div className="space-y-3 text-xs">
+                  <label className="block space-y-1 font-semibold text-slate-700">
+                    <span>Restaurant Name</span>
+                    <input
+                      value={storeForm.name}
+                      onChange={(e) => setStoreForm({ ...storeForm, name: e.target.value })}
+                      className="w-full p-2.5 border border-slate-200 rounded-xl bg-slate-50/50"
+                    />
+                  </label>
+                  <label className="block space-y-1 font-semibold text-slate-700">
+                    <span>Phone Number</span>
+                    <input
+                      value={storeForm.phone}
+                      onChange={(e) => setStoreForm({ ...storeForm, phone: e.target.value })}
+                      className="w-full p-2.5 border border-slate-200 rounded-xl bg-slate-50/50"
+                    />
+                  </label>
+                  <label className="block space-y-1 font-semibold text-slate-700">
+                    <span>Address</span>
+                    <input
+                      value={storeForm.address}
+                      onChange={(e) => setStoreForm({ ...storeForm, address: e.target.value })}
+                      className="w-full p-2.5 border border-slate-200 rounded-xl bg-slate-50/50"
+                    />
+                  </label>
+                  <label className="block space-y-1 font-semibold text-slate-700">
+                    <span>GSTIN</span>
+                    <input
+                      value={storeForm.gstin}
+                      onChange={(e) => setStoreForm({ ...storeForm, gstin: e.target.value })}
+                      className="w-full p-2.5 border border-slate-200 rounded-xl bg-slate-50/50"
+                    />
+                  </label>
+                </div>
+                <button
+                  onClick={handleSaveRestaurantSettings}
+                  className="w-full bg-[#f59e0b] hover:bg-amber-600 text-white font-bold py-2.5 rounded-xl text-xs transition-all shadow-sm"
+                >
+                  Save Details
+                </button>
+              </div>
+            </div>
+          )}
+
+          {/* 7. SUBSCRIPTION */}
           {view === "subscription" && (
             <div className="space-y-6">
               <div>
-                <h1 className="text-2xl font-black">Subscription & Plans</h1>
-                <p className="text-xs text-muted-foreground">Choose a plan, scan the UPI QR code below, and submit the reference ID.</p>
+                <h1 className="text-2xl font-black text-slate-900">Subscription Plans</h1>
+                <p className="text-xs text-slate-500">Choose an active plan for your restaurant workspace.</p>
               </div>
 
               <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                 {plans.map((p) => {
-                  const isCurrentActive = activePlanName.toLowerCase().trim() === p.name.toLowerCase().trim();
-                  const isSelected = activeInlinePlan?.id === p.id;
+                  const isCurrent = (activePlanName || "").toLowerCase().includes(p.name.toLowerCase());
                   return (
-                    <div
-                      key={p.id}
-                      className="rounded-2xl p-6 border flex flex-col justify-between"
-                      style={{
-                        background: "#16231e",
-                        borderColor: isSelected ? "#52b788" : isCurrentActive ? "#38bdf8" : "#223b32",
-                      }}
-                    >
+                    <div key={p.id} className="p-6 rounded-2xl border border-slate-200 bg-white shadow-xs flex flex-col justify-between space-y-4">
                       <div>
-                        <div className="flex justify-between items-center mb-2">
-                          <span className="text-sm font-semibold text-gray-300">{p.name}</span>
-                          {isCurrentActive && (
-                            <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-sky-950 text-sky-400 border border-sky-800 animate-pulse">
+                        <div className="flex justify-between items-center">
+                          <h3 className="font-bold text-base text-slate-900">{p.name}</h3>
+                          {isCurrent && (
+                            <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-100 text-amber-800">
                               Active Tier
                             </span>
                           )}
                         </div>
-                        <div className="text-3xl font-extrabold text-white mt-4 mb-2">{money(p.price)}</div>
-                        <div className="text-xs text-gray-400 font-medium mb-3">{p.period}</div>
-                        <p className="text-xs text-gray-300 leading-relaxed mb-6">{p.features}</p>
+                        <div className="text-2xl font-black text-slate-900 mt-2">{money(p.price)}</div>
+                        <small className="text-slate-400 font-medium block">{p.period}</small>
+                        <p className="text-xs text-slate-600 mt-3 leading-relaxed">{p.features}</p>
                       </div>
-
-                      {p.price > 0 ? (
-                        <button
-                          onClick={() => setActiveInlinePlan(p)}
-                          className="w-full py-2.5 px-4 rounded-xl text-xs font-bold transition-all text-gray-900"
-                          style={{ background: isSelected ? "#74c69d" : "#52b788" }}
-                        >
-                          Choose {p.name.toLowerCase()}
-                        </button>
-                      ) : (
-                        <div className="text-center py-2 text-xs font-semibold text-gray-400">
-                          {isCurrentActive ? "Active trial tier" : "Trial Tier"}
-                        </div>
-                      )}
                     </div>
                   );
                 })}
-              </div>
-
-              {/* Scannable Payment Proof Box */}
-              {activeInlinePlan && activeInlinePlan.price > 0 && (
-                <div className="max-w-md mx-auto rounded-2xl p-6 border text-center shadow-lg" style={{ background: "#16231e", borderColor: "#223b32" }}>
-                  <div className="text-sm font-bold text-white mb-4">Pay {money(activeInlinePlan.price)}</div>
-                  <div className="bg-white p-3 rounded-2xl inline-block mx-auto mb-4 border">
-                    <img
-                      src={`https://api.qrserver.com/v1/create-qr-code/?size=240x240&data=${encodeURIComponent(`upi://pay?pa=${subscriptionUpiId}&pn=RestoPulse&am=${activeInlinePlan.price}&cu=INR`)}`}
-                      alt="UPI QR Code"
-                      className="w-56 h-56 object-contain rounded-lg"
-                    />
-                  </div>
-                  <button
-                    onClick={() => { window.location.href = `upi://pay?pa=${subscriptionUpiId}&pn=RestoPulse&am=${activeInlinePlan.price}&cu=INR`; }}
-                    className="w-full py-2.5 px-4 rounded-xl text-xs font-bold text-gray-900 mb-3"
-                    style={{ background: "#52b788" }}
-                  >
-                    Open UPI app
-                  </button>
-                  <div className="mb-4">
-                    <input type="file" ref={fileInputRef} accept="image/*" onChange={(e) => setInlineScreenshotFile(e.target.files?.[0] || null)} className="hidden" />
-                    <button type="button" onClick={() => fileInputRef.current?.click()} className="w-full py-2.5 px-4 rounded-xl text-xs font-semibold text-gray-200 border border-gray-600 bg-gray-800/80">
-                      {inlineScreenshotFile ? `✓ ${inlineScreenshotFile.name.slice(0, 24)}` : "Upload payment screenshot"}
-                    </button>
-                  </div>
-                  <div className="text-left mb-4">
-                    <label className="text-[11px] font-semibold text-gray-400 block mb-1">UPI transaction reference *</label>
-                    <input
-                      type="text"
-                      required
-                      value={inlineRefId}
-                      onChange={(e) => setInlineRefId(e.target.value)}
-                      placeholder="Enter 12-digit UTR reference ID"
-                      className="w-full p-2.5 rounded-xl text-xs text-white border border-gray-700 bg-gray-900/90"
-                    />
-                  </div>
-                  <button
-                    onClick={async () => {
-                      if (!inlineRefId.trim()) { toast.error("Enter reference ID"); return; }
-                      setInlineSubmitBusy(true);
-                      try {
-                        const payload = {
-                          restaurant_id: tenantId,
-                          restaurant_name: activeRestaurantName,
-                          owner_name: activeRestaurantName,
-                          owner_email: loginEmail,
-                          plan: activeInlinePlan.name,
-                          upi_id: subscriptionUpiId,
-                          screenshot_url: "",
-                          message: `UTR: ${inlineRefId}`,
-                          status: "Pending",
-                        };
-                        await fetch("/api/subscription", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) });
-                        toast.success("Payment reference submitted for Admin approval!");
-                        setInlineRefId("");
-                      } catch {
-                        toast.error("Failed to submit reference");
-                      } finally {
-                        setInlineSubmitBusy(false);
-                      }
-                    }}
-                    disabled={inlineSubmitBusy}
-                    className="w-full py-2.5 px-4 rounded-xl text-xs font-bold text-gray-200 border border-gray-600 bg-gray-800/90"
-                  >
-                    {inlineSubmitBusy ? "Submitting…" : "Submit payment reference"}
-                  </button>
-                </div>
-              )}
-            </div>
-          )}
-
-          {/* 7. SETTINGS */}
-          {view === "settings" && (
-            <div className="space-y-6">
-              <div>
-                <h1 className="text-2xl font-black">Settings & Preferences</h1>
-                <p className="text-xs text-muted-foreground">Manage restaurant profile, address, and GST details.</p>
-              </div>
-
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                <div className="p-5 border rounded-2xl bg-card space-y-4">
-                  <h3 className="font-bold text-sm">Restaurant Details</h3>
-                  <div className="space-y-3 text-xs">
-                    <label className="block space-y-1">
-                      <span>Restaurant Name</span>
-                      <input
-                        value={storeForm.name}
-                        onChange={(e) => setStoreForm({ ...storeForm, name: e.target.value })}
-                        className="w-full p-2 border rounded-xl bg-background"
-                      />
-                    </label>
-                    <label className="block space-y-1">
-                      <span>Phone</span>
-                      <input
-                        value={storeForm.phone}
-                        onChange={(e) => setStoreForm({ ...storeForm, phone: e.target.value })}
-                        className="w-full p-2 border rounded-xl bg-background"
-                      />
-                    </label>
-                    <label className="block space-y-1">
-                      <span>Address</span>
-                      <input
-                        value={storeForm.address}
-                        onChange={(e) => setStoreForm({ ...storeForm, address: e.target.value })}
-                        className="w-full p-2 border rounded-xl bg-background"
-                      />
-                    </label>
-                    <label className="block space-y-1">
-                      <span>GSTIN</span>
-                      <input
-                        value={storeForm.gstin}
-                        onChange={(e) => setStoreForm({ ...storeForm, gstin: e.target.value })}
-                        className="w-full p-2 border rounded-xl bg-background"
-                      />
-                    </label>
-                  </div>
-                  <button className="primary-btn w-full" onClick={handleSaveRestaurantSettings}>
-                    Save Details
-                  </button>
-                </div>
               </div>
             </div>
           )}
         </main>
       </div>
 
-      {/* MODAL: USE INVENTORY STOCK & LOG USAGE COST */}
+      {/* MODAL: USE INVENTORY STOCK */}
       <Dialog open={usageModalOpen} onOpenChange={setUsageModalOpen}>
-        <DialogContent className="max-w-md">
+        <DialogContent className="max-w-md bg-white">
           <DialogHeader>
-            <DialogTitle>Take Inventory for Kitchen / Log Usage</DialogTitle>
+            <DialogTitle className="text-slate-900 font-bold">Use Stock for Kitchen</DialogTitle>
           </DialogHeader>
           {selectedStockForUsage && (
             <div className="space-y-4 py-2 text-xs">
-              <div className="p-3 rounded-xl border bg-secondary/30 space-y-1">
-                <div className="flex justify-between">
-                  <span>Selected Item:</span>
-                  <b className="text-foreground">{selectedStockForUsage.name}</b>
+              <div className="p-3.5 rounded-xl border border-slate-100 bg-slate-50 space-y-1.5">
+                <div className="flex justify-between font-semibold text-slate-700">
+                  <span>Ingredient:</span>
+                  <b className="text-slate-900">{selectedStockForUsage.name}</b>
                 </div>
-                <div className="flex justify-between">
+                <div className="flex justify-between font-semibold text-slate-700">
                   <span>Available On Hand:</span>
                   <b>{selectedStockForUsage.onHand} {selectedStockForUsage.unit}</b>
                 </div>
-                <div className="flex justify-between">
-                  <span>Cost per {selectedStockForUsage.unit}:</span>
-                  <b className="text-emerald-500 font-mono">{money(selectedStockForUsage.costPerUnit || 0)}</b>
+                <div className="flex justify-between font-semibold text-slate-700">
+                  <span>Unit Cost:</span>
+                  <b className="font-mono text-emerald-700">{money(selectedStockForUsage.costPerUnit || 0)} / {selectedStockForUsage.unit}</b>
                 </div>
               </div>
 
-              <label className="block space-y-1">
-                <span className="font-bold">Quantity Taken for Use ({selectedStockForUsage.unit})</span>
+              <label className="block space-y-1 font-bold text-slate-700">
+                <span>Quantity Taken ({selectedStockForUsage.unit})</span>
                 <input
                   type="number"
                   min="0.1"
                   step="any"
                   value={usageQuantity}
                   onChange={(e) => setUsageQuantity(e.target.value)}
-                  placeholder={`e.g. 2`}
-                  className="w-full p-2.5 border rounded-xl bg-background text-sm font-mono"
+                  placeholder="e.g. 2"
+                  className="w-full p-2.5 border border-slate-200 rounded-xl bg-white text-sm font-mono"
                 />
               </label>
 
               {Number(usageQuantity) > 0 && (
-                <div className="p-3 rounded-xl border border-amber-500/20 bg-amber-500/10 flex justify-between items-center">
-                  <span className="text-amber-600 font-bold">Total Cost Added to Expenses:</span>
-                  <strong className="text-base text-amber-600 font-mono">
+                <div className="p-3 rounded-xl border border-amber-200 bg-amber-50/60 flex justify-between items-center">
+                  <span className="text-amber-800 font-bold">Added to Operating Expenses:</span>
+                  <strong className="text-sm font-bold font-mono text-amber-900">
                     {money(Number(usageQuantity) * (selectedStockForUsage.costPerUnit || 0))}
                   </strong>
                 </div>
@@ -1517,47 +1458,47 @@ export default function Home() {
             </div>
           )}
           <DialogFooter>
-            <button className="quiet-btn" onClick={() => setUsageModalOpen(false)}>Cancel</button>
-            <button className="primary-btn font-bold" onClick={handleLogStockUsage}>Confirm & Deduct Stock</button>
+            <button className="px-4 py-2 border rounded-xl text-xs font-semibold" onClick={() => setUsageModalOpen(false)}>Cancel</button>
+            <button className="px-4 py-2 bg-[#f59e0b] hover:bg-amber-600 text-white rounded-xl text-xs font-bold" onClick={handleLogStockUsage}>Confirm & Deduct</button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
 
-      {/* MODAL: ADD / EDIT INVENTORY ITEM */}
+      {/* MODAL: ADD / EDIT INVENTORY */}
       <Dialog open={modal === "inventory"} onOpenChange={(v) => !v && setModal(null)}>
-        <DialogContent className="max-w-md">
+        <DialogContent className="max-w-md bg-white">
           <DialogHeader>
-            <DialogTitle>{editingInvId !== null ? "Edit Stock Item" : "Add New Stock Item"}</DialogTitle>
+            <DialogTitle className="text-slate-900 font-bold">{editingInvId !== null ? "Edit Stock Item" : "Add New Stock Item"}</DialogTitle>
           </DialogHeader>
           <div className="space-y-3 py-2 text-xs">
-            <label className="block space-y-1">
+            <label className="block space-y-1 font-semibold text-slate-700">
               <span>Item Name</span>
-              <input value={invForm.name} onChange={(e) => setInvForm({ ...invForm, name: e.target.value })} className="w-full p-2 border rounded-xl bg-background" />
+              <input value={invForm.name} onChange={(e) => setInvForm({ ...invForm, name: e.target.value })} className="w-full p-2 border border-slate-200 rounded-xl" />
             </label>
             <div className="grid grid-cols-2 gap-3">
-              <label className="block space-y-1">
+              <label className="block space-y-1 font-semibold text-slate-700">
                 <span>Quantity On Hand</span>
-                <input type="number" value={invForm.onHand} onChange={(e) => setInvForm({ ...invForm, onHand: e.target.value })} className="w-full p-2 border rounded-xl bg-background" />
+                <input type="number" value={invForm.onHand} onChange={(e) => setInvForm({ ...invForm, onHand: e.target.value })} className="w-full p-2 border border-slate-200 rounded-xl" />
               </label>
-              <label className="block space-y-1">
+              <label className="block space-y-1 font-semibold text-slate-700">
                 <span>Unit (kg, bags, tins)</span>
-                <input value={invForm.unit} onChange={(e) => setInvForm({ ...invForm, unit: e.target.value })} className="w-full p-2 border rounded-xl bg-background" />
+                <input value={invForm.unit} onChange={(e) => setInvForm({ ...invForm, unit: e.target.value })} className="w-full p-2 border border-slate-200 rounded-xl" />
               </label>
             </div>
             <div className="grid grid-cols-2 gap-3">
-              <label className="block space-y-1">
-                <span>Cost Per Unit (₹)</span>
-                <input type="number" value={invForm.costPerUnit} onChange={(e) => setInvForm({ ...invForm, costPerUnit: e.target.value })} placeholder="140" className="w-full p-2 border rounded-xl bg-background" />
+              <label className="block space-y-1 font-semibold text-slate-700">
+                <span>Unit Cost (₹)</span>
+                <input type="number" value={invForm.costPerUnit} onChange={(e) => setInvForm({ ...invForm, costPerUnit: e.target.value })} placeholder="140" className="w-full p-2 border border-slate-200 rounded-xl" />
               </label>
-              <label className="block space-y-1">
-                <span>Reorder Alert Threshold</span>
-                <input type="number" value={invForm.reorderLevel} onChange={(e) => setInvForm({ ...invForm, reorderLevel: e.target.value })} className="w-full p-2 border rounded-xl bg-background" />
+              <label className="block space-y-1 font-semibold text-slate-700">
+                <span>Reorder Point</span>
+                <input type="number" value={invForm.reorderLevel} onChange={(e) => setInvForm({ ...invForm, reorderLevel: e.target.value })} className="w-full p-2 border border-slate-200 rounded-xl" />
               </label>
             </div>
           </div>
           <DialogFooter>
-            <button className="quiet-btn" onClick={() => setModal(null)}>Cancel</button>
-            <button className="primary-btn" onClick={handleAddOrEditInventory}>Save Item</button>
+            <button className="px-4 py-2 border rounded-xl text-xs font-semibold" onClick={() => setModal(null)}>Cancel</button>
+            <button className="px-4 py-2 bg-[#f59e0b] hover:bg-amber-600 text-white rounded-xl text-xs font-bold" onClick={handleAddOrEditInventory}>Save Item</button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

@@ -27,32 +27,40 @@ export async function PATCH(request: Request) {
     const { id, name, phone, address, gstin, gst_percent, cgst_percent, sgst_percent } = body
 
     if (!id && !name) {
-      return NextResponse.json({ error: 'Restaurant ID or Name required' }, { status: 400 })
+      return NextResponse.json({ error: 'Restaurant identifier is required' }, { status: 400 })
     }
 
     // Only update native columns that exist in the Supabase 'restaurants' table schema
-    // (Prevents the "Could not find 'cgst_percent' column in schema cache" error)
     const updatePayload: Record<string, any> = {}
-    if (name) updatePayload.name = name.trim()
-    if (phone) updatePayload.owner_phone = phone.trim()
-    if (address !== undefined) updatePayload.address = address.trim()
-    if (gstin !== undefined) updatePayload.gstin = gstin.trim()
+    if (name) updatePayload.name = String(name).trim()
+    if (phone) updatePayload.owner_phone = String(phone).trim()
+    if (address !== undefined) updatePayload.address = String(address).trim()
+    if (gstin !== undefined) updatePayload.gstin = String(gstin).trim()
 
     let query = supabase.from('restaurants').update(updatePayload)
 
     if (id && id !== '1' && id !== 'null' && id !== 'undefined') {
       query = query.eq('id', id)
     } else if (name) {
-      query = query.ilike('name', name.trim())
+      query = query.ilike('name', String(name).trim())
     }
 
     const { data, error } = await query.select().maybeSingle()
 
     if (error) {
+      if (error.message?.includes('permission denied')) {
+        return NextResponse.json(
+          {
+            error: "Supabase RLS denied access. Please verify SUPABASE_SERVICE_ROLE_KEY in your deployment environment.",
+            fallback: updatePayload,
+          },
+          { status: 403 }
+        )
+      }
       return NextResponse.json({ error: error.message }, { status: 400 })
     }
 
-    // Persist tax breakdown safely into settings table if present
+    // Persist tax breakdown safely in settings table without altering restaurant schema
     try {
       await supabase.from('settings').upsert(
         {

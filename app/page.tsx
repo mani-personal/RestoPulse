@@ -44,7 +44,6 @@ import {
   RefreshCw,
   Clock,
   X,
-  TrendingDown,
 } from "lucide-react";
 import {
   AreaChart,
@@ -88,6 +87,7 @@ type View =
 
 type Dish = {
   id: number | string;
+  imageUrl?: string;
   name: string;
   category: string;
   price: number;
@@ -120,7 +120,6 @@ type InventoryItem = {
   category: string;
   onHand: number;
   unit: string;
-  costPerUnit: number;
   reorderLevel: number;
 };
 
@@ -229,7 +228,7 @@ type Sale = {
   bill: Bill;
 };
 
-const defaultDishes: Dish[] = [
+const initialDishes: Dish[] = [
   { id: 1, name: "Burrata & Heirloom Tomato", category: "Appetizers", price: 520, cost: 210, stock: true, emoji: "🍅", diet: "Vegetarian", time: 12 },
   { id: 2, name: "Grilled Salmon Bowl", category: "Mains", price: 790, cost: 330, stock: true, emoji: "🥗", diet: "Gluten-free", time: 18 },
   { id: 3, name: "Dark Chocolate Fondant", category: "Desserts", price: 390, cost: 130, stock: true, emoji: "🍫", diet: "Vegetarian", time: 14 },
@@ -240,7 +239,7 @@ const defaultDishes: Dish[] = [
   { id: 8, name: "Margherita Flatbread", category: "Mains", price: 470, cost: 155, stock: true, emoji: "🍕", diet: "Vegetarian", time: 17 },
 ];
 
-const defaultPlans: Plan[] = [
+const initialPlans: Plan[] = [
   { id: 1, name: "Free trial", price: 0, period: "7 days", features: "Explore core POS, menu items, inventory, and reports.", active: true },
   { id: 2, name: "Monthly", price: 2999, period: "30 days", features: "Full access, table management, live inventory tracking, POS checkout.", active: true },
   { id: 3, name: "Yearly", price: 29999, period: "365 days", features: "Full platform access, priority support, unlimited staff accounts.", active: true },
@@ -284,18 +283,18 @@ export default function Home() {
   const [loginPassword, setLoginPassword] = useState("");
   const [loginBusy, setLoginBusy] = useState(false);
 
-  // Persistent Selected Tenant Locking
+  // Persistent Selected Workspace Locking
   const [tenantId, setTenantId] = useState<string | null>(null);
   const tenantIdRef = useRef<string | null>(null);
   tenantIdRef.current = tenantId;
 
-  const [isAdmin, setIsAdmin] = useState(false);
   const [currentUserRole, setCurrentUserRole] = useState<string>("owner");
 
   // Dynamic Workspace Identity
-  const [activePlanName, setActivePlanName] = useState<string>("Monthly");
+  const [activePlanName, setActivePlanName] = useState<string>("Free trial");
   const [activeRenewalDate, setActiveRenewalDate] = useState<string>("—");
-  const [activeRestaurantName, setActiveRestaurantName] = useState<string>("");
+  const [activeRestaurantName, setActiveRestaurantName] = useState<string>("Loading workspace…");
+  const [workspaceMenuOpen, setWorkspaceMenuOpen] = useState(false);
 
   const [tenantInfo, setTenantInfo] = useState<{
     id?: string;
@@ -331,50 +330,38 @@ export default function Home() {
     footer: "Thank you for dining with us!",
   });
 
+  const [isAdmin, setIsAdmin] = useState(false);
+  const [suppliers, setSuppliers] = useState<Supplier[]>([
+    { id: "sp-1", name: "Green Acres Co.", contact: "Vikram Shah", phone: "+91 98765 00001", email: "vikram@greenacres.in" },
+    { id: "sp-2", name: "ProChef Supplies", contact: "Sunita Roy", phone: "+91 98765 00002", email: "sunita@prochef.in" }
+  ]);
+  const [supplierPayments, setSupplierPayments] = useState<SupplierPayment[]>([
+    { id: "pay-1", supplierId: "sp-1", amount: 2500, date: "2026-09-26", method: "UPI", note: "Weekly vegetables" }
+  ]);
+  const [supplierDetail, setSupplierDetail] = useState<string | null>("sp-1");
+
   const [view, setView] = useState<View>("dashboard");
   const [profileMenu, setProfileMenu] = useState(false);
   const [accountRole, setAccountRole] = useState<"admin" | "restaurant">("restaurant");
-  const [mobileNav, setMobileNav] = useState(false);
-  const [dark, setDark] = useState(false);
-  const [notifications, setNotifications] = useState(false);
-
-  // Scoped Data Collections
-  const [dishes, setDishes] = useState<Dish[]>(defaultDishes);
   const [staff, setStaff] = useState<Staff[]>([]);
   const [wages, setWages] = useState<Wage[]>([]);
   const [wageForm, setWageForm] = useState({ date: new Date().toLocaleDateString("en-CA"), amount: "", note: "" });
   const [selectedStaff, setSelectedStaff] = useState<Staff | null>(null);
-  const [suppliers, setSuppliers] = useState<Supplier[]>([
-    { id: "sp-1", name: "Green Acres Co.", contact: "Vikram Shah", phone: "+91 98765 00001", email: "vikram@greenacres.in" },
-    { id: "sp-2", name: "ProChef Supplies", contact: "Sunita Roy", phone: "+91 98765 00002", email: "sunita@prochef.in" },
-  ]);
-  const [supplierPayments, setSupplierPayments] = useState<SupplierPayment[]>([]);
-  const [supplierDetail, setSupplierDetail] = useState<string | null>("sp-1");
-  const [expenses, setExpenses] = useState<Expense[]>([]);
-  const [orders, setOrders] = useState<Sale[]>([]);
 
-  // Inventory Management State
-  const [inventoryList, setInventoryList] = useState<InventoryItem[]>([
-    { id: 1, name: "Basmati Rice", category: "Grains", onHand: 12, unit: "bags", costPerUnit: 1400, reorderLevel: 5 },
-    { id: 2, name: "Refined Cooking Oil", category: "Oils", onHand: 3, unit: "tins", costPerUnit: 1850, reorderLevel: 6 },
-    { id: 3, name: "Fresh Paneer", category: "Dairy", onHand: 10, unit: "kg", costPerUnit: 340, reorderLevel: 4 },
-    { id: 4, name: "Heirloom Tomatoes", category: "Produce", onHand: 25, unit: "kg", costPerUnit: 45, reorderLevel: 8 },
-  ]);
-  const [invForm, setInvForm] = useState({ name: "", category: "Grains", onHand: "", unit: "kg", costPerUnit: "", reorderLevel: "5" });
-  const [editingInvId, setEditingInvId] = useState<string | number | null>(null);
+  const [printPaperSize, setPrintPaperSize] = useState<"58mm" | "80mm" | "A4">("80mm");
 
-  // Kitchen Inventory Consumption State
-  const [usageModalOpen, setUsageModalOpen] = useState(false);
-  const [selectedStockForUsage, setSelectedStockForUsage] = useState<InventoryItem | null>(null);
-  const [usageQuantity, setUsageQuantity] = useState("");
+  const [dark, setDark] = useState(false);
+  const [mobileNav, setMobileNav] = useState(false);
+  const [notifications, setNotifications] = useState(false);
+  const [dishes, setDishes] = useState<Dish[]>(initialDishes);
 
-  // Platform Admin Data
+  // Dynamic Plans state synced with server
+  const [plans, setPlans] = useState<Plan[]>(initialPlans);
+
   const [restaurants, setRestaurants] = useState<any[]>([]);
   const [approvals, setApprovals] = useState<RestaurantApproval[]>([]);
   const [subscriptionRequests, setSubscriptionRequests] = useState<Array<any>>([]);
-  const [plans, setPlans] = useState<Plan[]>(defaultPlans);
-
-  // POS State
+  const [expenses, setExpenses] = useState<Expense[]>([]);
   const [cart, setCart] = useState<CartLine[]>([]);
   const [category, setCategory] = useState("All items");
   const [query, setQuery] = useState("");
@@ -384,66 +371,31 @@ export default function Home() {
   const [payment, setPayment] = useState("UPI");
   const [sound, setSound] = useState(false);
   const [receipt, setReceipt] = useState<Bill | null>(null);
-  const [printPaperSize, setPrintPaperSize] = useState<"58mm" | "80mm" | "A4">("80mm");
+  const [orders, setOrders] = useState<Sale[]>([]);
+  const [modal, setModal] = useState<"plan" | "dish" | "expense" | "restaurant" | "extend" | "employee" | "supplier" | "payment" | "inventory" | null>(null);
+  const [editing, setEditing] = useState<number | string | null>(null);
+  const [form, setForm] = useState<Record<string, string>>({});
   const [dateRange, setDateRange] = useState("This week");
 
-  // Admin UPI & Subscription Verification
+  const [inventoryList, setInventoryList] = useState<InventoryItem[]>([]);
+  const [invForm, setInvForm] = useState({ name: "", category: "Grains", onHand: "", unit: "bags", reorderLevel: "5" });
+  const [editingInvId, setEditingInvId] = useState<string | number | null>(null);
+
   const [adminUpiId, setAdminUpiId] = useState<string>("admin-restopulse@upi");
   const [adminUpiBusy, setAdminUpiBusy] = useState(false);
   const [subscriptionUpiId, setSubscriptionUpiId] = useState<string>("admin-restopulse@upi");
+
   const [activeInlinePlan, setActiveInlinePlan] = useState<Plan | null>(null);
   const [inlineRefId, setInlineRefId] = useState("");
   const [inlineScreenshotFile, setInlineScreenshotFile] = useState<File | null>(null);
   const [inlineSubmitBusy, setInlineSubmitBusy] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  // Password Reset
   const [newPassword, setNewPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [pwdBusy, setPwdBusy] = useState(false);
 
-  // Modals
-  const [modal, setModal] = useState<"plan" | "dish" | "expense" | "employee" | "supplier" | "payment" | "inventory" | null>(null);
-  const [editing, setEditing] = useState<number | string | null>(null);
-  const [form, setForm] = useState<Record<string, string>>({});
-
-  // Sync Live Subscription & Restaurant Identity (Strict Tenant Scoping)
-  const syncLiveSubscriptionStatus = useCallback(async () => {
-    try {
-      const currentId = tenantIdRef.current;
-      const url = `/api/subscription?restaurant_id=${encodeURIComponent(currentId || "")}&user_id=${encodeURIComponent(authUser || "")}&email=${encodeURIComponent(loginEmail || "")}`;
-      const res = await fetch(url);
-      const data = await res.json();
-      if (data?.restaurant) {
-        if (!tenantIdRef.current) {
-          setTenantId(data.restaurant.id);
-        }
-        setActiveRestaurantName(data.restaurant.name);
-        setActivePlanName(data.restaurant.plan || "Monthly");
-        setActiveRenewalDate(data.restaurant.renewal_on || "—");
-        setTenantInfo((prev) => ({
-          ...prev,
-          id: data.restaurant.id,
-          name: data.restaurant.name,
-          address: data.restaurant.address || prev.address,
-          business_phone: data.restaurant.owner_phone || prev.business_phone,
-          gstin: data.restaurant.gstin || prev.gstin,
-        }));
-        setStoreForm((prev) => ({
-          ...prev,
-          name: data.restaurant.name,
-          address: data.restaurant.address || prev.address,
-          phone: data.restaurant.owner_phone || prev.phone,
-          gstin: data.restaurant.gstin || prev.gstin,
-        }));
-      }
-      if (data?.upi_id) {
-        setSubscriptionUpiId(data.upi_id);
-      }
-    } catch {}
-  }, [authUser, loginEmail]);
-
-  // Load Platform Plans (Read-only for restaurant owners)
+  // Sync Live Pricing Plans from Backend
   const fetchLivePlans = useCallback(async () => {
     try {
       const res = await fetch("/api/admin/pricing");
@@ -458,77 +410,145 @@ export default function Home() {
     } catch {}
   }, [activeInlinePlan]);
 
-  // Scoped Data Persisters
-  useEffect(() => {
-    if (!tenantId) return;
+  const getPlanDurationDays = (planName: string) => {
+    const found = plans.find((p) => p.name.toLowerCase() === planName.toLowerCase());
+    if (found) {
+      if (found.period.includes("7")) return 7;
+      if (found.period.includes("14")) return 14;
+      if (found.period.includes("365") || found.period.includes("year")) return 365;
+      return 30;
+    }
+    if (planName.toLowerCase().includes("year")) return 365;
+    return 30;
+  };
+
+  const switchWorkspace = (rest: any) => {
+    if (!rest?.id) return;
+    setTenantId(rest.id);
+    localStorage.setItem("rp-active-tenant-id", rest.id);
+    setActiveRestaurantName(rest.name);
+    setActivePlanName(rest.plan || "Free trial");
+    setActiveRenewalDate(rest.renewal || rest.renewal_on || "—");
+    setTenantInfo((prev) => ({
+      ...prev,
+      id: rest.id,
+      name: rest.name,
+      address: rest.city ? `${rest.name}, ${rest.city}` : prev.address,
+      business_phone: rest.phone || prev.business_phone,
+    }));
+    setStoreForm((prev) => ({
+      ...prev,
+      name: rest.name,
+      address: rest.city ? `${rest.name}, ${rest.city}` : prev.address,
+      phone: rest.phone || prev.phone,
+    }));
+    setWorkspaceMenuOpen(false);
+  };
+
+  // SYNC ACTIVE RESTAURANT STATUS
+  const syncLiveSubscriptionStatus = useCallback(async () => {
     try {
-      const savedInv = localStorage.getItem(`rp-inventory:${tenantId}`);
-      if (savedInv) setInventoryList(JSON.parse(savedInv));
+      const currentId = tenantIdRef.current;
+      const url = `/api/subscription?restaurant_id=${encodeURIComponent(currentId || "")}&user_id=${encodeURIComponent(authUser || "")}&email=${encodeURIComponent(loginEmail || "")}`;
+      const res = await fetch(url);
+      const data = await res.json();
+      if (data?.restaurant) {
+        if (!tenantIdRef.current) {
+          setTenantId(data.restaurant.id);
+          localStorage.setItem("rp-active-tenant-id", data.restaurant.id);
+          setActiveRestaurantName(data.restaurant.name);
+        } else if (tenantIdRef.current === data.restaurant.id) {
+          setActiveRestaurantName(data.restaurant.name);
+        }
 
-      const savedExp = localStorage.getItem(`rp-expenses:${tenantId}`);
-      if (savedExp) setExpenses(JSON.parse(savedExp));
-
-      const savedDishes = localStorage.getItem(`rp-dishes:${tenantId}`);
-      if (savedDishes) setDishes(JSON.parse(savedDishes));
-
-      const savedStaff = localStorage.getItem(`rp-staff:${tenantId}`);
-      if (savedStaff) setStaff(JSON.parse(savedStaff));
-
-      const savedOrders = localStorage.getItem(`rp-orders:${tenantId}`);
-      if (savedOrders) setOrders(JSON.parse(savedOrders));
+        if (!tenantIdRef.current || tenantIdRef.current === data.restaurant.id) {
+          setActivePlanName(data.restaurant.plan || "Free trial");
+          setActiveRenewalDate(data.restaurant.renewal_on || "—");
+          setTenantInfo((prev) => ({
+            ...prev,
+            id: data.restaurant.id,
+            name: data.restaurant.name,
+            address: data.restaurant.address || prev.address,
+            business_phone: data.restaurant.owner_phone || prev.business_phone,
+            gstin: data.restaurant.gstin || prev.gstin,
+          }));
+          setStoreForm((prev) => ({
+            ...prev,
+            name: data.restaurant.name,
+            address: data.restaurant.address || prev.address,
+            phone: data.restaurant.owner_phone || prev.phone,
+            gstin: data.restaurant.gstin || prev.gstin,
+          }));
+        }
+      }
+      if (data?.upi_id) {
+        setSubscriptionUpiId(data.upi_id);
+      }
     } catch {}
-  }, [tenantId]);
+  }, [authUser, loginEmail]);
 
-  const saveInventoryToStorage = (updated: InventoryItem[]) => {
-    setInventoryList(updated);
-    if (tenantId) localStorage.setItem(`rp-inventory:${tenantId}`, JSON.stringify(updated));
-  };
+  const fetchAllRestaurants = useCallback(async () => {
+    try {
+      if (db) {
+        const { data, error } = await db.from("restaurants").select("*").order("created_at", { ascending: false });
+        if (!error && data && data.length) {
+          const mapped = data.map((x: any) => ({
+            id: x.id,
+            name: x.name,
+            owner: x.owner_name,
+            email: x.owner_email,
+            phone: x.owner_phone,
+            city: x.city,
+            plan: x.plan,
+            status: x.status,
+            renewal: x.renewal_on || "—",
+            initial: (x.name || "RS").slice(0, 2).toUpperCase(),
+          }));
+          setRestaurants(mapped);
 
-  const saveExpensesToStorage = (updated: Expense[]) => {
-    setExpenses(updated);
-    if (tenantId) localStorage.setItem(`rp-expenses:${tenantId}`, JSON.stringify(updated));
-  };
+          const savedTenantId = localStorage.getItem("rp-active-tenant-id");
+          const target = mapped.find((r: any) => r.id === savedTenantId) || mapped.find((r: any) => r.id === tenantIdRef.current) || mapped[0];
 
-  // Kitchen Inventory Consumption & Cost Tracking
-  const handleLogStockUsage = () => {
-    if (!selectedStockForUsage) return;
-    const qty = Number(usageQuantity);
-    if (isNaN(qty) || qty <= 0) {
-      toast.error("Please enter a valid quantity taken for use");
-      return;
+          if (!tenantIdRef.current && target) {
+            setTenantId(target.id);
+            setActiveRestaurantName(target.name);
+            setActivePlanName(target.plan || "Free trial");
+            setActiveRenewalDate(target.renewal || "—");
+          } else if (tenantIdRef.current) {
+            const current = mapped.find((r: any) => r.id === tenantIdRef.current);
+            if (current) {
+              setActivePlanName(current.plan || "Free trial");
+              setActiveRenewalDate(current.renewal || "—");
+            }
+          }
+        }
+      }
+    } catch {}
+  }, [db]);
+
+  const fetchRealApprovals = useCallback(async () => {
+    try {
+      const res = await fetch("/api/admin/approvals");
+      const json = await res.json();
+      if (json?.approvals) {
+        setApprovals(json.approvals);
+      }
+    } catch {}
+  }, []);
+
+  const fetchSubscriptionRequests = useCallback(async () => {
+    try {
+      const res = await fetch("/api/admin/subscriptions");
+      const json = await res.json();
+      if (json?.requests) {
+        setSubscriptionRequests(json.requests);
+      }
+    } catch {
+      const localReqs = localStorage.getItem("rp-local-sub-requests");
+      if (localReqs) setSubscriptionRequests(JSON.parse(localReqs));
     }
-    if (qty > selectedStockForUsage.onHand) {
-      toast.error(`Only ${selectedStockForUsage.onHand} ${selectedStockForUsage.unit} currently available in stock!`);
-      return;
-    }
+  }, []);
 
-    const usageCost = Math.round(qty * (selectedStockForUsage.costPerUnit || 0));
-
-    // 1. Deduct quantity from warehouse inventory
-    const updatedInventory = inventoryList.map((item) =>
-      item.id === selectedStockForUsage.id ? { ...item, onHand: Math.max(0, item.onHand - qty) } : item
-    );
-    saveInventoryToStorage(updatedInventory);
-
-    // 2. Automatically record inventory cost in restaurant expenses ledger
-    const newUsageExpense: Expense = {
-      id: `exp-${Date.now()}`,
-      name: `Kitchen Usage: ${qty} ${selectedStockForUsage.unit} of ${selectedStockForUsage.name}`,
-      category: "Inventory / Kitchen Usage",
-      vendor: "Internal Stock Consumption",
-      amount: usageCost,
-      date: new Date().toLocaleDateString("en-CA"),
-      supplierId: null,
-    };
-    saveExpensesToStorage([newUsageExpense, ...expenses]);
-
-    toast.success(`Used ${qty} ${selectedStockForUsage.unit} of ${selectedStockForUsage.name}. Added ₹${usageCost} to operating expenses!`);
-    setUsageModalOpen(false);
-    setSelectedStockForUsage(null);
-    setUsageQuantity("");
-  };
-
-  // Auth & Roles Initializer
   useEffect(() => {
     if (!db) {
       setAuthLoading(false);
@@ -555,47 +575,94 @@ export default function Home() {
 
   useEffect(() => {
     if (!db || !authUser) return;
+    let live = true;
     (async () => {
       try {
         const [a, m] = await Promise.all([
           db.from("platform_admins").select("user_id").eq("user_id", authUser).maybeSingle(),
           db.from("memberships").select("restaurant_id,role").eq("user_id", authUser).limit(1).maybeSingle(),
         ]);
+        if (!live) return;
         const platform = !!a?.data;
         setIsAdmin(platform);
         setAccountRole(platform ? "admin" : "restaurant");
         if (m?.data?.role) {
           setCurrentUserRole(m.data.role.toLowerCase());
         }
-        if (m?.data?.restaurant_id) {
+        if (m?.data?.restaurant_id && !tenantIdRef.current) {
           setTenantId(m.data.restaurant_id);
+          localStorage.setItem("rp-active-tenant-id", m.data.restaurant_id);
         }
       } catch (e) {
         console.error("Auth hydration error", e);
       }
     })();
+    return () => {
+      live = false;
+    };
   }, [db, authUser]);
 
-  // Real-time synchronization loop
   useEffect(() => {
+    const savedUpi = localStorage.getItem("rp-admin-upi");
+    if (savedUpi) {
+      setAdminUpiId(savedUpi);
+      setSubscriptionUpiId(savedUpi);
+    }
+    fetch("/api/subscription")
+      .then((res) => res.json())
+      .then((data) => {
+        if (data?.upi_id) {
+          setSubscriptionUpiId(data.upi_id);
+          setAdminUpiId(data.upi_id);
+          localStorage.setItem("rp-admin-upi", data.upi_id);
+        }
+      })
+      .catch(() => {});
+  }, []);
+
+  // Real-Time Polling & Live Plans Sync
+  useEffect(() => {
+    fetchSubscriptionRequests();
+    fetchRealApprovals();
+    fetchAllRestaurants();
     syncLiveSubscriptionStatus();
     fetchLivePlans();
-    const interval = setInterval(() => {
-      syncLiveSubscriptionStatus();
-    }, 4000);
-    return () => clearInterval(interval);
-  }, [syncLiveSubscriptionStatus, fetchLivePlans]);
 
-  // Inventory CRUD
+    const interval = setInterval(() => {
+      fetchSubscriptionRequests();
+      fetchRealApprovals();
+      fetchAllRestaurants();
+      syncLiveSubscriptionStatus();
+      fetchLivePlans();
+    }, 4000);
+
+    return () => {
+      clearInterval(interval);
+    };
+  }, [fetchSubscriptionRequests, fetchRealApprovals, fetchAllRestaurants, syncLiveSubscriptionStatus, fetchLivePlans]);
+
+  useEffect(() => {
+    if (!tenantId) return;
+    try {
+      const raw = localStorage.getItem(`rp-inventory-list:${tenantId}`);
+      if (raw) setInventoryList(JSON.parse(raw));
+    } catch {}
+  }, [tenantId]);
+
+  const saveInventoryToStorage = (updated: InventoryItem[]) => {
+    setInventoryList(updated);
+    if (tenantId) {
+      localStorage.setItem(`rp-inventory-list:${tenantId}`, JSON.stringify(updated));
+    }
+  };
+
   const handleAddOrEditInventory = () => {
     if (!invForm.name.trim()) {
       toast.error("Please enter an item name");
       return;
     }
     const qty = Number(invForm.onHand);
-    const unitCost = Number(invForm.costPerUnit) || 0;
-    const reorder = Number(invForm.reorderLevel) || 5;
-
+    const reorder = Number(invForm.reorderLevel);
     if (isNaN(qty) || qty < 0) {
       toast.error("Enter a valid quantity on hand");
       return;
@@ -604,7 +671,7 @@ export default function Home() {
     if (editingInvId !== null) {
       const updated = inventoryList.map((item) =>
         item.id === editingInvId
-          ? { ...item, name: invForm.name.trim(), category: invForm.category, onHand: qty, unit: invForm.unit, costPerUnit: unitCost, reorderLevel: reorder }
+          ? { ...item, name: invForm.name.trim(), category: invForm.category, onHand: qty, unit: invForm.unit, reorderLevel: isNaN(reorder) ? 5 : reorder }
           : item
       );
       saveInventoryToStorage(updated);
@@ -616,23 +683,22 @@ export default function Home() {
         category: invForm.category,
         onHand: qty,
         unit: invForm.unit,
-        costPerUnit: unitCost,
-        reorderLevel: reorder,
+        reorderLevel: isNaN(reorder) ? 5 : reorder,
       };
       saveInventoryToStorage([...inventoryList, newItem]);
-      toast.success("Inventory item added to warehouse!");
+      toast.success("Inventory item added successfully!");
     }
 
     setModal(null);
     setEditingInvId(null);
-    setInvForm({ name: "", category: "Grains", onHand: "", unit: "kg", costPerUnit: "", reorderLevel: "5" });
+    setInvForm({ name: "", category: "Grains", onHand: "", unit: "bags", reorderLevel: "5" });
   };
 
   const handleDeleteInventory = (id: string | number) => {
     if (!confirm("Are you sure you want to delete this inventory item?")) return;
     const updated = inventoryList.filter((item) => item.id !== id);
     saveInventoryToStorage(updated);
-    toast.success("Inventory item removed");
+    toast.success("Inventory item deleted");
   };
 
   const openInventoryModal = (item?: InventoryItem) => {
@@ -643,18 +709,25 @@ export default function Home() {
         category: item.category,
         onHand: String(item.onHand),
         unit: item.unit,
-        costPerUnit: String(item.costPerUnit || 0),
         reorderLevel: String(item.reorderLevel),
       });
     } else {
       setEditingInvId(null);
-      setInvForm({ name: "", category: "Grains", onHand: "", unit: "kg", costPerUnit: "", reorderLevel: "5" });
+      setInvForm({ name: "", category: "Grains", onHand: "", unit: "bags", reorderLevel: "5" });
     }
     setModal("inventory");
   };
 
-  // POS Order Calculation
-  const displayedDishes = dishes.filter(
+  useEffect(() => {
+    setDark(localStorage.getItem("rp-theme") === "dark");
+  }, []);
+
+  useEffect(() => {
+    document.documentElement.classList.toggle("dark", dark);
+    localStorage.setItem("rp-theme", dark ? "dark" : "light");
+  }, [dark]);
+
+  const displayed = dishes.filter(
     (d) => (category === "All items" || d.category === category) && d.name.toLowerCase().includes(query.toLowerCase())
   );
 
@@ -664,6 +737,7 @@ export default function Home() {
   }, 0);
   const lineDiscount = cart.reduce((sum, l) => sum + l.discount * l.qty, 0);
   const totalDiscount = Math.min(subtotal, lineDiscount + orderDiscount);
+  
   const effectiveGst = tenantInfo.gst_percent || 5;
   const tax = Math.round((subtotal - totalDiscount) * (effectiveGst / 100));
   const cgstAmount = Math.round(tax / 2);
@@ -675,10 +749,218 @@ export default function Home() {
       const found = old.find((l) => l.id === id);
       return found ? old.map((l) => (l.id === id ? { ...l, qty: l.qty + 1 } : l)) : [...old, { id, qty: 1, discount: 0 }];
     });
+    if (sound) {
+      try {
+        const ctx = new AudioContext();
+        const o = ctx.createOscillator();
+        const g = ctx.createGain();
+        o.frequency.value = 650;
+        g.gain.value = 0.025;
+        o.connect(g).connect(ctx.destination);
+        o.start();
+        o.stop(ctx.currentTime + 0.06);
+      } catch {}
+    }
   };
 
   const qty = (id: number | string, delta: number) =>
     setCart((old) => old.map((l) => (l.id === id ? { ...l, qty: l.qty + delta } : l)).filter((l) => l.qty > 0));
+
+  const open = (which: typeof modal, id?: number | string) => {
+    setModal(which);
+    setEditing(id ?? null);
+    if (which === "plan") {
+      if (id) {
+        const p = plans.find((x) => x.id === id);
+        if (p) {
+          setForm({
+            name: p.name,
+            price: String(p.price),
+            period: p.period,
+            features: p.features || "",
+          });
+        }
+      } else {
+        setForm({
+          name: "",
+          price: "",
+          period: "30 days",
+          features: "",
+        });
+      }
+    } else if (which === "supplier" && id !== undefined) {
+      const sp = suppliers.find((x) => x.id === id)!;
+      setForm({ name: sp.name, contact: sp.contact, phone: sp.phone, email: sp.email });
+    } else if (which === "employee" && id !== undefined) {
+      const member = staff.find((x) => x.id === id)!;
+      setForm({
+        name: member.name,
+        role: member.role,
+        shift: member.shift,
+        payType: member.payType || "Monthly",
+        monthlySalary: String(member.monthlySalary || 0),
+        dailyRate: String(member.dailyRate || 0),
+        email: member.email,
+        phone: member.phone,
+      });
+    } else if (which === "dish" && id) {
+      const d = dishes.find((x) => x.id === id)!;
+      setForm({
+        name: d.name,
+        category: d.category,
+        price: String(d.price),
+        cost: String(d.cost),
+        emoji: d.emoji,
+        diet: d.diet,
+        time: String(d.time),
+      });
+    } else setForm({});
+  };
+
+  // ADMIN PLAN EDITING & CREATION (SAVES DIRECTLY TO DATABASE)
+  const save = async () => {
+    if (modal === "plan") {
+      if (!form.name?.trim() || !Number.isFinite(Number(form.price))) {
+        toast.error("Enter a valid plan name and price");
+        return;
+      }
+      const p: Plan = {
+        id: editing !== null ? Number(editing) : Date.now(),
+        name: form.name.trim(),
+        price: Number(form.price),
+        period: form.period || "30 days",
+        features: form.features || "",
+        active: true,
+      };
+
+      const updatedPlans = editing ? plans.map((x) => (x.id === editing ? p : x)) : [...plans, p];
+      setPlans(updatedPlans);
+
+      try {
+        await fetch("/api/admin/pricing", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ plans: updatedPlans }),
+        });
+        toast.success(editing ? "Plan updated successfully!" : "Plan created successfully!");
+      } catch {
+        toast.error("Failed to save pricing changes to server.");
+      }
+    }
+    if (modal === "dish") {
+      if (!form.name?.trim() || Number(form.price) <= 0) {
+        toast.error("Enter a dish name and valid price");
+        return;
+      }
+      const d: Dish = {
+        id: editing ?? Date.now(),
+        name: form.name.trim(),
+        category: form.category || "Mains",
+        price: Number(form.price),
+        cost: Number(form.cost) || 0,
+        stock: true,
+        emoji: form.emoji || "🍽",
+        diet: form.diet || "",
+        time: Number(form.time) || 15,
+      };
+      setDishes((old) => (editing ? old.map((x) => (x.id === editing ? { ...d, stock: x.stock } : x)) : [...old, d]));
+      toast.success(editing ? "Dish updated" : "Dish added");
+    }
+    if (modal === "expense") {
+      if (!form.name?.trim() || Number(form.amount) <= 0) {
+        toast.error("Enter a description and amount");
+        return;
+      }
+      const supplier = suppliers.find((x) => x.id === form.supplierId);
+      const newExp: Expense = {
+        id: Date.now(),
+        name: form.name,
+        category: form.category || "Inventory",
+        vendor: supplier?.name || form.vendor || "—",
+        amount: Number(form.amount),
+        date: form.date || new Date().toISOString().slice(0, 10),
+        supplierId: supplier?.id || null,
+      };
+      setExpenses((old) => [newExp, ...old]);
+      toast.success("Expense recorded");
+    }
+    if (modal === "supplier") {
+      const name = form.name?.trim();
+      if (!name) {
+        toast.error("Enter a supplier name");
+        return;
+      }
+      const newSup: Supplier = {
+        id: editing ? String(editing) : "sp-" + Date.now(),
+        name,
+        contact: form.contact || "",
+        phone: form.phone || "",
+        email: form.email || "",
+      };
+      setSuppliers((old) => (editing ? old.map((x) => (x.id === editing ? newSup : x)) : [newSup, ...old]));
+      setSupplierDetail(newSup.id);
+      toast.success(editing ? "Supplier updated" : "Supplier added");
+    }
+    if (modal === "payment") {
+      if (!form.supplierId || Number(form.amount) <= 0) {
+        toast.error("Select a supplier and enter a positive amount");
+        return;
+      }
+      const newPay: SupplierPayment = {
+        id: "pay-" + Date.now(),
+        supplierId: form.supplierId,
+        amount: Number(form.amount),
+        date: form.date || new Date().toISOString().slice(0, 10),
+        method: form.method || "Cash",
+        note: form.note || "",
+      };
+      setSupplierPayments((old) => [newPay, ...old]);
+      toast.success("Payment recorded");
+    }
+
+    if (modal === "employee") {
+      if (!form.name?.trim()) {
+        toast.error("Enter employee name");
+        return;
+      }
+      const payType = (form.payType as "Monthly" | "Daily") || "Monthly";
+      const monthlySalary = Number(form.monthlySalary) || 0;
+      const dailyRate = Number(form.dailyRate) || (payType === "Monthly" ? Math.round(monthlySalary / 30) : 0);
+
+      const person: Staff = {
+        id: editing ?? Date.now(),
+        name: form.name.trim(),
+        role: (form.role as EmployeeRole) || "Staff",
+        initial: form.name.trim().split(/\s+/).map((x) => x[0]).join("").slice(0, 2).toUpperCase(),
+        shift: form.shift || "09:00 – 18:00",
+        payType,
+        monthlySalary,
+        dailyRate,
+        email: form.email || "staff@restopulse.demo",
+        phone: form.phone || "",
+      };
+      setStaff((old) => (editing !== null ? old.map((x) => (x.id === editing ? person : x)) : [...old, person]));
+      toast.success(editing !== null ? "Employee updated" : "Employee added");
+    }
+    setModal(null);
+  };
+
+  // ADMIN PLAN DELETION HANDLER
+  const handleDeletePlan = async (planId: number) => {
+    if (!confirm("Are you sure you want to remove this pricing plan?")) return;
+    const filtered = plans.filter((p) => p.id !== planId);
+    setPlans(filtered);
+    try {
+      await fetch("/api/admin/pricing", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ plans: filtered }),
+      });
+      toast.success("Pricing plan deleted successfully");
+    } catch {
+      toast.error("Failed to update pricing on server.");
+    }
+  };
 
   const checkout = () => {
     if (!cart.length) {
@@ -722,20 +1004,179 @@ export default function Home() {
       status: "Paid",
       bill,
     };
-    const updatedSales = [newSale, ...orders];
-    setOrders(updatedSales);
-    if (tenantId) localStorage.setItem(`rp-orders:${tenantId}`, JSON.stringify(updatedSales));
-
+    setOrders((old) => [newSale, ...old]);
     setCart([]);
     setOrderDiscount(0);
     toast.success("Payment complete · " + id);
   };
 
-  // Safe Restaurant Details Save
+  const openStaff = (person: Staff) => {
+    setSelectedStaff(person);
+    setWageForm({
+      date: new Date().toLocaleDateString("en-CA"),
+      amount: String(person.dailyRate || Math.round((person.monthlySalary || 0) / 30)),
+      note: ""
+    });
+  };
+
+  const saveAdminUpi = async () => {
+    setAdminUpiBusy(true);
+    const trimmed = adminUpiId.trim();
+    localStorage.setItem("rp-admin-upi", trimmed);
+    setSubscriptionUpiId(trimmed);
+    try {
+      await fetch("/api/admin/settings", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ upi_id: trimmed }),
+      });
+    } catch {}
+    toast.success("Admin payment UPI ID saved successfully!");
+    setAdminUpiBusy(false);
+  };
+
+  // RESTAURANT SUBMITS PAYMENT PROOF
+  const handleInlineSubmitReference = async () => {
+    if (!activeInlinePlan) return;
+    if (!inlineRefId.trim()) {
+      toast.error("Please enter the UPI transaction reference");
+      return;
+    }
+    setInlineSubmitBusy(true);
+    try {
+      let screenshotUrl = "";
+      if (inlineScreenshotFile) {
+        try {
+          if (db) {
+            const path = `subscriptions/${Date.now()}-${inlineScreenshotFile.name.replace(/\s+/g, "_")}`;
+            const { error: uploadErr } = await db.storage
+              .from("restaurant-media")
+              .upload(path, inlineScreenshotFile, { contentType: inlineScreenshotFile.type, upsert: true });
+
+            if (!uploadErr) {
+              const { data: pubData } = db.storage.from("restaurant-media").getPublicUrl(path);
+              screenshotUrl = pubData.publicUrl;
+            }
+          }
+        } catch {
+          screenshotUrl = await new Promise((resolve) => {
+            const reader = new FileReader();
+            reader.onload = () => resolve(reader.result as string);
+            reader.readAsDataURL(inlineScreenshotFile);
+          });
+        }
+      }
+
+      const planName = activeInlinePlan.name;
+
+      const payload = {
+        restaurant_id: tenantIdRef.current,
+        restaurant_name: activeRestaurantName,
+        owner_name: activeRestaurantName,
+        owner_email: loginEmail || "owner@example.com",
+        plan: planName,
+        upi_id: subscriptionUpiId,
+        screenshot_url: screenshotUrl,
+        message: `UPI Ref: ${inlineRefId.trim()} | Plan: ${planName}`,
+        status: "Pending",
+        requested_at: new Date().toISOString(),
+      };
+
+      const res = await fetch("/api/subscription", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+
+      if (!res.ok && db) {
+        await db.from("subscription_requests").insert(payload);
+      }
+
+      toast.success("Payment reference submitted for Admin approval!");
+      setInlineRefId("");
+      setInlineScreenshotFile(null);
+      fetchSubscriptionRequests();
+    } catch (err: any) {
+      toast.error(err.message || "Failed to submit payment reference");
+    } finally {
+      setInlineSubmitBusy(false);
+    }
+  };
+
+  // ADMIN ACTION: APPROVE OR REJECT
+  const handleReviewSubscriptionAction = async (
+    requestId: string,
+    reqRest: any,
+    action: "approve" | "reject"
+  ) => {
+    try {
+      const planName = reqRest?.plan || "Yearly";
+      const daysToAdd = getPlanDurationDays(planName);
+
+      const res = await fetch("/api/admin/subscriptions", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          request_id: requestId,
+          restaurant_id: reqRest?.restaurant_id,
+          restaurant_name: reqRest?.restaurant_name,
+          owner_email: reqRest?.owner_email,
+          plan_name: planName,
+          days_to_add: daysToAdd,
+          action: action,
+        }),
+      });
+
+      const resData = await res.json();
+
+      if (action === "approve") {
+        const renewalDate = resData?.renewal_on || "—";
+        setActivePlanName(planName);
+        setActiveRenewalDate(renewalDate);
+
+        toast.success(`Subscription approved! Plan updated to ${planName} with validity extended to ${renewalDate}.`);
+      } else {
+        toast.info("Subscription payment request was rejected.");
+      }
+
+      setSubscriptionRequests((old) => old.filter((x) => x.id !== requestId));
+      fetchAllRestaurants();
+      syncLiveSubscriptionStatus();
+    } catch (err: any) {
+      toast.error(err.message || "Failed to process request");
+    }
+  };
+
+  const handleReviewRestaurantApproval = async (approvalId: string | number, action: "approve" | "reject", requestedPlan?: string) => {
+    try {
+      const planName = requestedPlan || "Free trial";
+      const daysToAdd = getPlanDurationDays(planName);
+
+      await fetch("/api/admin/approvals", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ restaurant_id: approvalId, action }),
+      });
+
+      setApprovals((old) => old.filter((x) => x.id !== approvalId));
+      toast.success(
+        action === "approve"
+          ? `Restaurant approved! ${planName} active with +${daysToAdd} days.`
+          : "Restaurant registration rejected"
+      );
+      fetchRealApprovals();
+      fetchAllRestaurants();
+      syncLiveSubscriptionStatus();
+    } catch (err: any) {
+      toast.error(err.message || "Failed to update restaurant status");
+    }
+  };
+
+  // PERSIST RESTAURANT SETTINGS SAFELY TO DATABASE
   const handleSaveRestaurantSettings = async () => {
     try {
       const payload = {
-        id: tenantId || tenantInfo.id,
+        id: tenantIdRef.current || tenantInfo.id,
         name: storeForm.name.trim() || activeRestaurantName,
         phone: storeForm.phone.trim(),
         address: storeForm.address.trim(),
@@ -769,41 +1210,137 @@ export default function Home() {
         sgst_percent: payload.sgst_percent,
       }));
 
-      toast.success("Restaurant profile updated successfully!");
+      toast.success("Restaurant details saved successfully!");
       syncLiveSubscriptionStatus();
-    } catch {
-      toast.error("Failed to update profile details");
+    } catch (err: any) {
+      toast.error(err.message || "Failed to save settings");
     }
   };
 
-  // Strict Navigation Filter (Never shows platform admin options to restaurant owners)
-  const normalizedRole = (currentUserRole || "").toLowerCase();
-  const visibleNavTenant = navTenant.filter((item) => {
-    if (isAdmin) return true;
-    return !item.allowedRoles || item.allowedRoles.includes(normalizedRole);
-  });
+  const handleResetPassword = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newPassword || newPassword.length < 6) {
+      toast.error("Password must be at least 6 characters long");
+      return;
+    }
+    if (newPassword !== confirmPassword) {
+      toast.error("Passwords do not match");
+      return;
+    }
+    setPwdBusy(true);
+    try {
+      if (db) {
+        const { error } = await db.auth.updateUser({ password: newPassword });
+        if (error) {
+          toast.error(error.message);
+          return;
+        }
+      }
+      toast.success("Password reset successfully!");
+      setNewPassword("");
+      setConfirmPassword("");
+    } catch (err: any) {
+      toast.error(err.message || "Failed to reset password");
+    } finally {
+      setPwdBusy(false);
+    }
+  };
+
+  const login = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!db) return;
+    setLoginBusy(true);
+    const { error } = await db.auth.signInWithPassword({
+      email: loginEmail,
+      password: loginPassword,
+    });
+    setLoginBusy(false);
+    if (error) {
+      toast.error(error.message);
+    } else {
+      toast.success("Signed in successfully!");
+    }
+  };
+
+  const handleSignOut = async () => {
+    if (db) await db.auth.signOut();
+    localStorage.removeItem("rp-active-tenant-id");
+    setTenantId(null);
+    setAuthUser(null);
+  };
 
   const nav = (v: View) => {
     setView(v);
     setMobileNav(false);
+    setNotifications(false);
     setProfileMenu(false);
   };
 
-  if (authLoading) return <div className="flex items-center justify-center min-h-screen bg-white">Loading RestoPulse…</div>;
+  if (!db)
+    return (
+      <div className="auth-page">
+        <div className="auth-card">
+          <h1>RestoPulse configuration needed</h1>
+          <p>Add the Supabase URL and publishable key in Vercel environment variables, then redeploy.</p>
+        </div>
+      </div>
+    );
+
+  if (authLoading) return <div className="auth-page">Loading RestoPulse…</div>;
+
+  if (!authUser)
+    return (
+      <div className="auth-page">
+        <form className="auth-card" onSubmit={login}>
+          <div className="brand-symbol">✳</div>
+          <h1>Welcome to RestoPulse</h1>
+          <p>Sign in to your restaurant or platform account.</p>
+          <label>
+            Email
+            <input type="email" autoComplete="username" required value={loginEmail} onChange={(e) => setLoginEmail(e.target.value)} />
+          </label>
+          <label>
+            Password
+            <input type="password" autoComplete="current-password" required value={loginPassword} onChange={(e) => setLoginPassword(e.target.value)} />
+          </label>
+          <button className="primary-btn" disabled={loginBusy}>
+            {loginBusy ? "Signing in…" : "Sign in"}
+          </button>
+        </form>
+        <Toaster richColors />
+      </div>
+    );
+
+  const activePlanPrice = activeInlinePlan ? activeInlinePlan.price : 29999;
+  const inlineUpiPayUri = `upi://pay?pa=${encodeURIComponent(subscriptionUpiId)}&pn=${encodeURIComponent("RestoPulse")}&am=${encodeURIComponent(activePlanPrice.toFixed(2))}&cu=INR&tn=${encodeURIComponent(`${activeRestaurantName} ${activeInlinePlan?.name || 'Subscription'}`)}`;
+  const inlineQrImageUrl = `https://api.qrserver.com/v1/create-qr-code/?size=240x240&data=${encodeURIComponent(inlineUpiPayUri)}`;
+
+  // Navigation Filter: Restaurant login NEVER sees the admin Pricing plans link
+  const normalizedRole = (currentUserRole || "").toLowerCase();
+  const isOwnerOrAdmin = normalizedRole === "owner" || normalizedRole === "admin" || !normalizedRole;
+  
+  const visibleNavTenant = navTenant.filter((item) => {
+    if (isOwnerOrAdmin) return true;
+    return !item.allowedRoles || item.allowedRoles.includes(normalizedRole);
+  });
 
   return (
-    <div className="flex min-h-screen bg-[#f8fafc] text-slate-800 font-sans">
+    <div className="app-shell">
       <Toaster richColors position="top-right" />
 
-      {/* DYNAMIC THERMAL PRINT CSS */}
+      {/* DYNAMIC THERMAL & A4 PRINT RULES */}
       <style jsx global>{`
         @media print {
           @page {
             size: ${printPaperSize === "A4" ? "A4" : printPaperSize === "58mm" ? "58mm auto" : "80mm auto"};
-            margin: 0mm;
+            margin: ${printPaperSize === "A4" ? "10mm" : "0mm"};
           }
-          body * { visibility: hidden !important; }
-          #printable-receipt-card, #printable-receipt-card * { visibility: visible !important; }
+          body * {
+            visibility: hidden !important;
+          }
+          #printable-receipt-card, #printable-receipt-card * {
+            visibility: visible !important;
+          }
           #printable-receipt-card {
             position: absolute !important;
             left: 0 !important;
@@ -811,373 +1348,542 @@ export default function Home() {
             width: ${printPaperSize === "A4" ? "100%" : printPaperSize === "58mm" ? "48mm" : "72mm"} !important;
             max-width: ${printPaperSize === "A4" ? "100%" : printPaperSize === "58mm" ? "48mm" : "72mm"} !important;
             margin: 0 auto !important;
-            padding: 3mm !important;
+            padding: ${printPaperSize === "A4" ? "8mm" : "2mm 3mm"} !important;
             background: #ffffff !important;
             color: #000000 !important;
             font-family: 'Courier New', Courier, monospace !important;
+            border: none !important;
+            box-shadow: none !important;
+            box-sizing: border-box !important;
           }
-          .no-print { display: none !important; }
+          .no-print {
+            display: none !important;
+          }
         }
       `}</style>
 
-      {/* MOBILE DRAWER OVERLAY BACKDROP */}
-      {mobileNav && (
+      <aside className={"sidebar " + (mobileNav ? "show" : "")}>
+        <div className="brand">
+          <div className="brand-symbol">
+            <svg viewBox="0 0 42 42" fill="none" aria-hidden="true">
+              <path
+                d="M5 25h7l4-8 5 13 4-7h12M10 32h24M21 10v3M8 25c1-8 6-12 13-12 7 0 12 4 13 12"
+                stroke="currentColor"
+                strokeWidth="2.4"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              />
+            </svg>
+          </div>
+          <div>
+            <strong>RestoPulse</strong>
+            <small>THE PULSE OF MODERN GASTRONOMY</small>
+          </div>
+        </div>
+
+        {/* WORKSPACE SELECTOR */}
+        <div className="workspace-label">
+          WORKSPACE <ChevronDown size={14} />
+        </div>
         <div
-          className="fixed inset-0 bg-slate-900/50 z-30 lg:hidden backdrop-blur-xs transition-opacity"
-          onClick={() => setMobileNav(false)}
-        />
-      )}
-
-      {/* SIDEBAR MATCHING IMAGE_1FCCDE.PNG */}
-      <aside className={`w-64 border-r border-slate-200 bg-white flex flex-col justify-between shrink-0 fixed inset-y-0 left-0 z-40 transition-transform duration-200 lg:static lg:translate-x-0 ${mobileNav ? "translate-x-0 shadow-2xl" : "-translate-x-full"}`}>
-        <div className="p-4 space-y-4">
-          {/* Brand */}
-          <div className="flex items-center gap-3 px-1">
-            <div className="w-9 h-9 rounded-full bg-[#f59e0b] text-white flex items-center justify-center font-bold text-xs shadow-xs">
-              RP
-            </div>
-            <div>
-              <strong className="block text-sm font-bold text-slate-900 leading-tight">RestoPulse</strong>
-              <small className="text-[10px] tracking-wider text-slate-400 font-semibold uppercase">GASTRONOMY POS</small>
-            </div>
+          className="store-selector relative cursor-pointer"
+          onClick={() => setWorkspaceMenuOpen(!workspaceMenuOpen)}
+        >
+          <span className="store-avatar">
+            {activeRestaurantName ? activeRestaurantName.slice(0, 2).toUpperCase() : "RS"}
+          </span>
+          <div className="truncate">
+            <b className="truncate block">{activeRestaurantName || "Select Workspace"}</b>
+            <small>{accountRole === "admin" ? "Platform console" : "Restaurant"}</small>
           </div>
+          <ChevronDown size={15} />
 
-          {/* Restaurant Workspace Box */}
-          <div className="p-3 rounded-2xl border border-slate-200 bg-white shadow-xs">
-            <small className="text-[10px] font-bold text-slate-400 block tracking-wider uppercase">RESTAURANT WORKSPACE</small>
-            <b className="text-sm font-bold text-slate-900 block truncate mt-0.5">{activeRestaurantName || "Mani"}</b>
-            <span className="text-xs text-slate-500 capitalize">{currentUserRole} Account</span>
-          </div>
-
-          {/* Navigation Links */}
-          <nav className="space-y-1">
-            {visibleNavTenant.map((item) => {
-              const isActive = view === item.id;
-              return (
+          {workspaceMenuOpen && restaurants.length > 0 && (
+            <div
+              className="absolute left-0 top-full mt-2 w-full bg-slate-900 border border-slate-700 rounded-xl p-2 z-50 shadow-2xl max-h-60 overflow-y-auto"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div className="text-[10px] text-gray-400 font-bold px-2 py-1 uppercase">Switch Workspace</div>
+              {restaurants.map((r: any) => (
                 <button
-                  key={item.id}
-                  onClick={() => nav(item.id)}
-                  className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-2xl text-xs font-bold transition-all text-left ${
-                    isActive
-                      ? "bg-[#f59e0b] text-white shadow-xs"
-                      : "text-slate-600 hover:bg-slate-50 hover:text-slate-900"
+                  key={r.id}
+                  onClick={() => switchWorkspace(r)}
+                  className={`w-full text-left px-2.5 py-1.5 rounded-lg text-xs font-semibold flex justify-between items-center ${
+                    tenantId === r.id ? "bg-amber-500 text-white" : "hover:bg-slate-800 text-gray-200"
                   }`}
                 >
-                  <item.icon size={16} />
-                  {item.label}
-                </button>
-              );
-            })}
-          </nav>
-
-          {/* Platform Admin Links (Hidden from restaurant logins) */}
-          {isAdmin && (
-            <div className="pt-3 border-t border-slate-100 space-y-1">
-              <small className="text-[10px] font-bold text-slate-400 px-3 block uppercase tracking-wider">PLATFORM ADMIN</small>
-              {navPlatform.map((item) => (
-                <button
-                  key={item.id}
-                  onClick={() => nav(item.id)}
-                  className={`w-full flex items-center gap-3 px-3 py-2 rounded-xl text-xs font-bold transition-all text-left ${
-                    view === item.id ? "bg-[#f59e0b] text-white shadow-xs" : "text-slate-600 hover:bg-slate-50"
-                  }`}
-                >
-                  <item.icon size={16} />
-                  {item.label}
+                  <span className="truncate">{r.name}</span>
+                  <span className="text-[10px] opacity-75">{r.plan || "Free trial"}</span>
                 </button>
               ))}
             </div>
           )}
         </div>
 
-        {/* Bottom Current Plan Box */}
-        <div className="p-4 space-y-3">
-          <div className="p-3.5 rounded-2xl border border-slate-200 bg-white shadow-xs">
-            <span className="text-[10px] text-slate-400 uppercase font-bold tracking-wider block">CURRENT PLAN</span>
-            <b className="text-sm font-bold text-slate-900 block capitalize mt-0.5">{activePlanName || "Monthly"}</b>
-            <span className="text-[11px] text-slate-400 block mt-0.5">Expires: {activeRenewalDate || "2026-11-12"}</span>
-          </div>
+        {/* RESTAURANT NAVIGATION */}
+        <div className="nav-heading">RESTAURANT</div>
+        <nav aria-label="Restaurant navigation">
+          {visibleNavTenant.map((item) => (
+            <button
+              key={item.id}
+              className={"nav-link " + (view === item.id ? "active" : "")}
+              onClick={() => nav(item.id)}
+            >
+              <item.icon size={18} />
+              {item.label}
+              {item.id === "pos" && <span className="nav-key">⌘2</span>}
+            </button>
+          ))}
+        </nav>
 
+        {/* PLATFORM ADMIN NAVIGATION */}
+        {isAdmin && (
+          <>
+            <div className="nav-heading admin-heading">PLATFORM ADMIN</div>
+            <nav aria-label="Platform navigation">
+              {navPlatform.map((item) => (
+                <button
+                  key={item.id}
+                  className={"nav-link " + (view === item.id ? "active" : "")}
+                  onClick={() => nav(item.id)}
+                >
+                  <item.icon size={18} />
+                  {item.label}
+                  {item.id === "approvals" && (approvals.length + subscriptionRequests.length) > 0 && (
+                    <span className="nav-count">{approvals.length + subscriptionRequests.length}</span>
+                  )}
+                </button>
+              ))}
+            </nav>
+          </>
+        )}
+
+        {/* DYNAMIC ACTIVE PLAN CARD */}
+        <div className="sidebar-bottom">
+          <div className="trial-note">
+            <span className="trial-icon">✦</span>
+            <b>Active Plan</b>
+            <p className="font-semibold text-white capitalize">{activePlanName || "Free trial"}</p>
+            <p className="text-[11px] text-gray-400 mt-0.5">Expires: {activeRenewalDate || "—"}</p>
+            <button onClick={() => nav(isAdmin ? "pricing" : "subscription")}>
+              Manage plan <ArrowUpRight size={14} />
+            </button>
+          </div>
           <button
-            onClick={async () => { if (db) await db.auth.signOut(); }}
-            className="w-full flex items-center justify-center gap-2 py-2 text-xs font-bold text-rose-600 hover:bg-rose-50 rounded-xl transition-all"
+            className="profile profile-trigger"
+            onClick={() => setProfileMenu(!profileMenu)}
+            aria-label="Open profile menu"
           >
-            <LogOut size={14} /> Sign Out
+            <span className="profile-avatar">{activeRestaurantName ? activeRestaurantName.slice(0, 2).toUpperCase() : "MR"}</span>
+            <div>
+              <b>{authUser?.slice(0, 8) || "Account"}</b>
+              <small>{accountRole === "admin" ? "Platform Administrator" : "Restaurant Owner"}</small>
+            </div>
+            <MoreHorizontal size={19} />
           </button>
         </div>
       </aside>
 
-      {/* MAIN VIEWPORT */}
-      <div className="flex-1 flex flex-col min-w-0">
-        {/* Sticky Responsive Topbar */}
-        <header className="h-16 border-b border-slate-200 bg-white px-4 sm:px-6 flex items-center justify-between sticky top-0 z-20">
-          <div className="flex items-center gap-2 text-xs text-slate-400 font-semibold min-w-0">
-            <button className="lg:hidden p-1.5 border border-slate-200 rounded-lg hover:bg-slate-50 mr-1 shrink-0" onClick={() => setMobileNav(!mobileNav)}>
-              <Menu size={18} />
+      <div className="main-wrap">
+        <header className="topbar">
+          <div className="top-left">
+            <button
+              className="icon-btn mobile-menu"
+              aria-label="Open navigation"
+              onClick={() => setMobileNav(!mobileNav)}
+            >
+              <Menu size={21} />
             </button>
-            <span className="hidden sm:inline">Workspace</span>
-            <span className="hidden sm:inline">/</span>
-            <strong className="text-slate-800 capitalize font-bold truncate">{view === "dashboard" ? "Dashboard" : view}</strong>
-          </div>
-
-          <div className="flex items-center gap-3 shrink-0">
-            <button className="p-2 border border-slate-200 rounded-full hover:bg-slate-50 text-slate-600">
-              <Sun size={15} />
-            </button>
-            <div className="text-right max-w-[120px] sm:max-w-[180px]">
-              <b className="text-xs font-bold text-slate-900 block leading-tight truncate">{activeRestaurantName || "Mani"}</b>
-              <small className="text-[11px] text-slate-400 font-medium block truncate">{loginEmail || "mani@gmail.com"}</small>
+            <div className="breadcrumbs">
+              Workspace <span>/</span> <strong>{[...navTenant, ...navPlatform].find((x) => x.id === view)?.label}</strong>
             </div>
           </div>
+          <div className="top-actions">
+            <span className="today-label">
+              <CalendarDays size={16} /> Thu, 1 Oct 2026
+            </span>
+            <span className="top-divider" />
+            <button
+              className="theme-switch"
+              aria-label={dark ? "Switch to light theme" : "Switch to dark theme"}
+              onClick={() => setDark(!dark)}
+              title="Toggle light and dark theme"
+            >
+              <Sun size={17} />
+              <Moon size={17} />
+              <span className={"theme-knob " + (dark ? "night" : "")}>
+                <Sun size={15} className="sun-knob" />
+                <Moon size={15} className="moon-knob" />
+              </span>
+            </button>
+            <button
+              className="icon-btn notification-button"
+              aria-label="Notifications"
+              aria-expanded={notifications}
+              onClick={() => setNotifications(!notifications)}
+            >
+              <Bell size={19} />
+              <span className="notification-dot" />
+            </button>
+            <button
+              className="profile-avatar top-avatar profile-top-button"
+              aria-label="Open profile menu"
+              aria-expanded={profileMenu}
+              onClick={() => {
+                setProfileMenu(!profileMenu);
+                setNotifications(false);
+              }}
+            >
+              {activeRestaurantName ? activeRestaurantName.slice(0, 2).toUpperCase() : "MR"}
+            </button>
+          </div>
+
+          {profileMenu && (
+            <div className="profile-popover">
+              <div className="profile-popover-head">
+                <b>{authUser?.slice(0, 8) || "Account"}</b>
+                <small>{accountRole === "admin" ? "Platform Administrator" : "Restaurant Owner"}</small>
+              </div>
+              <button onClick={() => nav("settings")}>
+                <Settings size={17} /> Account & settings
+              </button>
+              <button onClick={() => nav("staff")}>
+                <Users size={17} /> Manage employees
+              </button>
+              <button onClick={handleSignOut} className="text-red-600 hover:text-red-700">
+                <LogOut size={17} /> Sign out
+              </button>
+            </div>
+          )}
+
+          {notifications && (
+            <div className="notification-popover">
+              <div className="popover-title">
+                <b>Notifications</b>
+                <span>{approvals.length + subscriptionRequests.length} new</span>
+              </div>
+              {(approvals.length + subscriptionRequests.length) > 0 && (
+                <button onClick={() => nav("approvals")}>
+                  <span className="notif-icon amber">◎</span>
+                  <span>
+                    <b>{approvals.length + subscriptionRequests.length} pending items</b>
+                    <small>Review applications & proofs</small>
+                  </span>
+                </button>
+              )}
+            </div>
+          )}
         </header>
 
-        {/* Content View */}
-        <main className="flex-1 p-4 sm:p-6 lg:p-8 overflow-y-auto">
+        <main className={"content " + (view === "pos" ? "pos-content" : "")}>
           {/* 1. OVERVIEW DASHBOARD */}
           {view === "dashboard" && (
-            <div className="space-y-6 max-w-7xl">
-              {/* Header with Title and New Order Button */}
-              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+            <>
+              <div className="page-head">
                 <div>
-                  <h1 className="text-2xl lg:text-3xl font-black text-slate-900">Good afternoon, {activeRestaurantName || "Mani"}</h1>
-                  <p className="text-xs text-slate-500 mt-1">Operational snapshot for {activeRestaurantName || "Mani"}.</p>
+                  <div className="eyebrow">OVERVIEW</div>
+                  <h1>Good afternoon, {activeRestaurantName || "Owner"}</h1>
+                  <p>Here’s what’s happening at {activeRestaurantName || "your restaurant"}.</p>
                 </div>
-                <button
-                  onClick={() => nav("pos")}
-                  className="bg-[#f59e0b] hover:bg-amber-600 text-white font-bold text-xs py-2.5 px-4 rounded-xl flex items-center justify-center gap-1.5 transition-all shadow-xs active:scale-95"
-                >
-                  <Plus size={16} /> New Order
-                </button>
-              </div>
-
-              {/* Four Responsive Top Metrics */}
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-                <div className="p-5 rounded-2xl border border-slate-200 bg-white shadow-xs">
-                  <span className="text-xs font-semibold text-slate-500">Gross sales</span>
-                  <div className="text-2xl font-black text-slate-900 mt-1">
-                    {money(orders.reduce((sum, o) => sum + o.bill.subtotal, 0))}
-                  </div>
-                  <small className="text-[10px] text-slate-400 block mt-1">Total registered sales</small>
-                </div>
-
-                <div className="p-5 rounded-2xl border border-slate-200 bg-white shadow-xs">
-                  <span className="text-xs font-semibold text-slate-500">Net revenue</span>
-                  <div className="text-2xl font-black text-slate-900 mt-1">
-                    {money(orders.filter(o => o.status === "Paid").reduce((sum, o) => sum + o.bill.total, 0))}
-                  </div>
-                  <small className="text-[10px] text-slate-400 block mt-1">Paid sales</small>
-                </div>
-
-                <div className="p-5 rounded-2xl border border-slate-200 bg-white shadow-xs">
-                  <span className="text-xs font-semibold text-slate-500">Operating expenses</span>
-                  <div className="text-2xl font-black text-slate-900 mt-1">
-                    {money(expenses.reduce((sum, e) => sum + e.amount, 0))}
-                  </div>
-                  <small className="text-[10px] text-slate-400 block mt-1">Ingredients & overheads</small>
-                </div>
-
-                <div className="p-5 rounded-2xl border border-slate-200 bg-white shadow-xs">
-                  <span className="text-xs font-semibold text-slate-500">Real net profit</span>
-                  <div className="text-2xl font-black text-slate-900 mt-1">
-                    {money(
-                      orders.filter(o => o.status === "Paid").reduce((sum, o) => sum + o.bill.total, 0) -
-                      expenses.reduce((sum, e) => sum + e.amount, 0)
-                    )}
-                  </div>
-                  <small className="text-[10px] text-slate-400 block mt-1">Net sales minus expenses</small>
+                <div className="head-actions">
+                  <select aria-label="Date range" value={dateRange} onChange={(e) => setDateRange(e.target.value)}>
+                    <option>Today</option>
+                    <option>Yesterday</option>
+                    <option>This week</option>
+                    <option>This month</option>
+                  </select>
+                  <button className="primary-btn" onClick={() => nav("pos")}>
+                    <Plus size={18} /> New order
+                  </button>
                 </div>
               </div>
+              <div className="kpi-grid">
+                {[
+                  {
+                    label: "Gross sales",
+                    value: money(orders.filter((o) => o.status !== "Voided").reduce((n, o) => n + o.bill.subtotal, 0)),
+                    icon: Wallet,
+                    tone: "amber",
+                    note: "before discounts & refunds",
+                  },
+                  {
+                    label: "Net sales",
+                    value: money(orders.filter((o) => o.status === "Paid").reduce((n, o) => n + o.bill.subtotal - o.bill.discount, 0)),
+                    icon: ArrowUpRight,
+                    tone: "teal",
+                    note: "paid sales, excluding tax",
+                  },
+                  {
+                    label: "Operating expenses",
+                    value: money(
+                      expenses.reduce((a, x) => a + x.amount, 0) +
+                        wages.filter((w) => w.status === "Paid").reduce((a, x) => a + x.amount, 0)
+                    ),
+                    icon: ReceiptText,
+                    tone: "violet",
+                    note: "expenses + paid wages",
+                  },
+                  {
+                    label: "Real net profit",
+                    value: money(
+                      orders.filter((o) => o.status === "Paid").reduce((n, o) => n + o.bill.subtotal - o.bill.discount, 0) -
+                        expenses.reduce((a, x) => a + x.amount, 0) -
+                        wages.filter((w) => w.status === "Paid").reduce((a, x) => a + x.amount, 0)
+                    ),
+                    icon: ArrowUpRight,
+                    tone: "green",
+                    note: "net sales − operating costs",
+                  },
+                ].map((k) => (
+                  <div className="kpi-card" key={k.label}>
+                    <div className="kpi-top">
+                      <span>{k.label}</span>
+                      <span className={"kpi-icon " + k.tone}><k.icon size={19} /></span>
+                    </div>
+                    <strong>{k.value}</strong>
+                    <div className="kpi-foot"><span>{k.note}</span></div>
+                  </div>
+                ))}
+              </div>
 
-              {/* Charts & Top Dishes Layout */}
-              <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-                {/* Revenue Trends Chart */}
-                <div className="lg:col-span-2 p-6 rounded-2xl border border-slate-200 bg-white shadow-xs space-y-4">
-                  <h3 className="font-bold text-sm text-slate-900">Revenue Trends</h3>
-                  <div className="h-64 sm:h-72">
+              {/* Weekly Trend Chart and Top Dishes */}
+              <div className="analytics-grid">
+                <section className="panel chart-panel">
+                  <div className="panel-header">
+                    <div>
+                      <h2>Revenue & expenses</h2>
+                      <p>Weekly trend breakdown</p>
+                    </div>
+                  </div>
+                  <div className="chart">
                     <ResponsiveContainer width="100%" height="100%">
-                      <AreaChart data={chart} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
-                        <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
-                        <XAxis dataKey="day" tick={{ fontSize: 11, fill: "#94a3b8" }} axisLine={false} tickLine={false} />
-                        <YAxis tick={{ fontSize: 11, fill: "#94a3b8" }} axisLine={false} tickLine={false} tickFormatter={(v) => `₹${v / 1000}k`} />
-                        <Tooltip formatter={(v) => money(Number(v))} contentStyle={{ borderRadius: 12, border: "1px solid #e2e8f0" }} />
-                        <Area type="monotone" dataKey="revenue" stroke="#f59e0b" strokeWidth={2.5} fill="#fef3c7" fillOpacity={0.6} />
+                      <AreaChart data={chart} margin={{ top: 15, right: 8, left: -17, bottom: 0 }}>
+                        <CartesianGrid strokeDasharray="3 5" vertical={false} stroke="var(--chart-grid)" />
+                        <XAxis dataKey="day" tickLine={false} axisLine={false} tick={{ fill: "var(--text-muted)", fontSize: 12 }} dy={12} />
+                        <YAxis tickLine={false} axisLine={false} tick={{ fill: "var(--text-muted)", fontSize: 12 }} tickFormatter={(v) => `${v / 1000}k`} />
+                        <Tooltip formatter={(v) => money(Number(v))} contentStyle={{ background: "var(--panel)", border: "1px solid var(--border)", borderRadius: 12 }} />
+                        <Area type="monotone" dataKey="revenue" stroke="#f59e0b" strokeWidth={3} fillOpacity={0.2} fill="#f59e0b" />
+                        <Area type="monotone" dataKey="expense" stroke="#10b981" strokeWidth={2} fillOpacity={0} />
                       </AreaChart>
                     </ResponsiveContainer>
                   </div>
-                </div>
-
-                {/* Top Dishes Ranking */}
-                <div className="p-6 rounded-2xl border border-slate-200 bg-white shadow-xs space-y-4">
-                  <h3 className="font-bold text-sm text-slate-900">Top Dishes</h3>
-                  <div className="space-y-3 pt-2">
-                    {dishes.slice(0, 4).map((d) => (
-                      <div key={d.id} className="flex items-center justify-between text-xs pb-3 border-b border-slate-100 last:border-0 last:pb-0">
-                        <div className="flex items-center gap-2.5 truncate">
-                          <span className="text-base">{d.emoji}</span>
-                          <span className="truncate font-bold text-slate-800">{d.name}</span>
-                        </div>
-                        <b className="font-bold font-mono text-slate-900">{money(d.price)}</b>
-                      </div>
-                    ))}
+                </section>
+                <section className="panel top-dishes">
+                  <div className="panel-header">
+                    <div><h2>Top performing dishes</h2></div>
                   </div>
-                </div>
+                  {initialDishes.slice(0, 4).map((d, i) => (
+                    <div className="leader-row" key={d.id}>
+                      <span className="leader-rank">0{i + 1}</span>
+                      <span className="dish-thumb">{d.emoji}</span>
+                      <div className="leader-info">
+                        <b>{d.name}</b>
+                        <small>{[82, 67, 54, 42][i]} orders</small>
+                      </div>
+                      <strong>{money([55760, 52930, 28080, 23520][i])}</strong>
+                    </div>
+                  ))}
+                </section>
               </div>
-            </div>
+            </>
           )}
 
           {/* 2. POS TERMINAL */}
           {view === "pos" && (
-            <div className="flex flex-col lg:flex-row gap-6">
-              <div className="flex-1 space-y-4">
-                <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3">
-                  <div className="relative flex-1">
-                    <Search className="absolute left-3 top-2.5 text-slate-400" size={16} />
-                    <input
-                      value={query}
-                      onChange={(e) => setQuery(e.target.value)}
-                      placeholder="Search menu dishes..."
-                      className="w-full pl-9 pr-3 py-2 border border-slate-200 rounded-xl text-xs bg-white"
-                    />
-                  </div>
-                  <div className="flex gap-2 overflow-x-auto pb-1 sm:pb-0">
-                    {["All items", "Appetizers", "Mains", "Drinks", "Desserts"].map((cat) => (
-                      <button
-                        key={cat}
-                        onClick={() => setCategory(cat)}
-                        className={`px-3 py-1.5 rounded-xl text-xs font-bold whitespace-nowrap transition-all ${category === cat ? "bg-[#f59e0b] text-white" : "border border-slate-200 bg-white text-slate-600 hover:bg-slate-50"}`}
-                      >
-                        {cat}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-
-                <div className="grid grid-cols-2 sm:grid-cols-3 xl:grid-cols-4 gap-3">
-                  {displayedDishes.map((d) => (
-                    <button
-                      key={d.id}
-                      onClick={() => addCart(d.id)}
-                      className="p-3.5 border border-slate-200 rounded-2xl text-left bg-white hover:border-[#f59e0b] transition-all flex flex-col justify-between space-y-3 shadow-xs"
-                    >
-                      <div className="text-2xl">{d.emoji}</div>
-                      <div>
-                        <b className="text-xs font-bold text-slate-900 block truncate">{d.name}</b>
-                        <span className="text-[11px] font-black text-[#f59e0b] block mt-0.5">{money(d.price)}</span>
-                      </div>
-                    </button>
-                  ))}
-                </div>
-              </div>
-
-              {/* Order Cart Drawer */}
-              <div className="w-full lg:w-80 p-5 border border-slate-200 rounded-2xl bg-white flex flex-col justify-between space-y-4 shadow-xs">
+            <>
+              <div className="page-head pos-head">
                 <div>
-                  <div className="flex justify-between items-center pb-3 border-b border-slate-100">
-                    <h3 className="font-bold text-sm text-slate-900">Current Order</h3>
-                    <span className="text-xs px-2.5 py-0.5 rounded-full bg-slate-100 text-slate-600 font-bold">
-                      {cart.reduce((a, b) => a + b.qty, 0)} items
-                    </span>
-                  </div>
-
-                  <div className="space-y-2 mt-3 max-h-64 overflow-y-auto pr-1">
-                    {cart.map((line) => {
-                      const d = dishes.find((x) => x.id === line.id);
-                      if (!d) return null;
-                      return (
-                        <div key={line.id} className="p-2.5 border border-slate-100 rounded-xl flex items-center justify-between text-xs bg-slate-50/50">
-                          <div className="truncate pr-2">
-                            <span className="font-bold text-slate-800 block truncate">{d.name}</span>
-                            <small className="text-slate-400">{money(d.price)} each</small>
-                          </div>
-                          <div className="flex items-center gap-2">
-                            <div className="flex items-center border border-slate-200 rounded-lg bg-white">
-                              <button className="px-2 py-0.5" onClick={() => qty(line.id, -1)}>-</button>
-                              <span className="px-1.5 font-bold font-mono">{line.qty}</span>
-                              <button className="px-2 py-0.5" onClick={() => qty(line.id, 1)}>+</button>
-                            </div>
-                            <b className="w-14 text-right font-mono font-bold text-slate-900">{money(d.price * line.qty)}</b>
-                          </div>
-                        </div>
-                      );
-                    })}
-                    {!cart.length && <div className="text-center py-10 text-slate-400 text-xs">Order is empty</div>}
-                  </div>
+                  <div className="eyebrow">FAST CHECKOUT</div>
+                  <h1>Point of sale</h1>
                 </div>
-
-                <div className="pt-3 border-t border-slate-100 space-y-3">
-                  <div className="space-y-1 text-xs text-slate-600 font-medium">
-                    <div className="flex justify-between"><span>Subtotal:</span><span>{money(subtotal)}</span></div>
-                    <div className="flex justify-between"><span>GST ({effectiveGst}%):</span><span>{money(tax)}</span></div>
-                    <div className="flex justify-between font-black text-sm text-slate-900 pt-1 border-t border-slate-100">
-                      <span>Total Due:</span><span>{money(total)}</span>
-                    </div>
-                  </div>
-                  <button
-                    onClick={checkout}
-                    disabled={!cart.length}
-                    className="w-full bg-[#f59e0b] hover:bg-amber-600 text-white font-bold py-3 rounded-xl text-sm transition-all shadow-xs disabled:opacity-50"
-                  >
-                    Charge {money(total)}
+                <div className="head-actions">
+                  <button className="quiet-btn" onClick={() => setSound(!sound)}>
+                    {sound ? <Volume2 size={17} /> : <VolumeX size={17} />} Sound {sound ? "on" : "off"}
                   </button>
                 </div>
               </div>
-            </div>
+              <div className="pos-layout">
+                <section className="pos-catalog">
+                  <div className="catalog-toolbar">
+                    <label className="search-field">
+                      <Search size={18} />
+                      <input
+                        value={query}
+                        onChange={(e) => setQuery(e.target.value)}
+                        placeholder="Search dishes..."
+                      />
+                    </label>
+                  </div>
+                  <div className="dish-grid">
+                    {displayed.map((d) => (
+                      <button
+                        className={"dish-tile " + (!d.stock ? "sold-out" : "")}
+                        key={d.id}
+                        onClick={() => d.stock && addCart(d.id)}
+                        disabled={!d.stock}
+                      >
+                        <span className="dish-photo"><span>{d.emoji}</span></span>
+                        <span className="dish-body">
+                          <span className="dish-name">{d.name}</span>
+                          <span className="dish-price">{money(d.price)}</span>
+                        </span>
+                      </button>
+                    ))}
+                  </div>
+                </section>
+
+                <aside className="order-panel flex flex-col justify-between p-4 bg-card border rounded-2xl shadow-sm">
+                  <div>
+                    <div className="order-head flex justify-between items-center mb-4 pb-2 border-b">
+                      <h2 className="text-base font-bold">Current order</h2>
+                      <span className="order-count text-xs px-2.5 py-1 rounded-full bg-secondary font-semibold">
+                        {cart.reduce((a, x) => a + x.qty, 0)} items
+                      </span>
+                    </div>
+
+                    <div className="cart-items space-y-3 max-h-[460px] overflow-y-auto pr-1">
+                      {cart.map((l) => {
+                        const d = dishes.find((x) => x.id === l.id)!;
+                        return (
+                          <div
+                            key={l.id}
+                            className="p-3 rounded-2xl border bg-background/80 hover:bg-background transition-all space-y-2 shadow-sm"
+                          >
+                            <div className="flex items-start justify-between gap-2">
+                              <div className="flex items-center gap-2.5 min-w-0">
+                                <span className="text-xl flex-shrink-0">{d.emoji}</span>
+                                <div className="min-w-0">
+                                  <h4 className="font-bold text-xs leading-snug truncate text-foreground">
+                                    {d.name}
+                                  </h4>
+                                  <span className="text-[11px] text-muted-foreground block">
+                                    {money(l.override ?? d.price)} each
+                                  </span>
+                                </div>
+                              </div>
+                              <span className="font-extrabold text-xs text-foreground flex-shrink-0">
+                                {money(((l.override ?? d.price) - l.discount) * l.qty)}
+                              </span>
+                            </div>
+
+                            <div className="flex items-center justify-between pt-1 border-t border-border/40">
+                              <div className="text-[10px] text-muted-foreground">
+                                {l.discount > 0 ? (
+                                  <span className="text-emerald-500 font-semibold">
+                                    Disc: -{money(l.discount * l.qty)}
+                                  </span>
+                                ) : (
+                                  <span>Quantity</span>
+                                )}
+                              </div>
+                              <div className="cart-controls flex items-center border rounded-lg bg-secondary/40 overflow-hidden">
+                                <button
+                                  className="px-2.5 py-1 hover:bg-secondary rounded-l transition-colors"
+                                  onClick={() => qty(l.id, -1)}
+                                  aria-label="Decrease quantity"
+                                >
+                                  <Minus size={11} />
+                                </button>
+                                <span className="px-2.5 text-xs font-bold font-mono min-w-[20px] text-center">
+                                  {l.qty}
+                                </span>
+                                <button
+                                  className="px-2.5 py-1 hover:bg-secondary rounded-r transition-colors"
+                                  onClick={() => qty(l.id, 1)}
+                                  aria-label="Increase quantity"
+                                >
+                                  <Plus size={11} />
+                                </button>
+                              </div>
+                            </div>
+                          </div>
+                        );
+                      })}
+                      {!cart.length && (
+                        <div className="text-center py-12 text-muted-foreground text-xs">
+                          Your order is empty. Tap dishes to add.
+                        </div>
+                      )}
+                    </div>
+                  </div>
+
+                  <div className="cart-footer mt-4 pt-3 border-t space-y-3">
+                    <div className="flex justify-between items-center px-1">
+                      <span className="text-xs font-medium text-muted-foreground">Total due</span>
+                      <strong className="text-lg font-extrabold">{money(total)}</strong>
+                    </div>
+
+                    <button
+                      className="w-full flex items-center justify-center gap-2 py-3.5 px-4 rounded-xl font-bold text-sm bg-amber-500 hover:bg-amber-600 text-white transition-all shadow-md active:scale-[0.99] disabled:opacity-50 disabled:cursor-not-allowed"
+                      disabled={!cart.length}
+                      onClick={checkout}
+                    >
+                      <CreditCard size={18} /> Charge {money(total)}
+                    </button>
+                  </div>
+                </aside>
+              </div>
+            </>
           )}
 
-          {/* 3. INVENTORY WITH KITCHEN CONSUMPTION & COSTING */}
-          {view === "inventory" && (
-            <div className="space-y-6">
-              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+          {/* 3. MENU & DISHES */}
+          {view === "menu" && (
+            <>
+              <div className="page-head">
                 <div>
-                  <h1 className="text-2xl font-black text-slate-900">Warehouse & Stock Control</h1>
-                  <p className="text-xs text-slate-500">Track raw stock levels, set reorder points, and log kitchen ingredient usage costs.</p>
+                  <div className="eyebrow">CATALOG</div>
+                  <h1>Menu & dishes</h1>
                 </div>
-                <button
-                  className="bg-[#f59e0b] hover:bg-amber-600 text-white font-bold text-xs py-2.5 px-4 rounded-xl flex items-center justify-center gap-1.5 shadow-xs"
-                  onClick={() => openInventoryModal()}
-                >
-                  <Plus size={16} /> Add Stock Item
+                <button className="primary-btn" onClick={() => open("dish")}><Plus size={17} /> Add dish</button>
+              </div>
+              <div className="panel management-panel">
+                <div className="table-scroll">
+                  <table>
+                    <thead>
+                      <tr><th>DISH</th><th>CATEGORY</th><th>PRICE</th><th>AVAILABILITY</th><th>ACTION</th></tr>
+                    </thead>
+                    <tbody>
+                      {dishes.map((d) => (
+                        <tr key={d.id}>
+                          <td><b>{d.name}</b></td>
+                          <td>{d.category}</td>
+                          <td className="strong">{money(d.price)}</td>
+                          <td>
+                            <Switch checked={d.stock} onCheckedChange={(v) => setDishes((old) => old.map((x) => (x.id === d.id ? { ...x, stock: v } : x)))} />
+                          </td>
+                          <td>
+                            <button onClick={() => open("dish", d.id)}><Pencil size={15} /></button>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            </>
+          )}
+
+          {/* 4. INVENTORY MANAGEMENT */}
+          {view === "inventory" && (
+            <>
+              <div className="page-head flex justify-between items-center">
+                <div>
+                  <div className="eyebrow">WAREHOUSE & STOCK</div>
+                  <h1>Inventory Manager</h1>
+                </div>
+                <button className="primary-btn flex items-center gap-2" onClick={() => openInventoryModal()}>
+                  <Plus size={17} /> Add Stock Item
                 </button>
               </div>
-
-              {/* Metric Cards */}
-              <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
-                <div className="p-4 rounded-2xl border border-slate-200 bg-white shadow-xs">
-                  <span className="text-xs text-slate-400 font-semibold">Stock Items</span>
-                  <div className="text-2xl font-black text-slate-900 mt-1">{inventoryList.length}</div>
-                </div>
-                <div className="p-4 rounded-2xl border border-slate-200 bg-white shadow-xs">
-                  <span className="text-xs text-slate-400 font-semibold">Total Stock Value</span>
-                  <div className="text-2xl font-black text-emerald-600 mt-1">
-                    {money(inventoryList.reduce((acc, i) => acc + i.onHand * (i.costPerUnit || 0), 0))}
-                  </div>
-                </div>
-                <div className="p-4 rounded-2xl border border-amber-200 bg-amber-50/40 shadow-xs">
-                  <span className="text-xs text-amber-700 font-bold">Low Stock Alert</span>
-                  <div className="text-2xl font-black text-amber-700 mt-1">
-                    {inventoryList.filter((i) => i.onHand > 0 && i.onHand <= i.reorderLevel).length}
-                  </div>
-                </div>
-                <div className="p-4 rounded-2xl border border-rose-200 bg-rose-50/40 shadow-xs">
-                  <span className="text-xs text-rose-700 font-bold">Out of Stock</span>
-                  <div className="text-2xl font-black text-rose-700 mt-1">
-                    {inventoryList.filter((i) => i.onHand === 0).length}
-                  </div>
-                </div>
-              </div>
-
-              {/* Table */}
-              <div className="p-5 border border-slate-200 rounded-2xl bg-white shadow-xs">
-                <div className="overflow-x-auto">
-                  <table className="w-full text-left text-xs border-collapse min-w-[640px]">
+              <div className="panel management-panel bg-card border rounded-xl p-6 mt-4">
+                <div className="table-scroll overflow-x-auto">
+                  <table className="w-full text-left border-collapse">
                     <thead>
-                      <tr className="border-b border-slate-100 text-slate-400 font-bold">
+                      <tr className="border-b text-sm text-muted-foreground">
                         <th className="p-3">ITEM NAME</th>
-                        <th className="p-3">CATEGORY</th>
-                        <th className="p-3">UNIT COST</th>
                         <th className="p-3">ON HAND</th>
-                        <th className="p-3">TOTAL VALUE</th>
-                        <th className="p-3">STATUS</th>
+                        <th className="p-3">REORDER LEVEL</th>
+                        <th className="p-3">STATUS ALERT</th>
                         <th className="p-3 text-right">ACTIONS</th>
                       </tr>
                     </thead>
@@ -1186,327 +1892,1167 @@ export default function Home() {
                         const isOut = item.onHand === 0;
                         const isLow = item.onHand > 0 && item.onHand <= item.reorderLevel;
                         return (
-                          <tr key={item.id} className="border-b border-slate-50 hover:bg-slate-50/60">
-                            <td className="p-3 font-bold text-slate-900">{item.name}</td>
-                            <td className="p-3 text-slate-600">{item.category}</td>
-                            <td className="p-3 font-mono text-slate-700">{money(item.costPerUnit || 0)} / {item.unit}</td>
-                            <td className="p-3 font-mono font-bold text-slate-900">{item.onHand} {item.unit}</td>
-                            <td className="p-3 font-mono font-bold text-emerald-600">{money(item.onHand * (item.costPerUnit || 0))}</td>
+                          <tr key={item.id} className="border-b hover:bg-muted/50">
+                            <td className="p-3 font-semibold">{item.name}</td>
+                            <td className="p-3 font-mono font-bold">{item.onHand} {item.unit}</td>
+                            <td className="p-3 font-mono text-muted-foreground">{item.reorderLevel} {item.unit}</td>
                             <td className="p-3">
                               {isOut ? (
-                                <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-rose-100 text-rose-800">Out of Stock</span>
+                                <span className="px-2.5 py-1 rounded-full text-xs font-bold bg-red-100 text-red-800">Out of Stock 🚨</span>
                               ) : isLow ? (
-                                <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-100 text-amber-800">Low Stock</span>
+                                <span className="px-2.5 py-1 rounded-full text-xs font-bold bg-amber-100 text-amber-800">Low Stock ⚠️</span>
                               ) : (
-                                <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-100 text-emerald-800">In Stock</span>
+                                <span className="px-2.5 py-1 rounded-full text-xs font-semibold bg-green-100 text-green-800">In Stock</span>
                               )}
                             </td>
                             <td className="p-3 text-right">
-                              <div className="flex items-center justify-end gap-1.5">
-                                <button
-                                  className="px-2.5 py-1 rounded-lg text-[11px] font-bold bg-amber-100 text-amber-800 hover:bg-[#f59e0b] hover:text-white transition-all flex items-center gap-1"
-                                  onClick={() => {
-                                    setSelectedStockForUsage(item);
-                                    setUsageQuantity("");
-                                    setUsageModalOpen(true);
-                                  }}
-                                  title="Log kitchen usage / consumption"
-                                >
-                                  <TrendingDown size={13} /> Use Stock
-                                </button>
-                                <button className="p-1.5 border border-slate-200 rounded-lg hover:bg-slate-50" onClick={() => openInventoryModal(item)}>
-                                  <Pencil size={13} />
-                                </button>
-                                <button className="p-1.5 border border-slate-200 rounded-lg text-rose-600 hover:bg-rose-50" onClick={() => handleDeleteInventory(item.id)}>
-                                  <Trash2 size={13} />
-                                </button>
-                              </div>
+                              <button className="p-1.5" onClick={() => openInventoryModal(item)}><Pencil size={15} /></button>
+                              <button className="p-1.5 text-red-600" onClick={() => handleDeleteInventory(item.id)}><Trash2 size={15} /></button>
                             </td>
                           </tr>
                         );
                       })}
-                    </tbody>
-                  </table>
-                </div>
-              </div>
-            </div>
-          )}
-
-          {/* 4. EXPENSES WITH AUTOMATIC INVENTORY CONSUMPTION REFLECTION */}
-          {view === "expenses" && (
-            <div className="space-y-6">
-              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-                <div>
-                  <h1 className="text-2xl font-black text-slate-900">Expenses Ledger</h1>
-                  <p className="text-xs text-slate-500">Tracks operating expenditures alongside automatic kitchen inventory consumption costs.</p>
-                </div>
-                <button
-                  className="bg-[#f59e0b] hover:bg-amber-600 text-white font-bold text-xs py-2 px-4 rounded-xl flex items-center justify-center gap-1 shadow-xs"
-                  onClick={() => setModal("expense")}
-                >
-                  <Plus size={15} /> Log Expense
-                </button>
-              </div>
-
-              <div className="p-5 border border-slate-200 rounded-2xl bg-white shadow-xs">
-                <div className="overflow-x-auto">
-                  <table className="w-full text-left text-xs border-collapse min-w-[600px]">
-                    <thead>
-                      <tr className="border-b border-slate-100 text-slate-400 font-bold">
-                        <th className="p-3">DESCRIPTION</th>
-                        <th className="p-3">CATEGORY</th>
-                        <th className="p-3">VENDOR / CONSUMPTION</th>
-                        <th className="p-3">DATE</th>
-                        <th className="p-3 text-right">AMOUNT</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {expenses.map((e) => (
-                        <tr key={e.id} className="border-b border-slate-50 hover:bg-slate-50/60">
-                          <td className="p-3 font-bold text-slate-900">{e.name}</td>
-                          <td className="p-3">
-                            <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-slate-100 text-slate-700">
-                              {e.category}
-                            </span>
-                          </td>
-                          <td className="p-3 text-slate-500">{e.vendor}</td>
-                          <td className="p-3 font-mono text-slate-600">{e.date}</td>
-                          <td className="p-3 font-bold font-mono text-right text-slate-900">{money(e.amount)}</td>
-                        </tr>
-                      ))}
-                      {!expenses.length && (
+                      {!inventoryList.length && (
                         <tr>
-                          <td colSpan={5} className="text-center py-6 text-slate-400">No expenses recorded yet.</td>
+                          <td colSpan={5} className="text-center py-6 text-muted-foreground text-xs">
+                            No inventory items found. Add items to track stock.
+                          </td>
                         </tr>
                       )}
                     </tbody>
                   </table>
                 </div>
               </div>
-            </div>
+            </>
           )}
 
-          {/* 5. MENU & DISHES */}
-          {view === "menu" && (
-            <div className="space-y-6">
-              <div className="flex justify-between items-center">
+          {/* 5. TEAM & PAYROLL */}
+          {view === "staff" && (
+            <>
+              <div className="page-head flex justify-between items-center">
                 <div>
-                  <h1 className="text-2xl font-black text-slate-900">Menu Catalog</h1>
-                  <p className="text-xs text-slate-500">Configure dishes, pricing, and live availability.</p>
+                  <div className="eyebrow text-amber-500 font-bold uppercase tracking-wider text-[11px]">YOUR PEOPLE</div>
+                  <h1 className="text-2xl font-black">Team & payroll</h1>
+                  <p className="text-xs text-muted-foreground mt-0.5">Designations, role access, and compensation (Monthly & Daily).</p>
                 </div>
                 <button
-                  className="bg-[#f59e0b] hover:bg-amber-600 text-white font-bold text-xs py-2 px-4 rounded-xl shadow-xs"
-                  onClick={() => setModal("dish")}
+                  className="bg-amber-500 hover:bg-amber-600 text-white font-bold text-xs py-2 px-4 rounded-xl flex items-center gap-1.5 transition-all shadow-md active:scale-95"
+                  onClick={() => open("employee")}
                 >
-                  <Plus size={15} /> Add Dish
+                  <Plus size={15} /> Add employee
                 </button>
               </div>
 
-              <div className="p-5 border border-slate-200 rounded-2xl bg-white shadow-xs overflow-x-auto">
-                <table className="w-full text-left text-xs border-collapse min-w-[500px]">
-                  <thead>
-                    <tr className="border-b border-slate-100 text-slate-400 font-bold">
-                      <th className="p-3">DISH</th>
-                      <th className="p-3">CATEGORY</th>
-                      <th className="p-3">PRICE</th>
-                      <th className="p-3">AVAILABILITY</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {dishes.map((d) => (
-                      <tr key={d.id} className="border-b border-slate-50 hover:bg-slate-50/60">
-                        <td className="p-3 font-bold text-slate-900 flex items-center gap-2">
-                          <span>{d.emoji}</span> {d.name}
-                        </td>
-                        <td className="p-3 text-slate-600">{d.category}</td>
-                        <td className="p-3 font-mono font-bold text-slate-900">{money(d.price)}</td>
-                        <td className="p-3">
-                          <Switch checked={d.stock} onCheckedChange={(val) => setDishes(dishes.map(x => x.id === d.id ? { ...x, stock: val } : x))} />
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mt-6">
+                {staff.map((s) => (
+                  <div
+                    key={s.name}
+                    className="p-5 rounded-2xl border bg-card/60 hover:bg-card border-border/70 hover:border-indigo-500/80 transition-all cursor-pointer shadow-sm relative group flex flex-col justify-between"
+                    onClick={() => openStaff(s)}
+                  >
+                    <div>
+                      <div className="flex justify-between items-start mb-3">
+                        <span className="w-10 h-10 rounded-full bg-indigo-100 dark:bg-indigo-950 text-indigo-700 dark:text-indigo-300 font-bold text-xs flex items-center justify-center border border-indigo-200 dark:border-indigo-900 shadow-inner">
+                          {s.initial}
+                        </span>
+                        <div
+                          className="flex items-center gap-1 opacity-70 group-hover:opacity-100 transition-opacity"
+                          onClick={(e) => e.stopPropagation()}
+                        >
+                          <button
+                            className="p-1.5 text-muted-foreground hover:text-foreground hover:bg-muted/80 rounded-lg transition-colors"
+                            onClick={() => open("employee", s.id)}
+                            title="Edit Employee"
+                          >
+                            <Pencil size={13} />
+                          </button>
+                          <button
+                            className="p-1.5 text-muted-foreground hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-950/40 rounded-lg transition-colors"
+                            onClick={() => setStaff(old => old.filter(x => x.id !== s.id))}
+                            title="Delete Employee"
+                          >
+                            <Trash2 size={13} />
+                          </button>
+                        </div>
+                      </div>
+
+                      <div className="mb-4">
+                        <div className="font-bold text-sm text-foreground leading-tight">{s.name}</div>
+                        <div className="flex items-center gap-1.5 mt-1">
+                          <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-indigo-50 dark:bg-indigo-950/60 text-indigo-600 dark:text-indigo-400 border border-indigo-200 dark:border-indigo-800">
+                            {s.role}
+                          </span>
+                          <span className="text-[10px] text-muted-foreground">· {s.payType}</span>
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="pt-3 border-t border-border/50 text-[11px] space-y-1.5">
+                      <div className="flex justify-between items-center">
+                        <span className="text-muted-foreground">Shift</span>
+                        <b className="font-mono text-foreground font-semibold">{s.shift}</b>
+                      </div>
+                      <div className="flex justify-between items-center">
+                        <span className="text-muted-foreground">
+                          {s.payType === "Monthly" ? "Monthly Salary" : "Daily Rate"}
+                        </span>
+                        <b className="font-mono text-foreground font-semibold">
+                          {s.payType === "Monthly" ? money(s.monthlySalary) : `${money(s.dailyRate)} / day`}
+                        </b>
+                      </div>
+                    </div>
+                  </div>
+                ))}
               </div>
-            </div>
+            </>
           )}
 
-          {/* 6. SETTINGS */}
-          {view === "settings" && (
-            <div className="space-y-6 max-w-xl">
-              <div>
-                <h1 className="text-2xl font-black text-slate-900">Restaurant Settings</h1>
-                <p className="text-xs text-slate-500">Update restaurant details and billing identity.</p>
-              </div>
-
-              <div className="p-6 border border-slate-200 rounded-2xl bg-white shadow-xs space-y-4">
-                <div className="space-y-3 text-xs">
-                  <label className="block space-y-1 font-semibold text-slate-700">
-                    <span>Restaurant Name</span>
-                    <input
-                      value={storeForm.name}
-                      onChange={(e) => setStoreForm({ ...storeForm, name: e.target.value })}
-                      className="w-full p-2.5 border border-slate-200 rounded-xl bg-slate-50/50"
-                    />
-                  </label>
-                  <label className="block space-y-1 font-semibold text-slate-700">
-                    <span>Phone Number</span>
-                    <input
-                      value={storeForm.phone}
-                      onChange={(e) => setStoreForm({ ...storeForm, phone: e.target.value })}
-                      className="w-full p-2.5 border border-slate-200 rounded-xl bg-slate-50/50"
-                    />
-                  </label>
-                  <label className="block space-y-1 font-semibold text-slate-700">
-                    <span>Address</span>
-                    <input
-                      value={storeForm.address}
-                      onChange={(e) => setStoreForm({ ...storeForm, address: e.target.value })}
-                      className="w-full p-2.5 border border-slate-200 rounded-xl bg-slate-50/50"
-                    />
-                  </label>
-                  <label className="block space-y-1 font-semibold text-slate-700">
-                    <span>GSTIN</span>
-                    <input
-                      value={storeForm.gstin}
-                      onChange={(e) => setStoreForm({ ...storeForm, gstin: e.target.value })}
-                      className="w-full p-2.5 border border-slate-200 rounded-xl bg-slate-50/50"
-                    />
-                  </label>
+          {/* 6. EXPENSES */}
+          {view === "expenses" && (
+            <>
+              <div className="page-head flex justify-between items-center">
+                <div>
+                  <div className="eyebrow">FINANCE</div>
+                  <h1>Expenses</h1>
                 </div>
-                <button
-                  onClick={handleSaveRestaurantSettings}
-                  className="w-full bg-[#f59e0b] hover:bg-amber-600 text-white font-bold py-2.5 rounded-xl text-xs transition-all shadow-xs"
-                >
-                  Save Details
-                </button>
+                <button className="primary-btn" onClick={() => open("expense")}><Plus size={17} /> Log expense</button>
               </div>
-            </div>
+
+              <div className="panel management-panel mt-6">
+                <div className="table-scroll">
+                  <table>
+                    <thead>
+                      <tr><th>DESCRIPTION</th><th>CATEGORY</th><th>VENDOR</th><th>AMOUNT</th></tr>
+                    </thead>
+                    <tbody>
+                      {expenses.map((e) => (
+                        <tr key={e.id}>
+                          <td className="strong">{e.name}</td>
+                          <td><span className="px-2 py-0.5 rounded bg-secondary text-[11px]">{e.category}</span></td>
+                          <td>{e.vendor}</td>
+                          <td className="strong">{money(e.amount)}</td>
+                        </tr>
+                      ))}
+                      {!expenses.length && (
+                        <tr>
+                          <td colSpan={4} className="text-center py-6 text-muted-foreground text-xs">
+                            No expenses logged yet.
+                          </td>
+                        </tr>
+                      )}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            </>
           )}
 
-          {/* 7. SUBSCRIPTION */}
-          {view === "subscription" && (
-            <div className="space-y-6">
-              <div>
-                <h1 className="text-2xl font-black text-slate-900">Subscription Plans</h1>
-                <p className="text-xs text-slate-500">Choose an active plan for your restaurant workspace.</p>
+          {/* 7. SUPPLIERS */}
+          {view === "suppliers" && (
+            <>
+              <div className="page-head flex justify-between items-center">
+                <div>
+                  <div className="eyebrow">ACCOUNTS</div>
+                  <h1>Suppliers</h1>
+                </div>
+                <div className="flex gap-2">
+                  <button className="quiet-btn flex items-center gap-1.5" onClick={() => open("payment")}>
+                    <Wallet size={15} /> Record payment
+                  </button>
+                  <button className="primary-btn flex items-center gap-1.5" onClick={() => open("supplier")}>
+                    <Plus size={15} /> Add supplier
+                  </button>
+                </div>
               </div>
 
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                {plans.map((p) => {
-                  const isCurrent = (activePlanName || "").toLowerCase().includes(p.name.toLowerCase());
-                  return (
-                    <div key={p.id} className="p-6 rounded-2xl border border-slate-200 bg-white shadow-xs flex flex-col justify-between space-y-4">
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mt-6">
+                <div className="panel p-4 border rounded-xl bg-card space-y-2">
+                  <h2 className="text-sm font-bold mb-3">Supplier Directory</h2>
+                  {suppliers.map((sp) => (
+                    <div
+                      key={sp.id}
+                      onClick={() => setSupplierDetail(sp.id)}
+                      className={`p-3 rounded-xl border cursor-pointer transition-all flex justify-between items-center ${
+                        supplierDetail === sp.id ? "border-indigo-500 bg-indigo-50/10" : "hover:bg-muted/40"
+                      }`}
+                    >
                       <div>
-                        <div className="flex justify-between items-center">
-                          <h3 className="font-bold text-base text-slate-900">{p.name}</h3>
-                          {isCurrent && (
-                            <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-100 text-amber-800">
+                        <b className="text-xs block">{sp.name}</b>
+                        <small className="text-[11px] text-muted-foreground">{sp.phone || sp.contact}</small>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </>
+          )}
+
+          {/* 8. RESTAURANT SUBSCRIPTION (READ-ONLY FOR RESTAURANT: CANNOT EDIT/DELETE PLANS) */}
+          {view === "subscription" && (
+            <>
+              <div className="page-head">
+                <div>
+                  <div className="eyebrow">PLANS & BILLING</div>
+                  <h1>Subscription</h1>
+                  <p>Choose an active platform plan, scan the UPI QR code below, and submit the transaction reference.</p>
+                </div>
+              </div>
+
+              {/* Grid of Plans Synced Live from Admin Configuration */}
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+                {plans.map((p) => {
+                  const normalizedCurrent = (activePlanName || "").toLowerCase().trim();
+                  const isCurrentActive =
+                    normalizedCurrent === p.name.toLowerCase().trim() ||
+                    (normalizedCurrent.includes("year") && p.name.toLowerCase().includes("year")) ||
+                    (normalizedCurrent.includes("month") && p.name.toLowerCase().includes("month"));
+
+                  const isSelected = activeInlinePlan?.id === p.id;
+                  return (
+                    <div
+                      key={p.id}
+                      className="rounded-2xl p-6 border flex flex-col justify-between"
+                      style={{
+                        background: "#16231e",
+                        borderColor: isSelected ? "#52b788" : isCurrentActive ? "#38bdf8" : "#223b32",
+                      }}
+                    >
+                      <div>
+                        <div className="flex justify-between items-center mb-2">
+                          <span className="text-sm font-semibold text-gray-300">{p.name}</span>
+                          {isCurrentActive && (
+                            <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-sky-950 text-sky-400 border border-sky-800 shadow-sm animate-pulse">
                               Active Tier
                             </span>
                           )}
                         </div>
-                        <div className="text-2xl font-black text-slate-900 mt-2">{money(p.price)}</div>
-                        <small className="text-slate-400 font-medium block">{p.period}</small>
-                        <p className="text-xs text-slate-600 mt-3 leading-relaxed">{p.features}</p>
+                        <div className="text-3xl font-extrabold text-white mt-4 mb-2">
+                          {p.price === 0 ? "₹0" : money(p.price)}
+                        </div>
+                        <div className="text-xs text-gray-400 font-medium mb-3">{p.period}</div>
+                        <p className="text-xs text-gray-300 leading-relaxed mb-6">{p.features}</p>
                       </div>
+
+                      {p.price > 0 ? (
+                        <button
+                          onClick={() => setActiveInlinePlan(p)}
+                          className="w-full py-2.5 px-4 rounded-xl text-xs font-bold transition-all text-gray-900"
+                          style={{
+                            background: isSelected ? "#74c69d" : "#52b788",
+                          }}
+                        >
+                          Choose {p.name.toLowerCase()}
+                        </button>
+                      ) : (
+                        <div className="text-center py-2 text-xs font-semibold text-gray-400">
+                          {isCurrentActive ? "Active trial tier" : "Trial Tier"}
+                        </div>
+                      )}
                     </div>
                   );
                 })}
               </div>
-            </div>
+
+              {/* DYNAMIC PAYMENT BOX */}
+              {activeInlinePlan && activeInlinePlan.price > 0 && (
+                <div
+                  className="max-w-md mx-auto rounded-2xl p-6 border text-center shadow-lg my-8"
+                  style={{
+                    background: "#16231e",
+                    borderColor: "#223b32",
+                  }}
+                >
+                  <div className="text-sm font-bold text-white mb-4">
+                    Pay {money(activeInlinePlan.price)}
+                  </div>
+
+                  <div className="bg-white p-3 rounded-2xl inline-block mx-auto mb-4 border border-gray-200">
+                    <img
+                      src={inlineQrImageUrl}
+                      alt="UPI Payment QR Code"
+                      className="w-56 h-56 object-contain rounded-lg"
+                    />
+                  </div>
+
+                  <button
+                    onClick={() => {
+                      window.location.href = inlineUpiPayUri;
+                    }}
+                    className="w-full py-2.5 px-4 rounded-xl text-xs font-bold text-gray-900 mb-3"
+                    style={{ background: "#52b788" }}
+                  >
+                    Open UPI app
+                  </button>
+
+                  <div className="mb-4">
+                    <input
+                      type="file"
+                      ref={fileInputRef}
+                      accept="image/*"
+                      onChange={(e) => setInlineScreenshotFile(e.target.files?.[0] || null)}
+                      className="hidden"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => fileInputRef.current?.click()}
+                      className="w-full py-2.5 px-4 rounded-xl text-xs font-semibold text-gray-200 border border-gray-600 bg-gray-800/80 hover:bg-gray-700/80"
+                    >
+                      {inlineScreenshotFile ? `✓ ${inlineScreenshotFile.name.slice(0, 24)}` : "Upload payment screenshot"}
+                    </button>
+                  </div>
+
+                  <div className="text-left mb-4">
+                    <label className="text-[11px] font-semibold text-gray-400 block mb-1">
+                      <span className="text-red-500 mr-1">*</span>UPI transaction reference
+                    </label>
+                    <input
+                      type="text"
+                      required
+                      value={inlineRefId}
+                      onChange={(e) => setInlineRefId(e.target.value)}
+                      placeholder="Enter 12-digit UPI / UTR reference ID"
+                      className="w-full p-2.5 rounded-xl text-xs text-white border border-gray-700 bg-gray-900/90 focus:outline-none focus:border-green-500"
+                    />
+                  </div>
+
+                  <button
+                    onClick={handleInlineSubmitReference}
+                    disabled={inlineSubmitBusy}
+                    className="w-full py-2.5 px-4 rounded-xl text-xs font-bold text-gray-200 border border-gray-600 bg-gray-800/90 hover:bg-gray-700"
+                  >
+                    {inlineSubmitBusy ? "Submitting..." : "Submit payment reference"}
+                  </button>
+                </div>
+              )}
+            </>
+          )}
+
+          {/* 9. SETTINGS WITH SAFE DATABASE PERSISTENCE */}
+          {view === "settings" && (
+            <>
+              <div className="page-head">
+                <div className="eyebrow">PREFERENCES</div>
+                <h1>Settings & Tax Details</h1>
+                <p>Configure restaurant identity, GST tax slabs, and account security.</p>
+              </div>
+
+              <div className="settings-grid grid grid-cols-1 md:grid-cols-2 gap-6 mt-6">
+                <section className="panel p-6 border rounded-2xl bg-card space-y-4">
+                  <h2 className="text-base font-bold">Restaurant & GST Details</h2>
+                  <div className="space-y-3">
+                    <label className="block space-y-1">
+                      <span className="text-xs font-medium text-muted-foreground">Restaurant Name</span>
+                      <input
+                        value={storeForm.name}
+                        onChange={(e) => setStoreForm({ ...storeForm, name: e.target.value })}
+                        placeholder="e.g. Mani"
+                        className="w-full p-2 border rounded-lg text-xs bg-background"
+                      />
+                    </label>
+                    <label className="block space-y-1">
+                      <span className="text-xs font-medium text-muted-foreground">Phone Number</span>
+                      <input
+                        value={storeForm.phone}
+                        onChange={(e) => setStoreForm({ ...storeForm, phone: e.target.value })}
+                        placeholder="+91 98765 43210"
+                        className="w-full p-2 border rounded-lg text-xs bg-background"
+                      />
+                    </label>
+                    <label className="block space-y-1">
+                      <span className="text-xs font-medium text-muted-foreground">Address</span>
+                      <input
+                        value={storeForm.address}
+                        onChange={(e) => setStoreForm({ ...storeForm, address: e.target.value })}
+                        placeholder="Street, City, State"
+                        className="w-full p-2 border rounded-lg text-xs bg-background"
+                      />
+                    </label>
+
+                    <div className="pt-2 border-t space-y-2">
+                      <label className="block space-y-1">
+                        <span className="text-xs font-medium text-muted-foreground">GSTIN (GST Number)</span>
+                        <input
+                          value={storeForm.gstin}
+                          onChange={(e) => setStoreForm({ ...storeForm, gstin: e.target.value })}
+                          placeholder="29AAAAA0000A1Z5"
+                          className="w-full p-2 border rounded-lg text-xs font-mono bg-background"
+                        />
+                      </label>
+                      <div className="grid grid-cols-3 gap-2">
+                        <label className="block space-y-1">
+                          <span className="text-xs font-medium text-muted-foreground">GST Total %</span>
+                          <input
+                            type="number"
+                            value={storeForm.gst_percent}
+                            onChange={(e) => setStoreForm({ ...storeForm, gst_percent: e.target.value })}
+                            className="w-full p-2 border rounded-lg text-xs bg-background"
+                          />
+                        </label>
+                        <label className="block space-y-1">
+                          <span className="text-xs font-medium text-muted-foreground">CGST %</span>
+                          <input
+                            type="number"
+                            value={storeForm.cgst_percent}
+                            onChange={(e) => setStoreForm({ ...storeForm, cgst_percent: e.target.value })}
+                            className="w-full p-2 border rounded-lg text-xs bg-background"
+                          />
+                        </label>
+                        <label className="block space-y-1">
+                          <span className="text-xs font-medium text-muted-foreground">SGST %</span>
+                          <input
+                            type="number"
+                            value={storeForm.sgst_percent}
+                            onChange={(e) => setStoreForm({ ...storeForm, sgst_percent: e.target.value })}
+                            className="w-full p-2 border rounded-lg text-xs bg-background"
+                          />
+                        </label>
+                      </div>
+                    </div>
+                  </div>
+
+                  <button
+                    className="primary-btn w-full mt-2"
+                    onClick={handleSaveRestaurantSettings}
+                  >
+                    Save Details to Database
+                  </button>
+                </section>
+
+                <section className="panel p-6 border rounded-2xl bg-card space-y-4">
+                  <h2 className="text-base font-bold">Password & Security</h2>
+                  <p className="text-xs text-muted-foreground">Reset the account login password.</p>
+                  <form onSubmit={handleResetPassword} className="space-y-3">
+                    <label className="block space-y-1">
+                      <span className="text-xs font-medium text-muted-foreground">New Password</span>
+                      <input
+                        type="password"
+                        required
+                        minLength={6}
+                        value={newPassword}
+                        onChange={(e) => setNewPassword(e.target.value)}
+                        placeholder="••••••••"
+                        className="w-full p-2 border rounded-lg text-xs bg-background"
+                      />
+                    </label>
+                    <label className="block space-y-1">
+                      <span className="text-xs font-medium text-muted-foreground">Confirm New Password</span>
+                      <input
+                        type="password"
+                        required
+                        minLength={6}
+                        value={confirmPassword}
+                        onChange={(e) => setConfirmPassword(e.target.value)}
+                        placeholder="••••••••"
+                        className="w-full p-2 border rounded-lg text-xs bg-background"
+                      />
+                    </label>
+                    <button type="submit" className="primary-btn w-full flex items-center justify-center gap-2" disabled={pwdBusy}>
+                      <KeyRound size={16} /> {pwdBusy ? "Resetting…" : "Reset Password"}
+                    </button>
+                  </form>
+                </section>
+              </div>
+            </>
+          )}
+
+          {/* 10. ADMIN: RESTAURANT DIRECTORY */}
+          {view === "restaurants" && (
+            <>
+              <div className="page-head flex justify-between items-center">
+                <div>
+                  <div className="eyebrow">PLATFORM CONTROL</div>
+                  <h1>Restaurant Directory</h1>
+                  <p>Registered restaurants on RestoPulse and their active plans.</p>
+                </div>
+              </div>
+
+              <div className="panel management-panel mt-6">
+                <div className="table-scroll">
+                  <table>
+                    <thead>
+                      <tr>
+                        <th>RESTAURANT</th>
+                        <th>OWNER</th>
+                        <th>PLAN</th>
+                        <th>STATUS</th>
+                        <th>RENEWAL</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {restaurants.map((r: any) => (
+                        <tr key={r.id}>
+                          <td><b>{r.name}</b></td>
+                          <td>{r.owner}</td>
+                          <td><span className="font-semibold text-indigo-500 capitalize">{r.plan}</span></td>
+                          <td>
+                            <span className={"status " + (r.status === "Active" ? "paid" : "trial")}>
+                              {r.status}
+                            </span>
+                          </td>
+                          <td className="font-mono text-sm">{r.renewal}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            </>
+          )}
+
+          {/* 11. ADMIN: APPROVALS */}
+          {view === "approvals" && (
+            <>
+              <div className="page-head flex justify-between items-center">
+                <div>
+                  <div className="eyebrow">PLATFORM PIPELINE</div>
+                  <h1>Pending Approvals</h1>
+                  <p>Review restaurant onboarding applications and incoming subscription payment proofs.</p>
+                </div>
+                <button className="quiet-btn flex items-center gap-1.5" onClick={() => { fetchRealApprovals(); fetchSubscriptionRequests(); fetchAllRestaurants(); toast.success("Refreshed queues"); }}>
+                  <RefreshCw size={14} /> Refresh
+                </button>
+              </div>
+
+              {/* SUBSCRIPTION PROOFS QUEUE */}
+              <section className="panel management-panel mb-8 mt-4">
+                <div className="panel-header border-b pb-3 mb-4">
+                  <h2 className="text-lg font-bold flex items-center gap-2">
+                    Subscription Renewal Approvals <span className="count-pill">{subscriptionRequests.length}</span>
+                  </h2>
+                </div>
+                <div className="table-scroll">
+                  <table>
+                    <thead>
+                      <tr>
+                        <th>RESTAURANT</th>
+                        <th>OWNER</th>
+                        <th>PLAN</th>
+                        <th>PAYMENT PROOF</th>
+                        <th>TRANSACTION NOTE</th>
+                        <th>ACTIONS</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {subscriptionRequests.map((req: any) => (
+                        <tr key={req.id}>
+                          <td className="strong">{req.restaurant_name}</td>
+                          <td>
+                            <div className="owner-cell">
+                              <b>{req.owner_name}</b>
+                              <small>{req.owner_email}</small>
+                            </div>
+                          </td>
+                          <td>
+                            <span className="status paid font-bold">{req.plan}</span>
+                            <span className="text-[11px] text-muted-foreground block mt-0.5">
+                              +{getPlanDurationDays(req.plan)} days
+                            </span>
+                          </td>
+                          <td>
+                            {req.screenshot_url ? (
+                              <a
+                                href={req.screenshot_url}
+                                target="_blank"
+                                rel="noreferrer"
+                                className="text-indigo-600 underline text-xs font-semibold inline-flex items-center gap-1"
+                              >
+                                View Proof <ExternalLink size={12} />
+                              </a>
+                            ) : (
+                              <span className="text-gray-400 text-xs">No screenshot</span>
+                            )}
+                          </td>
+                          <td className="text-sm max-w-xs truncate">{req.message || "—"}</td>
+                          <td>
+                            <div className="flex items-center gap-1.5">
+                              <button
+                                className="primary-btn text-xs py-1.5 px-3"
+                                onClick={() => handleReviewSubscriptionAction(req.id, req, "approve")}
+                              >
+                                Approve
+                              </button>
+                              <button
+                                className="quiet-btn text-xs py-1.5 px-3 text-red-600 hover:bg-red-50"
+                                onClick={() => handleReviewSubscriptionAction(req.id, req, "reject")}
+                              >
+                                Reject
+                              </button>
+                            </div>
+                          </td>
+                        </tr>
+                      ))}
+                      {!subscriptionRequests.length && (
+                        <tr>
+                          <td colSpan={6} className="text-center py-6 text-muted-foreground text-sm">
+                            No pending subscription payment proofs right now.
+                          </td>
+                        </tr>
+                      )}
+                    </tbody>
+                  </table>
+                </div>
+              </section>
+
+              {/* ONBOARDING REGISTRATIONS */}
+              <section className="panel management-panel">
+                <div className="panel-header border-b pb-3 mb-4">
+                  <h2 className="text-lg font-bold flex items-center gap-2">
+                    Restaurant Onboarding Applications <span className="count-pill">{approvals.length}</span>
+                  </h2>
+                </div>
+                <div className="approval-grid">
+                  {approvals.map((a) => (
+                    <div className="approval-card" key={a.id}>
+                      <div className="approval-top flex justify-between items-center">
+                        <span className="approval-avatar">{a.name.slice(0, 2).toUpperCase()}</span>
+                        <span className="status trial">Pending Review</span>
+                      </div>
+                      <h2 className="text-lg font-bold mt-2">{a.name}</h2>
+                      <p className="text-xs text-muted-foreground">{a.city} · Submitted {a.submitted}</p>
+                      <div className="approval-actions mt-4 flex gap-2">
+                        <button className="primary-btn" onClick={() => handleReviewRestaurantApproval(a.id, "approve", a.plan)}>
+                          Approve & Activate
+                        </button>
+                        <button className="quiet-btn text-red-600" onClick={() => handleReviewRestaurantApproval(a.id, "reject")}>
+                          Reject
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+                  {!approvals.length && (
+                    <div className="panel empty-state">No pending restaurant onboarding applications.</div>
+                  )}
+                </div>
+              </section>
+            </>
+          )}
+
+          {/* 12. ADMIN: PRICING PLANS (WITH VISIBLE ADD, EDIT, DELETE CONTROLS) */}
+          {view === "pricing" && (
+            <>
+              <div className="page-head flex justify-between items-center">
+                <div>
+                  <div className="eyebrow">PLATFORM CONTROLS</div>
+                  <h1>Pricing Plans & Configuration</h1>
+                  <p>Add, edit, or delete the plans offered to all restaurants across RestoPulse.</p>
+                </div>
+                <button
+                  className="primary-btn flex items-center gap-1.5 font-bold"
+                  onClick={() => open("plan")}
+                >
+                  <Plus size={16} /> Add New Plan
+                </button>
+              </div>
+
+              <section className="panel settings-panel mb-6 mt-4">
+                <h2>Restaurant payment UPI ID</h2>
+                <div className="settings-fields mt-3">
+                  <label>Admin UPI ID<input value={adminUpiId} onChange={(e) => setAdminUpiId(e.target.value)} placeholder="merchant@upi" /></label>
+                </div>
+                <button className="primary-btn mt-3" onClick={saveAdminUpi} disabled={adminUpiBusy}>Save Admin UPI ID</button>
+              </section>
+
+              {/* Editable Plans Grid */}
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                {plans.map((p) => (
+                  <div key={p.id} className="p-5 border rounded-2xl bg-card space-y-3 flex flex-col justify-between shadow-sm">
+                    <div>
+                      <div className="flex justify-between items-start">
+                        <h3 className="font-bold text-base">{p.name}</h3>
+                        <span className="text-[10px] uppercase font-bold px-2 py-0.5 rounded-full bg-secondary">
+                          {p.period}
+                        </span>
+                      </div>
+                      <div className="text-2xl font-black mt-2">
+                        {money(p.price)} <small className="text-xs font-normal text-muted-foreground">/{p.period}</small>
+                      </div>
+                      <p className="text-xs text-muted-foreground mt-2 leading-relaxed">{p.features}</p>
+                    </div>
+
+                    {/* Admin Actions: Edit & Delete */}
+                    <div className="pt-3 border-t flex justify-end gap-2">
+                      <button
+                        className="quiet-btn text-xs py-1.5 px-3 flex items-center gap-1 font-semibold hover:border-amber-500"
+                        onClick={() => open("plan", p.id)}
+                      >
+                        <Pencil size={13} /> Edit
+                      </button>
+                      <button
+                        className="quiet-btn text-xs py-1.5 px-3 text-red-600 hover:bg-red-50 flex items-center gap-1 font-semibold"
+                        onClick={() => handleDeletePlan(p.id)}
+                      >
+                        <Trash2 size={13} /> Delete
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </>
           )}
         </main>
       </div>
 
-      {/* MODAL: USE INVENTORY STOCK */}
-      <Dialog open={usageModalOpen} onOpenChange={setUsageModalOpen}>
-        <DialogContent className="max-w-md bg-white">
+      {mobileNav && <button className="nav-backdrop" aria-label="Close navigation" onClick={() => setMobileNav(false)} />}
+
+      {/* DEDICATED MODAL FOR ADDING / EDITING PRICING PLANS */}
+      <Dialog open={modal === "plan"} onOpenChange={(v) => !v && setModal(null)}>
+        <DialogContent className="max-w-md">
           <DialogHeader>
-            <DialogTitle className="text-slate-900 font-bold">Use Stock for Kitchen</DialogTitle>
+            <DialogTitle>{editing ? "Edit Pricing Plan" : "Add New Pricing Plan"}</DialogTitle>
+            <DialogDescription>
+              Changes made here will immediately update the options in the restaurant console.
+            </DialogDescription>
           </DialogHeader>
-          {selectedStockForUsage && (
-            <div className="space-y-4 py-2 text-xs">
-              <div className="p-3.5 rounded-xl border border-slate-100 bg-slate-50 space-y-1.5">
-                <div className="flex justify-between font-semibold text-slate-700">
-                  <span>Ingredient:</span>
-                  <b className="text-slate-900">{selectedStockForUsage.name}</b>
-                </div>
-                <div className="flex justify-between font-semibold text-slate-700">
-                  <span>Available On Hand:</span>
-                  <b>{selectedStockForUsage.onHand} {selectedStockForUsage.unit}</b>
-                </div>
-                <div className="flex justify-between font-semibold text-slate-700">
-                  <span>Unit Cost:</span>
-                  <b className="font-mono text-emerald-700">{money(selectedStockForUsage.costPerUnit || 0)} / {selectedStockForUsage.unit}</b>
-                </div>
-              </div>
-
-              <label className="block space-y-1 font-bold text-slate-700">
-                <span>Quantity Taken ({selectedStockForUsage.unit})</span>
-                <input
-                  type="number"
-                  min="0.1"
-                  step="any"
-                  value={usageQuantity}
-                  onChange={(e) => setUsageQuantity(e.target.value)}
-                  placeholder="e.g. 2"
-                  className="w-full p-2.5 border border-slate-200 rounded-xl bg-white text-sm font-mono"
-                />
-              </label>
-
-              {Number(usageQuantity) > 0 && (
-                <div className="p-3 rounded-xl border border-amber-200 bg-amber-50/60 flex justify-between items-center">
-                  <span className="text-amber-800 font-bold">Added to Operating Expenses:</span>
-                  <strong className="text-sm font-bold font-mono text-amber-900">
-                    {money(Number(usageQuantity) * (selectedStockForUsage.costPerUnit || 0))}
-                  </strong>
-                </div>
-              )}
-            </div>
-          )}
+          <div className="space-y-3 py-2 text-xs">
+            <label className="block space-y-1">
+              <span className="font-semibold text-muted-foreground">Plan Name</span>
+              <input
+                value={form.name || ""}
+                onChange={(e) => setForm({ ...form, name: e.target.value })}
+                placeholder="e.g. Starter, Monthly, Quarterly, Yearly"
+                className="w-full p-2 border rounded-lg bg-background text-sm"
+              />
+            </label>
+            <label className="block space-y-1">
+              <span className="font-semibold text-muted-foreground">Price (₹)</span>
+              <input
+                type="number"
+                value={form.price || ""}
+                onChange={(e) => setForm({ ...form, price: e.target.value })}
+                placeholder="2999"
+                className="w-full p-2 border rounded-lg bg-background text-sm"
+              />
+            </label>
+            <label className="block space-y-1">
+              <span className="font-semibold text-muted-foreground">Duration / Period Label</span>
+              <input
+                value={form.period || ""}
+                onChange={(e) => setForm({ ...form, period: e.target.value })}
+                placeholder="e.g. 7 days, 30 days, 365 days"
+                className="w-full p-2 border rounded-lg bg-background text-sm"
+              />
+            </label>
+            <label className="block space-y-1">
+              <span className="font-semibold text-muted-foreground">Features Description</span>
+              <textarea
+                value={form.features || ""}
+                onChange={(e) => setForm({ ...form, features: e.target.value })}
+                placeholder="Core POS, table management, live inventory tracking..."
+                className="w-full p-2 border rounded-lg bg-background h-24 text-sm"
+              />
+            </label>
+          </div>
           <DialogFooter>
-            <button className="px-4 py-2 border border-slate-200 rounded-xl text-xs font-semibold" onClick={() => setUsageModalOpen(false)}>Cancel</button>
-            <button className="px-4 py-2 bg-[#f59e0b] hover:bg-amber-600 text-white rounded-xl text-xs font-bold" onClick={handleLogStockUsage}>Confirm & Deduct</button>
+            <button className="quiet-btn" onClick={() => setModal(null)}>Cancel</button>
+            <button className="primary-btn" onClick={save}>Save Plan</button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
 
-      {/* MODAL: ADD / EDIT INVENTORY */}
+      {/* INVENTORY ADD / EDIT MODAL */}
       <Dialog open={modal === "inventory"} onOpenChange={(v) => !v && setModal(null)}>
-        <DialogContent className="max-w-md bg-white">
+        <DialogContent className="max-w-md">
           <DialogHeader>
-            <DialogTitle className="text-slate-900 font-bold">{editingInvId !== null ? "Edit Stock Item" : "Add New Stock Item"}</DialogTitle>
+            <DialogTitle>{editingInvId !== null ? "Edit Stock Item" : "Add New Stock Item"}</DialogTitle>
           </DialogHeader>
-          <div className="space-y-3 py-2 text-xs">
-            <label className="block space-y-1 font-semibold text-slate-700">
-              <span>Item Name</span>
-              <input value={invForm.name} onChange={(e) => setInvForm({ ...invForm, name: e.target.value })} className="w-full p-2 border border-slate-200 rounded-xl" />
+          <div className="space-y-4 py-2">
+            <label className="block space-y-1">
+              <span className="text-sm font-medium">Item Name</span>
+              <input type="text" value={invForm.name} onChange={(e) => setInvForm({ ...invForm, name: e.target.value })} className="w-full p-2 border rounded-md text-sm bg-transparent" />
             </label>
             <div className="grid grid-cols-2 gap-3">
-              <label className="block space-y-1 font-semibold text-slate-700">
-                <span>Quantity On Hand</span>
-                <input type="number" value={invForm.onHand} onChange={(e) => setInvForm({ ...invForm, onHand: e.target.value })} className="w-full p-2 border border-slate-200 rounded-xl" />
+              <label className="block space-y-1">
+                <span className="text-sm font-medium">Quantity On Hand</span>
+                <input type="number" min="0" value={invForm.onHand} onChange={(e) => setInvForm({ ...invForm, onHand: e.target.value })} className="w-full p-2 border rounded-md text-sm bg-transparent" />
               </label>
-              <label className="block space-y-1 font-semibold text-slate-700">
-                <span>Unit (kg, bags, tins)</span>
-                <input value={invForm.unit} onChange={(e) => setInvForm({ ...invForm, unit: e.target.value })} className="w-full p-2 border border-slate-200 rounded-xl" />
+              <label className="block space-y-1">
+                <span className="text-sm font-medium">Unit</span>
+                <input type="text" value={invForm.unit} onChange={(e) => setInvForm({ ...invForm, unit: e.target.value })} className="w-full p-2 border rounded-md text-sm bg-transparent" />
               </label>
             </div>
+            <label className="block space-y-1">
+              <span className="text-sm font-medium">Reorder Threshold</span>
+              <input type="number" min="0" value={invForm.reorderLevel} onChange={(e) => setInvForm({ ...invForm, reorderLevel: e.target.value })} className="w-full p-2 border rounded-md text-sm bg-transparent" />
+            </label>
+          </div>
+          <DialogFooter>
+            <button className="quiet-btn" onClick={() => setModal(null)}>Cancel</button>
+            <button className="primary-btn" onClick={handleAddOrEditInventory}>Save Item</button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* EMPLOYEE ADD / EDIT MODAL */}
+      <Dialog open={modal === "employee"} onOpenChange={(v) => !v && setModal(null)}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>{editing ? "Edit Employee" : "Add New Employee"}</DialogTitle>
+            <DialogDescription>Assign designation, access permissions, and salary structure.</DialogDescription>
+          </DialogHeader>
+          <div className="space-y-3 py-2 text-xs">
+            <label className="block space-y-1">
+              <span className="font-semibold text-muted-foreground">Full Name</span>
+              <input value={form.name || ""} onChange={(e) => setForm({ ...form, name: e.target.value })} placeholder="e.g. Ramesh Kumar" className="w-full p-2 border rounded-lg bg-background" />
+            </label>
+
+            <label className="block space-y-1">
+              <span className="font-semibold text-muted-foreground">Designation & Access Role</span>
+              <select
+                value={form.role || "Staff"}
+                onChange={(e) => setForm({ ...form, role: e.target.value })}
+                className="w-full p-2 border rounded-lg bg-background font-medium"
+              >
+                <option value="Manager">Manager (Operational access: POS, Menu, Inventory, Staff)</option>
+                <option value="Accountant">Accountant (Financial access: Expenses, Suppliers, Payroll)</option>
+                <option value="Storekeeper">Storekeeper (Warehouse access: Inventory, Suppliers)</option>
+                <option value="Staff">Staff (POS cashier terminal access only)</option>
+              </select>
+            </label>
+
             <div className="grid grid-cols-2 gap-3">
-              <label className="block space-y-1 font-semibold text-slate-700">
-                <span>Unit Cost (₹)</span>
-                <input type="number" value={invForm.costPerUnit} onChange={(e) => setInvForm({ ...invForm, costPerUnit: e.target.value })} placeholder="140" className="w-full p-2 border border-slate-200 rounded-xl" />
+              <label className="block space-y-1">
+                <span className="font-semibold text-muted-foreground">Pay Type</span>
+                <select
+                  value={form.payType || "Monthly"}
+                  onChange={(e) => setForm({ ...form, payType: e.target.value })}
+                  className="w-full p-2 border rounded-lg bg-background"
+                >
+                  <option value="Monthly">Monthly Salary</option>
+                  <option value="Daily">Daily Wage</option>
+                </select>
               </label>
-              <label className="block space-y-1 font-semibold text-slate-700">
-                <span>Reorder Point</span>
-                <input type="number" value={invForm.reorderLevel} onChange={(e) => setInvForm({ ...invForm, reorderLevel: e.target.value })} className="w-full p-2 border border-slate-200 rounded-xl" />
+
+              {form.payType === "Daily" ? (
+                <label className="block space-y-1">
+                  <span className="font-semibold text-muted-foreground">Daily Rate (₹)</span>
+                  <input type="number" value={form.dailyRate || ""} onChange={(e) => setForm({ ...form, dailyRate: e.target.value })} placeholder="800" className="w-full p-2 border rounded-lg bg-background" />
+                </label>
+              ) : (
+                <label className="block space-y-1">
+                  <span className="font-semibold text-muted-foreground">Monthly Salary (₹)</span>
+                  <input type="number" value={form.monthlySalary || ""} onChange={(e) => setForm({ ...form, monthlySalary: e.target.value })} placeholder="25000" className="w-full p-2 border rounded-lg bg-background" />
+                </label>
+              )}
+            </div>
+
+            <div className="grid grid-cols-2 gap-3">
+              <label className="block space-y-1">
+                <span className="font-semibold text-muted-foreground">Shift</span>
+                <input value={form.shift || ""} onChange={(e) => setForm({ ...form, shift: e.target.value })} placeholder="09:00 – 18:00" className="w-full p-2 border rounded-lg bg-background" />
+              </label>
+              <label className="block space-y-1">
+                <span className="font-semibold text-muted-foreground">Phone</span>
+                <input value={form.phone || ""} onChange={(e) => setForm({ ...form, phone: e.target.value })} placeholder="+91 98765 00000" className="w-full p-2 border rounded-lg bg-background" />
               </label>
             </div>
           </div>
           <DialogFooter>
-            <button className="px-4 py-2 border border-slate-200 rounded-xl text-xs font-semibold" onClick={() => setModal(null)}>Cancel</button>
-            <button className="px-4 py-2 bg-[#f59e0b] hover:bg-amber-600 text-white rounded-xl text-xs font-bold" onClick={handleAddOrEditInventory}>Save Item</button>
+            <button className="quiet-btn" onClick={() => setModal(null)}>Cancel</button>
+            <button className="primary-btn" onClick={save}>Save Employee</button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* GLOBAL ENTITY MODAL (DISH, SUPPLIER, EXPENSE, PAYMENT) */}
+      <Dialog open={!!modal && modal !== "inventory" && modal !== "employee" && modal !== "plan"} onOpenChange={(v) => !v && setModal(null)}>
+        <DialogContent className="modal-content">
+          <DialogHeader>
+            <DialogTitle>
+              {modal === "dish" ? (editing ? "Edit Dish" : "Add Dish")
+                : modal === "supplier" ? (editing ? "Edit Supplier" : "Add Supplier")
+                : modal === "expense" ? "Log Expense"
+                : "Record Payment"}
+            </DialogTitle>
+          </DialogHeader>
+          <div className="modal-fields">
+            {modal === "dish" && (
+              <>
+                <label>Dish name<input value={form.name || ""} onChange={(e) => setForm({ ...form, name: e.target.value })} /></label>
+                <label>Category<input value={form.category || "Mains"} onChange={(e) => setForm({ ...form, category: e.target.value })} /></label>
+                <label>Price (₹)<input type="number" value={form.price || ""} onChange={(e) => setForm({ ...form, price: e.target.value })} /></label>
+              </>
+            )}
+            {modal === "expense" && (
+              <>
+                <label>Description<input value={form.name || ""} onChange={(e) => setForm({ ...form, name: e.target.value })} /></label>
+                <label>
+                  Category
+                  <select value={form.category || "Inventory"} onChange={(e) => setForm({ ...form, category: e.target.value })}>
+                    <option value="Inventory">Inventory</option>
+                    <option value="Utilities">Utilities</option>
+                    <option value="Maintenance">Maintenance</option>
+                    <option value="Marketing">Marketing</option>
+                    <option value="Rent">Rent</option>
+                    <option value="Staff welfare">Staff welfare</option>
+                  </select>
+                </label>
+                <label>
+                  Linked Supplier (optional)
+                  <select value={form.supplierId || ""} onChange={(e) => setForm({ ...form, supplierId: e.target.value })}>
+                    <option value="">None</option>
+                    {suppliers.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
+                  </select>
+                </label>
+                <label>Amount (₹)<input type="number" value={form.amount || ""} onChange={(e) => setForm({ ...form, amount: e.target.value })} /></label>
+              </>
+            )}
+            {modal === "supplier" && (
+              <>
+                <label>Supplier name<input value={form.name || ""} onChange={(e) => setForm({ ...form, name: e.target.value })} /></label>
+                <label>Contact person<input value={form.contact || ""} onChange={(e) => setForm({ ...form, contact: e.target.value })} /></label>
+                <label>Phone<input value={form.phone || ""} onChange={(e) => setForm({ ...form, phone: e.target.value })} /></label>
+              </>
+            )}
+            {modal === "payment" && (
+              <>
+                <label>
+                  Supplier
+                  <select value={form.supplierId || ""} onChange={(e) => setForm({ ...form, supplierId: e.target.value })}>
+                    <option value="">Select</option>
+                    {suppliers.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
+                  </select>
+                </label>
+                <label>Amount (₹)<input type="number" value={form.amount || ""} onChange={(e) => setForm({ ...form, amount: e.target.value })} /></label>
+              </>
+            )}
+          </div>
+          <DialogFooter>
+            <button className="quiet-btn" onClick={() => setModal(null)}>Cancel</button>
+            <button className="primary-btn" onClick={save}>Save changes</button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* EMPLOYEE DETAILS SHEET */}
+      <Sheet open={!!selectedStaff} onOpenChange={(v) => !v && setSelectedStaff(null)}>
+        <SheetContent className="profile-sheet">
+          <SheetHeader>
+            <SheetTitle>Employee & Wage Record</SheetTitle>
+          </SheetHeader>
+          {selectedStaff && (
+            <div className="space-y-4 py-4 text-xs">
+              <div className="flex items-center gap-3 p-3 bg-secondary/30 rounded-xl">
+                <span className="w-10 h-10 rounded-full bg-indigo-200 dark:bg-indigo-900 text-indigo-800 dark:text-indigo-200 font-bold flex items-center justify-center">
+                  {selectedStaff.initial}
+                </span>
+                <div>
+                  <h3 className="text-sm font-bold">{selectedStaff.name}</h3>
+                  <p className="text-muted-foreground">{selectedStaff.role} · {selectedStaff.phone}</p>
+                  <p className="text-indigo-600 font-semibold mt-0.5">
+                    {selectedStaff.payType === "Monthly"
+                      ? `Monthly: ${money(selectedStaff.monthlySalary)}`
+                      : `Daily: ${money(selectedStaff.dailyRate)}`}
+                  </p>
+                </div>
+              </div>
+
+              <div className="space-y-2 p-3 border rounded-xl">
+                <div className="font-bold">Record Day's Wage / Daily Attendance</div>
+                <div className="grid grid-cols-2 gap-2">
+                  <label className="space-y-1">
+                    <span>Date</span>
+                    <input
+                      type="date"
+                      value={wageForm.date}
+                      onChange={(e) => setWageForm({ ...wageForm, date: e.target.value })}
+                      className="w-full p-1.5 border rounded"
+                    />
+                  </label>
+                  <label className="space-y-1">
+                    <span>Amount (₹)</span>
+                    <input
+                      type="number"
+                      value={wageForm.amount}
+                      onChange={(e) => setWageForm({ ...wageForm, amount: e.target.value })}
+                      className="w-full p-1.5 border rounded"
+                    />
+                  </label>
+                </div>
+                <button
+                  className="primary-btn w-full mt-2"
+                  onClick={() => {
+                    if (!wageForm.amount) return;
+                    setWages([
+                      { id: Date.now(), staffId: selectedStaff.id, date: wageForm.date, amount: Number(wageForm.amount), status: "Unpaid", note: "Wage" },
+                      ...wages
+                    ]);
+                    toast.success("Wage logged");
+                  }}
+                >
+                  Save Wage Entry
+                </button>
+              </div>
+
+              <div className="space-y-2">
+                <div className="font-bold">Wage History</div>
+                <div className="space-y-1.5 max-h-48 overflow-y-auto">
+                  {wages.filter(w => w.staffId === selectedStaff.id).map(w => (
+                    <div key={w.id} className="p-2 border rounded-lg flex justify-between items-center">
+                      <div>
+                        <div>{w.date}</div>
+                        <small className="text-muted-foreground">{w.note || "Daily wage"}</small>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <b>{money(w.amount)}</b>
+                        <button
+                          className={`px-2 py-0.5 rounded text-[10px] font-bold ${w.status === "Paid" ? "bg-green-100 text-green-800" : "bg-amber-100 text-amber-800"}`}
+                          onClick={() => {
+                            setWages(old => old.map(item => item.id === w.id ? { ...item, status: item.status === "Paid" ? "Unpaid" : "Paid" } : item));
+                          }}
+                        >
+                          {w.status}
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+          )}
+        </SheetContent>
+      </Sheet>
+
+      {/* PRINTABLE THERMAL RECEIPT DIALOG */}
+      <Dialog open={!!receipt} onOpenChange={(v) => !v && setReceipt(null)}>
+        <DialogContent className="max-w-md p-6 bg-slate-900 border border-slate-800 text-white">
+          <DialogHeader className="no-print">
+            <DialogTitle className="text-base font-bold">Bill Details & Receipt</DialogTitle>
+            <DialogDescription className="text-xs text-muted-foreground">
+              Select paper format and print receipt
+            </DialogDescription>
+          </DialogHeader>
+
+          {/* Paper Size Format Selector (58mm, 80mm, A4) */}
+          <div className="no-print flex items-center justify-between p-2.5 mb-2 rounded-xl bg-slate-800 border border-slate-700 text-xs">
+            <span className="font-semibold text-gray-300">Format:</span>
+            <div className="flex gap-1.5">
+              {(["58mm", "80mm", "A4"] as const).map((sz) => (
+                <button
+                  key={sz}
+                  onClick={() => setPrintPaperSize(sz)}
+                  className={`px-3 py-1 rounded-lg text-xs font-bold transition-all ${
+                    printPaperSize === sz
+                      ? "bg-amber-500 text-white shadow-sm"
+                      : "bg-slate-700 text-gray-300 hover:bg-slate-600"
+                  }`}
+                >
+                  {sz}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {receipt && (
+            <div
+              id="printable-receipt-card"
+              className="p-5 bg-white text-black rounded-xl font-mono text-[11px] leading-relaxed border shadow-lg overflow-hidden"
+            >
+              {/* Receipt Header */}
+              <div className="text-center space-y-0.5">
+                <div className="text-sm font-extrabold uppercase tracking-wide">
+                  {receipt.business?.name || activeRestaurantName}
+                </div>
+                <div className="text-[10px] text-gray-600 leading-tight">
+                  {receipt.business?.address}
+                </div>
+                {receipt.business?.business_phone && (
+                  <div className="text-[10px] text-gray-600">
+                    Ph: {receipt.business.business_phone}
+                  </div>
+                )}
+                {receipt.business?.gstin && (
+                  <div className="text-[10px] font-bold text-gray-800">
+                    GSTIN: {receipt.business.gstin}
+                  </div>
+                )}
+              </div>
+
+              <div className="border-b border-dashed border-gray-400 my-2" />
+
+              <div className="flex justify-between text-[11px] font-bold">
+                <span>Bill: {receipt.id}</span>
+                <span>{receipt.type} {receipt.table ? `(${receipt.table})` : ''}</span>
+              </div>
+              <div className="text-[10px] text-gray-500">{receipt.issuedAt}</div>
+
+              <div className="border-b border-dashed border-gray-400 my-2" />
+
+              {/* Monochromatic table with percentage widths */}
+              <table className="w-full text-[10px] font-mono border-collapse table-fixed">
+                <thead>
+                  <tr className="border-b border-dashed border-gray-400 text-gray-700 font-bold">
+                    <th className="py-1 text-left w-[50%]">ITEM</th>
+                    <th className="py-1 text-center w-[15%]">QTY</th>
+                    <th className="py-1 text-right w-[17%]">PRICE</th>
+                    <th className="py-1 text-right w-[18%]">TOTAL</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {receipt.items.map((item, idx) => (
+                    <tr key={idx} className="border-b border-dotted border-gray-200">
+                      <td className="py-1 pr-1 truncate text-left">{item.name}</td>
+                      <td className="py-1 text-center">{item.qty}</td>
+                      <td className="py-1 text-right">{money(item.unitPrice)}</td>
+                      <td className="py-1 text-right font-semibold">
+                        {money(item.qty * (item.unitPrice - item.discount))}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+
+              <div className="border-b border-dashed border-gray-400 my-2" />
+
+              {/* Financial Breakdown & GST Slabs */}
+              <div className="space-y-0.5 text-[10px] font-mono">
+                <div className="flex justify-between">
+                  <span>Subtotal</span>
+                  <span>{money(receipt.subtotal)}</span>
+                </div>
+                {receipt.discount > 0 && (
+                  <div className="flex justify-between text-green-700">
+                    <span>Discount</span>
+                    <span>−{money(receipt.discount)}</span>
+                  </div>
+                )}
+                <div className="flex justify-between text-gray-600 text-[10px]">
+                  <span>CGST ({tenantInfo.cgst_percent}%):</span>
+                  <span>{money(receipt.cgst)}</span>
+                </div>
+                <div className="flex justify-between text-gray-600 text-[10px]">
+                  <span>SGST ({tenantInfo.sgst_percent}%):</span>
+                  <span>{money(receipt.sgst)}</span>
+                </div>
+                <div className="border-b border-solid border-gray-900 my-1" />
+                <div className="flex justify-between text-xs font-black pt-0.5">
+                  <span>TOTAL DUE</span>
+                  <span>{money(receipt.total)}</span>
+                </div>
+                <div className="flex justify-between text-[9px] text-gray-500 pt-0.5">
+                  <span>Payment Mode</span>
+                  <span>{receipt.payment}</span>
+                </div>
+              </div>
+
+              {/* Receipt Footer */}
+              <div className="text-center text-[9px] text-gray-500 pt-2 border-t border-dashed border-gray-300">
+                {receipt.business?.receipt_footer || "Thank you for dining with us! Visit again."}
+              </div>
+            </div>
+          )}
+
+          <DialogFooter className="no-print mt-4 flex gap-2">
+            <button className="quiet-btn" onClick={() => setReceipt(null)}>
+              Close
+            </button>
+            <button
+              className="primary-btn flex items-center gap-1.5"
+              onClick={() => {
+                window.print();
+              }}
+            >
+              <Printer size={16} /> Print Receipt ({printPaperSize})
+            </button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

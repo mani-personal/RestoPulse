@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState, useCallback, useRef } from "react";
-import { browserDb } from "@/lib/supabase";
+import { browserDb, authHeaders } from "@/lib/supabase";
 import {
   LayoutDashboard,
   ShoppingBag,
@@ -122,6 +122,7 @@ type InventoryItem = {
   onHand: number;
   unit: string;
   reorderLevel: number;
+  cost?: number;
 };
 
 type RestaurantApproval = {
@@ -150,6 +151,7 @@ type Staff = {
   dailyRate: number;
   email: string;
   phone: string;
+  active?: boolean;
 };
 
 type Wage = {
@@ -355,6 +357,7 @@ export default function Home() {
   const [restaurants, setRestaurants] = useState<any[]>([]);
   const [approvals, setApprovals] = useState<RestaurantApproval[]>([]);
   const [subscriptionRequests, setSubscriptionRequests] = useState<Array<any>>([]);
+  const [subscriptionHistory, setSubscriptionHistory] = useState<Array<any>>([]);
   const [expenses, setExpenses] = useState<Expense[]>([]);
   const [staff, setStaff] = useState<Staff[]>([]);
   const [wages, setWages] = useState<Wage[]>([]);
@@ -377,6 +380,9 @@ export default function Home() {
   const [dateRange, setDateRange] = useState("This week");
 
   const [inventoryList, setInventoryList] = useState<InventoryItem[]>([]);
+  const [inventoryTransactions, setInventoryTransactions] = useState<any[]>([]);
+  const [saleHistoryOpen, setSaleHistoryOpen] = useState(false);
+  const [isDataLoading, setIsDataLoading] = useState(false);
   const [invForm, setInvForm] = useState({ name: "", category: "Grains", onHand: "", unit: "bags", reorderLevel: "5" });
   const [editingInvId, setEditingInvId] = useState<string | number | null>(null);
 
@@ -399,10 +405,15 @@ export default function Home() {
   const [confirmPassword, setConfirmPassword] = useState("");
   const [pwdBusy, setPwdBusy] = useState(false);
 
+  const authedFetch = useCallback(async (input: RequestInfo | URL, init: RequestInit = {}) => {
+    const headers = await authHeaders((init.headers || {}) as Record<string, string>);
+    return fetch(input, { ...init, headers });
+  }, []);
+
   // Sync Live Pricing Plans from Backend
   const fetchLivePlans = useCallback(async () => {
     try {
-      const res = await fetch("/api/admin/pricing");
+      const res = await authedFetch("/api/admin/pricing");
       const data = await res.json();
       if (data?.plans && Array.isArray(data.plans) && data.plans.length) {
         setPlans(data.plans);
@@ -485,9 +496,8 @@ export default function Home() {
           }));
         }
       }
-      if (data?.upi_id) {
-        setSubscriptionUpiId(data.upi_id);
-      }
+      if (data?.upi_id) setSubscriptionUpiId(data.upi_id);
+      if (Array.isArray(data?.history)) setSubscriptionHistory(data.history);
     } catch {}
   }, [authUser, loginEmail]);
 
@@ -532,7 +542,7 @@ export default function Home() {
 
   const fetchRealApprovals = useCallback(async () => {
     try {
-      const res = await fetch("/api/admin/approvals");
+      const res = await authedFetch("/api/admin/approvals");
       const json = await res.json();
       if (json?.approvals) {
         setApprovals(json.approvals);
@@ -542,11 +552,10 @@ export default function Home() {
 
   const fetchSubscriptionRequests = useCallback(async () => {
     try {
-      const res = await fetch("/api/admin/subscriptions");
+      const res = await authedFetch("/api/admin/subscriptions");
       const json = await res.json();
-      if (json?.requests) {
-        setSubscriptionRequests(json.requests);
-      }
+      if (json?.requests) setSubscriptionRequests(json.requests);
+      if (json?.history) setSubscriptionHistory(json.history);
     } catch {
       const localReqs = localStorage.getItem("rp-local-sub-requests");
       if (localReqs) setSubscriptionRequests(JSON.parse(localReqs));
@@ -607,112 +616,150 @@ export default function Home() {
   }, [db, authUser]);
 
   useEffect(() => {
-    const savedUpi = localStorage.getItem("rp-admin-upi");
-    if (savedUpi) {
-      setAdminUpiId(savedUpi);
-      setSubscriptionUpiId(savedUpi);
-    }
-    fetch("/api/subscription")
-      .then((res) => res.json())
-      .then((data) => {
-        if (data?.upi_id) {
-          setSubscriptionUpiId(data.upi_id);
-          setAdminUpiId(data.upi_id);
-          localStorage.setItem("rp-admin-upi", data.upi_id);
+    if (!authUser) return;
+    const loadUpi = async () => {
+      try {
+        if (isAdmin) {
+          const res = await authedFetch("/api/admin/settings");
+          const data = await res.json();
+          if (res.ok && data?.value) { setAdminUpiId(data.value); setSubscriptionUpiId(data.value); }
+        } else if (tenantId) {
+          const res = await authedFetch(`/api/subscription?restaurant_id=${encodeURIComponent(tenantId)}`);
+          const data = await res.json();
+          if (res.ok && data?.upi_id) setSubscriptionUpiId(data.upi_id);
         }
-      })
-      .catch(() => {});
-  }, []);
+      } catch {}
+    };
+    loadUpi();
+  }, [authUser, tenantId, isAdmin, authedFetch]);
 
-  // Real-Time Polling & Live Plans Sync
+  // Initial hydration + Supabase Realtime. Polling is intentionally avoided so
+  // multiple tabs/devices do not generate duplicate API/database traffic.
   useEffect(() => {
+    if (!authUser) return;
     fetchSubscriptionRequests();
     fetchRealApprovals();
     fetchAllRestaurants();
     syncLiveSubscriptionStatus();
     fetchLivePlans();
+  }, [authUser, fetchSubscriptionRequests, fetchRealApprovals, fetchAllRestaurants, syncLiveSubscriptionStatus, fetchLivePlans]);
 
-    const interval = setInterval(() => {
-      fetchSubscriptionRequests();
-      fetchRealApprovals();
-      fetchAllRestaurants();
-      syncLiveSubscriptionStatus();
-      fetchLivePlans();
-    }, 4000);
-
-    return () => {
-      clearInterval(interval);
-    };
-  }, [fetchSubscriptionRequests, fetchRealApprovals, fetchAllRestaurants, syncLiveSubscriptionStatus, fetchLivePlans]);
+  const loadRestaurantData = useCallback(async (id: string) => {
+    if (!id || isAdmin) return;
+    setIsDataLoading(true);
+    try {
+      const [salesRes, inventoryRes, menuRes, expensesRes, supplierRes, paymentRes, staffRes, wagesRes] = await Promise.all([
+        authedFetch(`/api/sales?restaurant_id=${encodeURIComponent(id)}`),
+        authedFetch(`/api/inventory?restaurant_id=${encodeURIComponent(id)}`),
+        db.from("menu_items").select("*").eq("restaurant_id", id).order("created_at", { ascending: false }),
+        db.from("expenses").select("*").eq("restaurant_id", id).order("incurred_on", { ascending: false }),
+        db.from("suppliers").select("*").eq("restaurant_id", id).order("name"),
+        db.from("supplier_payments").select("*").eq("restaurant_id", id).order("paid_on", { ascending: false }),
+        db.from("employees").select("*").eq("restaurant_id", id).order("name"),
+        db.from("daily_wages").select("*").eq("restaurant_id", id).order("wage_date", { ascending: false }),
+      ]);
+      const salesJson = await salesRes.json().catch(() => ({sales: []}));
+      const inventoryJson = await inventoryRes.json().catch(() => ({items: [], transactions: []}));
+      if (salesRes.ok) setOrders((salesJson.sales || []).map((s:any) => ({
+        id:s.bill_no || s.id, time:new Date(s.placed_at).toLocaleTimeString("en-IN",{hour:"numeric",minute:"2-digit"}),
+        placedAt:s.placed_at, amount:Number(s.amount)||0, type:s.order_type, status:s.status, bill:s.receipt
+      })));
+      if (inventoryRes.ok) {
+        setInventoryList((inventoryJson.items || []).map((x:any)=>({id:x.id,name:x.name,category:x.category,onHand:Number(x.on_hand),unit:x.unit,reorderLevel:Number(x.reorder_level),cost:Number(x.cost||0)})));
+        setInventoryTransactions(inventoryJson.transactions || []);
+      }
+      if (!menuRes.error) setDishes((menuRes.data || []).map((x:any)=>({id:x.id,name:x.name,category:x.category,price:Number(x.price),cost:Number(x.cost),stock:x.available,emoji:x.emoji,diet:x.diet,time:x.prep_minutes,imageUrl:x.image_url})));
+      if (!expensesRes.error) setExpenses((expensesRes.data || []).map((x:any)=>({id:x.id,name:x.name,category:x.category,vendor:x.vendor,amount:Number(x.amount),date:x.incurred_on,supplierId:x.supplier_id})));
+      if (!supplierRes.error) setSuppliers((supplierRes.data || []).map((x:any)=>({id:x.id,name:x.name,contact:x.contact_name,phone:x.phone,email:x.email})));
+      if (!paymentRes.error) setSupplierPayments((paymentRes.data || []).map((x:any)=>({id:x.id,supplierId:x.supplier_id,amount:Number(x.amount),date:x.paid_on,method:x.method,note:x.note})));
+      if (!staffRes.error) setStaff((staffRes.data || []).map((x:any)=>({id:x.id,name:x.name,role:x.role,initial:x.name.slice(0,2).toUpperCase(),shift:x.shift,payType:"Daily",monthlySalary:Number(x.daily_rate)*30,dailyRate:Number(x.daily_rate),email:x.email,phone:x.phone,active:x.active})));
+      if (!wagesRes.error) setWages((wagesRes.data || []).map((x:any)=>({id:x.id,staffId:x.employee_id,date:x.wage_date,amount:Number(x.amount),status:x.status,note:x.note})));
+    } catch (e) {
+      console.error("Restaurant data load failed", e);
+      toast.error("Some restaurant data could not be loaded.");
+    } finally { setIsDataLoading(false); }
+  }, [authedFetch, db, isAdmin]);
 
   useEffect(() => {
+    if (tenantId && !isAdmin) loadRestaurantData(tenantId);
+  }, [tenantId, isAdmin, loadRestaurantData]);
+
+  useEffect(() => {
+    if (!authUser || !db) return;
+    const channels:any[] = [];
+    const refreshRestaurant = () => { if (tenantIdRef.current && !isAdmin) loadRestaurantData(tenantIdRef.current); syncLiveSubscriptionStatus(); };
+    if (tenantId && !isAdmin) {
+      const filter = `restaurant_id=eq.${tenantId}`;
+      ["sales","inventory_items","inventory_transactions","expenses","employees","daily_wages"].forEach((table) => {
+        channels.push(db.channel(`rp-${table}-${tenantId}-${Math.random()}`)
+          .on("postgres_changes",{event:"*",schema:"public",table,filter},refreshRestaurant).subscribe());
+      });
+      channels.push(db.channel(`rp-sub-${tenantId}-${Math.random()}`)
+        .on("postgres_changes",{event:"*",schema:"public",table:"subscription_requests",filter},refreshRestaurant).subscribe());
+    }
+    if (isAdmin) {
+      channels.push(db.channel(`rp-admin-restaurants-${Math.random()}`)
+        .on("postgres_changes",{event:"*",schema:"public",table:"restaurants"},()=>{fetchAllRestaurants();fetchRealApprovals();syncLiveSubscriptionStatus();}).subscribe());
+      channels.push(db.channel(`rp-admin-subscriptions-${Math.random()}`)
+        .on("postgres_changes",{event:"*",schema:"public",table:"subscription_requests"},()=>{fetchSubscriptionRequests();syncLiveSubscriptionStatus();}).subscribe());
+      channels.push(db.channel(`rp-admin-settings-${Math.random()}`)
+        .on("postgres_changes",{event:"*",schema:"public",table:"settings"},()=>{fetchLivePlans();}).subscribe());
+    }
+    return () => { channels.forEach(ch => db.removeChannel(ch)); };
+  }, [authUser, tenantId, isAdmin, db, loadRestaurantData, syncLiveSubscriptionStatus, fetchAllRestaurants, fetchRealApprovals, fetchSubscriptionRequests, fetchLivePlans]);
+
+  const saveInventoryToStorage = (updated: InventoryItem[]) => setInventoryList(updated);
+  const saveDishesToStorage = (updated: Dish[]) => setDishes(updated);
+
+  const handleAddOrEditInventory = async () => {
     if (!tenantId) return;
+    if (!invForm.name.trim()) { toast.error("Please enter an item name"); return; }
+    const qty = Number(invForm.onHand), reorder = Number(invForm.reorderLevel);
+    if (!Number.isFinite(qty) || qty < 0) { toast.error("Enter a valid quantity on hand"); return; }
     try {
-      const savedInv = localStorage.getItem(`rp-inventory-list:${tenantId}`);
-      if (savedInv) setInventoryList(JSON.parse(savedInv));
-
-      const savedDishes = localStorage.getItem(`rp-dishes:${tenantId}`);
-      if (savedDishes) setDishes(JSON.parse(savedDishes));
-    } catch {}
-  }, [tenantId]);
-
-  const saveInventoryToStorage = (updated: InventoryItem[]) => {
-    setInventoryList(updated);
-    if (tenantId) {
-      localStorage.setItem(`rp-inventory-list:${tenantId}`, JSON.stringify(updated));
-    }
+      const res = await authedFetch("/api/inventory", {
+        method: "POST",
+        body: JSON.stringify({
+          restaurant_id: tenantId,
+          id: editingInvId || undefined,
+          name: invForm.name.trim(),
+          category: invForm.category,
+          on_hand: qty,
+          unit: invForm.unit,
+          reorder_level: Number.isFinite(reorder) ? reorder : 5,
+          transaction_type: editingInvId ? "Adjustment" : "Opening balance",
+        }),
+      });
+      const json = await res.json();
+      if (!res.ok) throw new Error(json.error || "Could not save inventory item");
+      await loadRestaurantData(tenantId);
+      setModal(null); setEditingInvId(null);
+      setInvForm({ name: "", category: "Grains", onHand: "", unit: "bags", reorderLevel: "5" });
+      toast.success(editingInvId ? "Inventory item updated successfully!" : "Inventory item added successfully!");
+    } catch (e:any) { toast.error(e.message || "Could not save inventory item"); }
   };
 
-  const saveDishesToStorage = (updated: Dish[]) => {
-    setDishes(updated);
-    if (tenantId) {
-      localStorage.setItem(`rp-dishes:${tenantId}`, JSON.stringify(updated));
-    }
+  const handleDeleteInventory = async (id: string | number) => {
+    if (!tenantId || !confirm("Are you sure you want to delete this inventory item?")) return;
+    try {
+      const res = await authedFetch("/api/inventory", { method: "DELETE", body: JSON.stringify({ restaurant_id: tenantId, id }) });
+      const json = await res.json();
+      if (!res.ok) throw new Error(json.error || "Could not delete inventory item");
+      await loadRestaurantData(tenantId);
+      toast.success("Inventory item deleted");
+    } catch (e:any) { toast.error(e.message || "Could not delete inventory item"); }
   };
 
-  const handleAddOrEditInventory = () => {
-    if (!invForm.name.trim()) {
-      toast.error("Please enter an item name");
-      return;
-    }
-    const qty = Number(invForm.onHand);
-    const reorder = Number(invForm.reorderLevel);
-    if (isNaN(qty) || qty < 0) {
-      toast.error("Enter a valid quantity on hand");
-      return;
-    }
-
-    if (editingInvId !== null) {
-      const updated = inventoryList.map((item) =>
-        item.id === editingInvId
-          ? { ...item, name: invForm.name.trim(), category: invForm.category, onHand: qty, unit: invForm.unit, reorderLevel: isNaN(reorder) ? 5 : reorder }
-          : item
-      );
-      saveInventoryToStorage(updated);
-      toast.success("Inventory item updated successfully!");
-    } else {
-      const newItem: InventoryItem = {
-        id: Date.now(),
-        name: invForm.name.trim(),
-        category: invForm.category,
-        onHand: qty,
-        unit: invForm.unit,
-        reorderLevel: isNaN(reorder) ? 5 : reorder,
-      };
-      saveInventoryToStorage([...inventoryList, newItem]);
-      toast.success("Inventory item added successfully!");
-    }
-
-    setModal(null);
-    setEditingInvId(null);
-    setInvForm({ name: "", category: "Grains", onHand: "", unit: "bags", reorderLevel: "5" });
-  };
-
-  const handleDeleteInventory = (id: string | number) => {
-    if (!confirm("Are you sure you want to delete this inventory item?")) return;
-    const updated = inventoryList.filter((item) => item.id !== id);
-    saveInventoryToStorage(updated);
-    toast.success("Inventory item deleted");
+  const adjustInventory = async (item: InventoryItem, delta: number, type: string) => {
+    if (!tenantId || item.onHand + delta < 0) { toast.error("Stock cannot go below zero"); return; }
+    try {
+      const res=await authedFetch("/api/inventory",{method:"POST",body:JSON.stringify({
+        restaurant_id:tenantId,id:item.id,name:item.name,category:item.category,on_hand:item.onHand+delta,unit:item.unit,
+        reorder_level:item.reorderLevel,transaction_type:type
+      })});
+      const json=await res.json(); if(!res.ok)throw new Error(json.error||"Could not update stock");
+      await loadRestaurantData(tenantId); toast.success(`${type}: ${item.name}`);
+    }catch(e:any){toast.error(e.message||"Could not update stock");}
   };
 
   const openInventoryModal = (item?: InventoryItem) => {
@@ -746,7 +793,7 @@ export default function Home() {
     try {
       let uploadedUrl = "";
       if (db) {
-        const filePath = `dishes/${Date.now()}-${file.name.replace(/\s+/g, "_")}`;
+        const filePath = `${tenantId}/dishes/${Date.now()}-${file.name.replace(/\s+/g, "_")}`;
         const { error: uploadErr } = await db.storage
           .from("restaurant-media")
           .upload(filePath, file, { contentType: file.type, upsert: true });
@@ -859,6 +906,7 @@ export default function Home() {
         dailyRate: String(member.dailyRate || 0),
         email: member.email,
         phone: member.phone,
+        active: member.active !== false ? "true" : "false",
       });
     } else if (which === "dish") {
       if (id) {
@@ -889,15 +937,31 @@ export default function Home() {
   };
 
   // Dish deletion handler
-  const handleDeleteDish = (dishId: number | string) => {
-    if (!confirm("Are you sure you want to delete this dish from the menu?")) return;
-    const updated = dishes.filter((d) => d.id !== dishId);
-    saveDishesToStorage(updated);
+  const handleDeleteDish = async (dishId: number | string) => {
+    if (!tenantId || !confirm("Are you sure you want to delete this dish from the menu?")) return;
+    const { error } = await db.from("menu_items").delete().eq("restaurant_id", tenantId).eq("id", dishId);
+    if (error) { toast.error(error.message); return; }
+    setDishes((old) => old.filter((d) => d.id !== dishId));
     toast.success("Dish deleted successfully!");
   };
 
   // ADMIN PLAN EDITING & CREATION (SAVES DIRECTLY TO DATABASE)
   const save = async () => {
+    if (modal === "restaurant") {
+      if (!form.name?.trim() || !form.owner?.trim() || !form.email?.trim() || !form.phone?.trim()) {
+        toast.error("Restaurant, owner, email and phone are required"); return;
+      }
+      try {
+        const method=editing!==null?"PATCH":"POST";
+        const body:any={id:editing||undefined,name:form.name.trim(),owner:form.owner.trim(),email:form.email.trim(),phone:form.phone.trim(),city:form.city||""};
+        if(method==="POST") body.password=form.password||"";
+        else { body.owner_name=form.owner.trim(); body.owner_phone=form.phone.trim(); body.address=form.address||""; body.plan=form.plan||"Free Trial"; body.status=form.status||"Active"; body.renewal_on=form.renewal||null; }
+        const res=await authedFetch("/api/admin/restaurants",{method,body:JSON.stringify(body)});
+        const json=await res.json(); if(!res.ok)throw new Error(json.error||"Could not save restaurant");
+        setModal(null); setEditing(null); await fetchAllRestaurants(); toast.success(editing!==null?"Restaurant updated":"Restaurant created");
+      } catch(e:any){toast.error(e.message||"Could not save restaurant");}
+      return;
+    }
     if (modal === "plan") {
       if (!form.name?.trim() || !Number.isFinite(Number(form.price))) {
         toast.error("Enter a valid plan name and price");
@@ -916,7 +980,7 @@ export default function Home() {
       setPlans(updatedPlans);
 
       try {
-        await fetch("/api/admin/pricing", {
+        await authedFetch("/api/admin/pricing", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ plans: updatedPlans }),
@@ -927,24 +991,21 @@ export default function Home() {
       }
     }
     if (modal === "dish") {
-      if (!form.name?.trim() || Number(form.price) <= 0) {
-        toast.error("Enter a dish name and valid price");
-        return;
+      if (!tenantId || !form.name?.trim() || Number(form.price) <= 0) {
+        toast.error("Enter a dish name and valid price"); return;
       }
-      const d: Dish = {
-        id: editing ?? Date.now(),
-        name: form.name.trim(),
-        category: form.category || "Mains",
-        price: Number(form.price),
-        cost: Number(form.cost) || 0,
-        stock: true,
-        emoji: form.emoji || "🍽",
-        imageUrl: form.imageUrl?.trim() || undefined,
-        diet: form.diet || "",
-        time: Number(form.time) || 15,
+      const payload = {
+        restaurant_id: tenantId, name: form.name.trim(), category: form.category || "Mains",
+        price: Number(form.price), cost: Number(form.cost) || 0, available: editing ? (dishes.find(x=>x.id===editing)?.stock ?? true) : true,
+        emoji: form.emoji || "🍽", image_url: form.imageUrl?.trim() || null, diet: form.diet || "", prep_minutes: Number(form.time) || 15
       };
-      const updated = editing ? dishes.map((x) => (x.id === editing ? { ...d, stock: x.stock } : x)) : [...dishes, d];
-      saveDishesToStorage(updated);
+      const result = editing
+        ? await db.from("menu_items").update(payload).eq("restaurant_id", tenantId).eq("id", editing).select().single()
+        : await db.from("menu_items").insert(payload).select().single();
+      if (result.error) { toast.error(result.error.message); return; }
+      const x:any=result.data;
+      const d: Dish={id:x.id,name:x.name,category:x.category,price:Number(x.price),cost:Number(x.cost),stock:x.available,emoji:x.emoji,diet:x.diet,time:x.prep_minutes,imageUrl:x.image_url};
+      setDishes(old=>editing?old.map(v=>v.id===editing?d:v):[d,...old]);
       toast.success(editing ? "Dish updated successfully!" : "Dish added successfully!");
     }
     if (modal === "expense") {
@@ -962,7 +1023,13 @@ export default function Home() {
         date: form.date || new Date().toISOString().slice(0, 10),
         supplierId: supplier?.id || null,
       };
-      setExpenses((old) => [newExp, ...old]);
+      if (!tenantId) return;
+      const { data, error } = await db.from("expenses").insert({
+        restaurant_id: tenantId, supplier_id: supplier?.id || null, name: newExp.name,
+        category: newExp.category, vendor: newExp.vendor, amount: newExp.amount, incurred_on: newExp.date
+      }).select().single();
+      if (error) { toast.error(error.message); return; }
+      setExpenses((old) => [{...newExp,id:data.id}, ...old]);
       toast.success("Expense recorded");
     }
     if (modal === "supplier") {
@@ -978,9 +1045,14 @@ export default function Home() {
         phone: form.phone || "",
         email: form.email || "",
       };
-      setSuppliers((old) => (editing ? old.map((x) => (x.id === editing ? newSup : x)) : [newSup, ...old]));
-      setSupplierDetail(newSup.id);
-      toast.success(editing ? "Supplier updated" : "Supplier added");
+      if (!tenantId) return;
+      const payload={restaurant_id:tenantId,name:newSup.name,contact_name:newSup.contact,phone:newSup.phone,email:newSup.email};
+      const result=editing ? await db.from("suppliers").update(payload).eq("restaurant_id",tenantId).eq("id",String(editing)).select().single()
+        : await db.from("suppliers").insert(payload).select().single();
+      if(result.error){toast.error(result.error.message);return;}
+      const mapped={...newSup,id:result.data.id};
+      setSuppliers(old=>editing?old.map(x=>x.id===editing?mapped:x):[mapped,...old]);
+      setSupplierDetail(mapped.id); toast.success(editing ? "Supplier updated" : "Supplier added");
     }
     if (modal === "payment") {
       if (!form.supplierId || Number(form.amount) <= 0) {
@@ -995,8 +1067,12 @@ export default function Home() {
         method: form.method || "Cash",
         note: form.note || "",
       };
-      setSupplierPayments((old) => [newPay, ...old]);
-      toast.success("Payment recorded");
+      if (!tenantId) return;
+      const {data,error}=await db.from("supplier_payments").insert({
+        restaurant_id:tenantId,supplier_id:newPay.supplierId,amount:newPay.amount,paid_on:newPay.date,method:newPay.method,note:newPay.note
+      }).select().single();
+      if(error){toast.error(error.message);return;}
+      setSupplierPayments(old=>[{...newPay,id:data.id},...old]); toast.success("Payment recorded");
     }
 
     if (modal === "employee") {
@@ -1019,8 +1095,14 @@ export default function Home() {
         dailyRate,
         email: form.email || "staff@restopulse.demo",
         phone: form.phone || "",
+        active: form.active !== "false",
       };
-      setStaff((old) => (editing !== null ? old.map((x) => (x.id === editing ? person : x)) : [...old, person]));
+      if (!tenantId) return;
+      const payload={restaurant_id:tenantId,name:person.name,role:person.role,shift:person.shift,daily_rate:person.dailyRate,email:person.email,phone:person.phone,active:person.active!==false};
+      const result=editing !== null ? await db.from("employees").update(payload).eq("restaurant_id",tenantId).eq("id",String(editing)).select().single()
+        : await db.from("employees").insert(payload).select().single();
+      if(result.error){toast.error(result.error.message);return;}
+      const mapped={...person,id:result.data.id}; setStaff(old=>editing!==null?old.map(x=>x.id===editing?mapped:x):[mapped,...old]);
       toast.success(editing !== null ? "Employee updated" : "Employee added");
     }
     setModal(null);
@@ -1028,11 +1110,16 @@ export default function Home() {
 
   // ADMIN PLAN DELETION HANDLER
   const handleDeletePlan = async (planId: number) => {
+    const target = plans.find(p=>p.id===planId);
+    if (target && restaurants.some((r:any)=>String(r.plan).toLowerCase()===target.name.toLowerCase())) {
+      toast.error("This plan is assigned to one or more restaurants. Deactivate or migrate them before removing it.");
+      return;
+    }
     if (!confirm("Are you sure you want to remove this pricing plan?")) return;
     const filtered = plans.filter((p) => p.id !== planId);
     setPlans(filtered);
     try {
-      await fetch("/api/admin/pricing", {
+      await authedFetch("/api/admin/pricing", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ plans: filtered }),
@@ -1043,52 +1130,24 @@ export default function Home() {
     }
   };
 
-  const checkout = () => {
-    if (!cart.length) {
-      toast.error("Add dishes to the order first");
-      return;
-    }
+  const checkout = async () => {
+    if (!cart.length || !tenantId) { toast.error("Add dishes to the order first"); return; }
     const now = new Date();
     const id = "RP-" + now.toISOString().replace(/[-:TZ.]/g, "").slice(0, 14) + "-" + crypto.randomUUID().slice(0, 4).toUpperCase();
     const time = now.toLocaleTimeString("en-IN", { hour: "numeric", minute: "2-digit" });
-
     const bill: Bill = {
-      id,
-      issuedAt: now.toLocaleString("en-IN"),
-      business: tenantInfo,
-      items: cart.map((l) => ({
-        name: dishes.find((d) => d.id === l.id)?.name || "Menu item",
-        qty: l.qty,
-        unitPrice: l.override ?? dishes.find((d) => d.id === l.id)?.price ?? 0,
-        discount: l.discount,
-      })),
-      subtotal,
-      discount: totalDiscount,
-      tax,
-      cgst: cgstAmount,
-      sgst: sgstAmount,
-      total,
-      type: orderType,
-      table: orderType === "Dine-in" ? table : "",
-      payment,
-      status: "Paid",
+      id, issuedAt: now.toLocaleString("en-IN"), business: tenantInfo,
+      items: cart.map((l) => ({ name: dishes.find((d) => d.id === l.id)?.name || "Menu item", qty: l.qty, unitPrice: l.override ?? dishes.find((d) => d.id === l.id)?.price ?? 0, discount: l.discount })),
+      subtotal, discount: totalDiscount, tax, cgst: cgstAmount, sgst: sgstAmount, total,
+      type: orderType, table: orderType === "Dine-in" ? table : "", payment, status: "Paid",
     };
-
-    setReceipt(bill);
-
-    const newSale: Sale = {
-      id,
-      time,
-      placedAt: now.toISOString(),
-      amount: total,
-      type: orderType,
-      status: "Paid",
-      bill,
-    };
-    setOrders((old) => [newSale, ...old]);
-    setCart([]);
-    setOrderDiscount(0);
-    toast.success("Payment complete · " + id);
+    try {
+      const res=await authedFetch("/api/sales",{method:"POST",body:JSON.stringify({restaurant_id:tenantId,placed_at:now.toISOString(),receipt:bill})});
+      const json=await res.json(); if(!res.ok)throw new Error(json.error||"Could not save sale");
+      const sale:Sale={id, time, placedAt:now.toISOString(), amount:total, type:orderType, status:"Paid", bill};
+      setReceipt(bill); setOrders(old=>[sale,...old]); setCart([]); setOrderDiscount(0);
+      toast.success("Payment complete · " + id);
+    } catch(e:any) { toast.error(e.message||"Sale could not be saved"); }
   };
 
   const openStaff = (person: Staff) => {
@@ -1106,7 +1165,7 @@ export default function Home() {
     localStorage.setItem("rp-admin-upi", trimmed);
     setSubscriptionUpiId(trimmed);
     try {
-      await fetch("/api/admin/settings", {
+      await authedFetch("/api/admin/settings", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ upi_id: trimmed }),
@@ -1129,7 +1188,7 @@ export default function Home() {
       if (inlineScreenshotFile) {
         try {
           if (db) {
-            const path = `subscriptions/${Date.now()}-${inlineScreenshotFile.name.replace(/\s+/g, "_")}`;
+            const path = `${tenantId}/subscriptions/${Date.now()}-${inlineScreenshotFile.name.replace(/\s+/g, "_")}`;
             const { error: uploadErr } = await db.storage
               .from("restaurant-media")
               .upload(path, inlineScreenshotFile, { contentType: inlineScreenshotFile.type, upsert: true });
@@ -1156,21 +1215,24 @@ export default function Home() {
         owner_name: activeRestaurantName,
         owner_email: loginEmail || "owner@example.com",
         plan: planName,
+        amount: Number(activeInlinePlan.price) || 0,
         upi_id: subscriptionUpiId,
         screenshot_url: screenshotUrl,
+        reference_id: inlineRefId.trim(),
         message: `UPI Ref: ${inlineRefId.trim()} | Plan: ${planName}`,
         status: "Pending",
         requested_at: new Date().toISOString(),
       };
 
-      const res = await fetch("/api/subscription", {
+      const res = await authedFetch("/api/subscription", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload),
       });
 
-      if (!res.ok && db) {
-        await db.from("subscription_requests").insert(payload);
+      if (!res.ok) {
+        const failed = await res.clone().json().catch(()=>({error:"Failed to submit payment reference"}));
+        throw new Error(failed.error || "Failed to submit payment reference");
       }
 
       toast.success("Payment reference submitted for Admin approval!");
@@ -1194,7 +1256,7 @@ export default function Home() {
       const planName = reqRest?.plan || "Yearly";
       const daysToAdd = getPlanDurationDays(planName);
 
-      const res = await fetch("/api/admin/subscriptions", {
+      const res = await authedFetch("/api/admin/subscriptions", {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -1233,7 +1295,7 @@ export default function Home() {
       const planName = requestedPlan || "Free trial";
       const daysToAdd = getPlanDurationDays(planName);
 
-      await fetch("/api/admin/approvals", {
+      await authedFetch("/api/admin/approvals", {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ restaurant_id: approvalId, action }),
@@ -1267,7 +1329,7 @@ export default function Home() {
         sgst_percent: Number(storeForm.sgst_percent) || 2.5,
       };
 
-      const res = await fetch("/api/restaurant", {
+      const res = await authedFetch("/api/restaurant", {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload),
@@ -1396,6 +1458,40 @@ export default function Home() {
   const inlineQrImageUrl = `https://api.qrserver.com/v1/create-qr-code/?size=240x240&data=${encodeURIComponent(inlineUpiPayUri)}`;
 
   // Navigation Filter: Restaurant login NEVER sees the admin Pricing plans link
+  const nowForMetrics = new Date();
+  const dayStart = new Date(nowForMetrics); dayStart.setHours(0,0,0,0);
+  const weekStart = new Date(dayStart); weekStart.setDate(weekStart.getDate() - ((weekStart.getDay()+6)%7));
+  const monthStart = new Date(nowForMetrics.getFullYear(), nowForMetrics.getMonth(), 1);
+  const paidOrders = orders.filter(o => o.status === "Paid");
+  const netSales = paidOrders.reduce((n,o)=>n+(Number(o.bill?.subtotal)||0)-(Number(o.bill?.discount)||0),0);
+  const totalExpenses = expenses.reduce((n,x)=>n+Number(x.amount||0),0);
+  const paidWages = wages.filter(w=>w.status==="Paid").reduce((n,x)=>n+Number(x.amount||0),0);
+  const salesBetween = (from:Date) => paidOrders.filter(o=>new Date(o.placedAt)>=from).reduce((n,o)=>n+(Number(o.bill?.subtotal)||0)-(Number(o.bill?.discount)||0),0);
+  const todaySales=salesBetween(dayStart), weeklySales=salesBetween(weekStart), monthlySales=salesBetween(monthStart);
+  const lowStockCount=inventoryList.filter(x=>x.onHand>0&&x.onHand<=x.reorderLevel).length;
+  const outOfStockCount=inventoryList.filter(x=>x.onHand===0).length;
+  const dynamicChart=Array.from({length:7},(_,idx)=>{
+    const d=new Date(dayStart); d.setDate(dayStart.getDate()-6+idx);
+    const next=new Date(d); next.setDate(d.getDate()+1);
+    return {
+      day:d.toLocaleDateString("en-IN",{weekday:"short"}),
+      revenue:paidOrders.filter(o=>new Date(o.placedAt)>=d&&new Date(o.placedAt)<next).reduce((n,o)=>n+Number(o.bill?.subtotal||0)-Number(o.bill?.discount||0),0),
+      expense:expenses.filter(e=>{const x=new Date(e.date);return x>=d&&x<next;}).reduce((n,e)=>n+Number(e.amount||0),0)
+    };
+  });
+
+  const adminChart=Array.from({length:7},(_,idx)=>{
+    const d=new Date(dayStart); d.setDate(dayStart.getDate()-6+idx);
+    const next=new Date(d); next.setDate(d.getDate()+1);
+    return {day:d.toLocaleDateString("en-IN",{weekday:"short"}),revenue:subscriptionHistory.filter(x=>x.status==="Approved").filter(x=>{const t=new Date(x.reviewed_at||x.requested_at);return t>=d&&t<next;}).reduce((n,x)=>n+Number(x.amount||0),0),expense:0};
+  });
+  const subscriptionRevenue = subscriptionHistory.filter(x => x.status === "Approved").reduce((n,x)=>{
+    const amount=Number(x.amount||0); const fallback=plans.find(p=>p.name.toLowerCase()===String(x.plan||"").toLowerCase())?.price||0;
+    return n+(amount||fallback);
+  },0);
+  const activeSubscriptionCount = restaurants.filter((r:any)=>["Active","Trial"].includes(r.status) && r.renewal && new Date(r.renewal)>=nowForMetrics).length;
+  const expiredSubscriptionCount = restaurants.filter((r:any)=>r.renewal && new Date(r.renewal)<nowForMetrics).length;
+
   const normalizedRole = (currentUserRole || "").toLowerCase();
   const isOwnerOrAdmin = normalizedRole === "owner" || normalizedRole === "admin" || !normalizedRole;
   
@@ -1678,43 +1774,25 @@ export default function Home() {
                 </div>
               </div>
               <div className="kpi-grid">
-                {[
-                  {
-                    label: "Gross sales",
-                    value: money(orders.filter((o) => o.status !== "Voided").reduce((n, o) => n + o.bill.subtotal, 0)),
-                    icon: Wallet,
-                    tone: "amber",
-                    note: "before discounts & refunds",
-                  },
-                  {
-                    label: "Net sales",
-                    value: money(orders.filter((o) => o.status === "Paid").reduce((n, o) => n + o.bill.subtotal - o.bill.discount, 0)),
-                    icon: ArrowUpRight,
-                    tone: "teal",
-                    note: "paid sales, excluding tax",
-                  },
-                  {
-                    label: "Operating expenses",
-                    value: money(
-                      expenses.reduce((a, x) => a + x.amount, 0) +
-                        wages.filter((w) => w.status === "Paid").reduce((a, x) => a + x.amount, 0)
-                    ),
-                    icon: ReceiptText,
-                    tone: "violet",
-                    note: "expenses + paid wages",
-                  },
-                  {
-                    label: "Real net profit",
-                    value: money(
-                      orders.filter((o) => o.status === "Paid").reduce((n, o) => n + o.bill.subtotal - o.bill.discount, 0) -
-                        expenses.reduce((a, x) => a + x.amount, 0) -
-                        wages.filter((w) => w.status === "Paid").reduce((a, x) => a + x.amount, 0)
-                    ),
-                    icon: ArrowUpRight,
-                    tone: "green",
-                    note: "net sales − operating costs",
-                  },
-                ].map((k) => (
+                {(isAdmin ? [
+                  { label: "Net subscription revenue", value: money(subscriptionRevenue), icon: CreditCard, tone: "teal", note: "approved subscription payments" },
+                  { label: "Subscribed restaurants", value: String(activeSubscriptionCount), icon: Building2, tone: "amber", note: "active/trial with renewal" },
+                  { label: "Active subscriptions", value: String(restaurants.filter((r:any)=>r.status==="Active").length), icon: BadgeCheck, tone: "green", note: "currently active" },
+                  { label: "Expired subscriptions", value: String(expiredSubscriptionCount), icon: Clock, tone: "violet", note: "renewal date passed" },
+                  { label: "Pending payments", value: String(subscriptionRequests.length), icon: ReceiptText, tone: "amber", note: "awaiting review" },
+                  { label: "Plans", value: String(plans.filter(p=>p.active).length), icon: CreditCard, tone: "teal", note: "active pricing plans" },
+                  { label: "Subscription history", value: String(subscriptionHistory.length), icon: CalendarDays, tone: "violet", note: "payment requests" },
+                  { label: "Upcoming renewals", value: String(restaurants.filter((r:any)=>r.renewal && new Date(r.renewal)>=nowForMetrics && new Date(r.renewal)<=new Date(nowForMetrics.getTime()+30*86400000)).length), icon: Bell, tone: "green", note: "next 30 days" },
+                ] : [
+                  { label: "Net sales", value: money(netSales), icon: ArrowUpRight, tone: "teal", note: "paid sales, excluding tax" },
+                  { label: "Total orders", value: String(paidOrders.length), icon: ShoppingBag, tone: "amber", note: "completed paid orders" },
+                  { label: "Operating expenses", value: money(totalExpenses + paidWages), icon: ReceiptText, tone: "violet", note: "expenses + paid wages" },
+                  { label: "Net profit", value: money(netSales - totalExpenses - paidWages), icon: ArrowUpRight, tone: "green", note: "net sales − operating costs" },
+                  { label: "Today’s sales", value: money(todaySales), icon: Wallet, tone: "amber", note: "today" },
+                  { label: "Weekly sales", value: money(weeklySales), icon: Wallet, tone: "teal", note: "Monday–today" },
+                  { label: "Monthly sales", value: money(monthlySales), icon: Wallet, tone: "violet", note: "current month" },
+                  { label: "Low stock", value: String(lowStockCount + outOfStockCount), icon: Package, tone: outOfStockCount ? "amber" : "green", note: `${lowStockCount} low · ${outOfStockCount} out` },
+                ]).map((k) => (
                   <div className="kpi-card" key={k.label}>
                     <div className="kpi-top">
                       <span>{k.label}</span>
@@ -1731,13 +1809,13 @@ export default function Home() {
                 <section className="panel chart-panel">
                   <div className="panel-header">
                     <div>
-                      <h2>Revenue & expenses</h2>
-                      <p>Weekly trend breakdown</p>
+                      <h2>{isAdmin ? "Subscription revenue" : "Revenue & expenses"}</h2>
+                      <p>{isAdmin ? "Approved subscription payments · last 7 days" : "Weekly trend breakdown"}</p>
                     </div>
                   </div>
                   <div className="chart">
                     <ResponsiveContainer width="100%" height="100%">
-                      <AreaChart data={chart} margin={{ top: 15, right: 8, left: -17, bottom: 0 }}>
+                      <AreaChart data={isAdmin ? adminChart : dynamicChart} margin={{ top: 15, right: 8, left: -17, bottom: 0 }}>
                         <CartesianGrid strokeDasharray="3 5" vertical={false} stroke="var(--chart-grid)" />
                         <XAxis dataKey="day" tickLine={false} axisLine={false} tick={{ fill: "var(--text-muted)", fontSize: 12 }} dy={12} />
                         <YAxis tickLine={false} axisLine={false} tick={{ fill: "var(--text-muted)", fontSize: 12 }} tickFormatter={(v) => `${v / 1000}k`} />
@@ -1750,25 +1828,24 @@ export default function Home() {
                 </section>
                 <section className="panel top-dishes">
                   <div className="panel-header">
-                    <div><h2>Top performing dishes</h2></div>
+                    <div><h2>{isAdmin ? "Recent subscription payments" : "Top performing dishes"}</h2></div>
                   </div>
-                  {dishes.slice(0, 4).map((d, i) => (
+                  {isAdmin ? subscriptionHistory.filter(x=>x.status==="Approved").slice(0,5).map((x:any)=>(
+                    <div className="leader-row" key={x.id}>
+                      <span className="leader-rank">₹</span>
+                      <span className="dish-thumb overflow-hidden flex items-center justify-center"><CreditCard size={18}/></span>
+                      <div className="leader-info"><b>{x.restaurant_name}</b><small>{x.plan} · {x.reviewed_at ? new Date(x.reviewed_at).toLocaleDateString("en-IN") : "Approved"}</small></div>
+                      <strong>{money(Number(x.amount)||(plans.find(p=>p.name.toLowerCase()===String(x.plan||"").toLowerCase())?.price||0))}</strong>
+                    </div>
+                  )) : dishes.slice(0, 4).map((d, i) => (
                     <div className="leader-row" key={d.id}>
                       <span className="leader-rank">0{i + 1}</span>
-                      <span className="dish-thumb overflow-hidden flex items-center justify-center">
-                        {d.imageUrl ? (
-                          <img src={d.imageUrl} alt={d.name} className="w-full h-full object-cover rounded-lg" />
-                        ) : (
-                          d.emoji
-                        )}
-                      </span>
-                      <div className="leader-info">
-                        <b>{d.name}</b>
-                        <small>{[82, 67, 54, 42][i] || 35} orders</small>
-                      </div>
-                      <strong>{money([55760, 52930, 28080, 23520][i] || d.price * 20)}</strong>
+                      <span className="dish-thumb overflow-hidden flex items-center justify-center">{d.imageUrl ? <img src={d.imageUrl} alt={d.name} className="w-full h-full object-cover rounded-lg" /> : d.emoji}</span>
+                      <div className="leader-info"><b>{d.name}</b><small>Menu item</small></div>
+                      <strong>{money(d.price)}</strong>
                     </div>
                   ))}
+                  {isAdmin && !subscriptionHistory.length && <div className="py-8 text-center text-xs text-muted-foreground">No subscription payments recorded yet.</div>}
                 </section>
               </div>
             </>
@@ -1785,6 +1862,9 @@ export default function Home() {
                 <div className="head-actions">
                   <button className="quiet-btn" onClick={() => setSound(!sound)}>
                     {sound ? <Volume2 size={17} /> : <VolumeX size={17} />} Sound {sound ? "on" : "off"}
+                  </button>
+                  <button className="quiet-btn flex items-center gap-1.5" onClick={() => setSaleHistoryOpen(true)}>
+                    <ReceiptText size={17} /> Sale history
                   </button>
                 </div>
               </div>
@@ -2024,6 +2104,15 @@ export default function Home() {
                   <Plus size={17} /> Add Stock Item
                 </button>
               </div>
+              <div className="kpi-grid mt-4">
+                {[
+                  ["Total items", inventoryList.length, "catalogued stock"],
+                  ["Available stock", inventoryList.reduce((n,x)=>n+Number(x.onHand||0),0), "units on hand"],
+                  ["Stock value", money(inventoryList.reduce((n,x)=>n+Number(x.onHand||0)*Number(x.cost||0),0)), "based on recorded cost"],
+                  ["Low stock", inventoryList.filter(x=>x.onHand>0&&x.onHand<=x.reorderLevel).length, "reorder attention"],
+                  ["Out of stock", inventoryList.filter(x=>x.onHand===0).length, "needs replenishment"],
+                ].map(([label,value,note])=><div className="kpi-card" key={String(label)}><div className="kpi-top"><span>{label}</span><span className="kpi-icon teal"><Package size={19}/></span></div><strong>{String(value)}</strong><div className="kpi-foot"><span>{note}</span></div></div>)}
+              </div>
               <div className="panel management-panel bg-card border rounded-xl p-6 mt-4">
                 <div className="table-scroll overflow-x-auto">
                   <table className="w-full text-left border-collapse">
@@ -2055,6 +2144,8 @@ export default function Home() {
                               )}
                             </td>
                             <td className="p-3 text-right">
+                              <button className="p-1.5 font-bold text-emerald-600" title="Add stock" onClick={() => adjustInventory(item,1,"Stock addition")}>+</button>
+                              <button className="p-1.5 font-bold text-amber-600" title="Reduce stock" onClick={() => adjustInventory(item,-1,"Stock reduction")}>−</button>
                               <button className="p-1.5" onClick={() => openInventoryModal(item)}><Pencil size={15} /></button>
                               <button className="p-1.5 text-red-600" onClick={() => handleDeleteInventory(item.id)}><Trash2 size={15} /></button>
                             </td>
@@ -2070,6 +2161,16 @@ export default function Home() {
                       )}
                     </tbody>
                   </table>
+                </div>
+              </div>
+              <div className="panel management-panel bg-card border rounded-xl p-6 mt-4">
+                <div className="panel-header border-b pb-3 mb-3"><h2 className="text-base font-bold">Inventory history</h2><span className="text-xs text-muted-foreground">Latest stock movements</span></div>
+                <div className="space-y-2 max-h-56 overflow-y-auto">
+                  {inventoryTransactions.map((tx:any)=><div key={tx.id} className="flex items-center justify-between gap-3 text-xs border-b py-2">
+                    <div><b>{inventoryList.find(i=>i.id===tx.inventory_item_id)?.name||"Inventory item"}</b><div className="text-muted-foreground">{tx.transaction_type} · {new Date(tx.created_at).toLocaleString("en-IN")}</div></div>
+                    <div className="text-right"><b className={Number(tx.change_quantity)>=0?"text-emerald-600":"text-red-600"}>{Number(tx.change_quantity)>=0?"+":""}{tx.change_quantity}</b><div className="text-muted-foreground">{tx.previous_quantity} → {tx.new_quantity}</div></div>
+                  </div>)}
+                  {!inventoryTransactions.length&&<div className="text-center py-5 text-xs text-muted-foreground">No inventory movements recorded yet.</div>}
                 </div>
               </div>
             </>
@@ -2117,7 +2218,7 @@ export default function Home() {
                           </button>
                           <button
                             className="p-1.5 text-muted-foreground hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-950/40 rounded-lg transition-colors"
-                            onClick={() => setStaff(old => old.filter(x => x.id !== s.id))}
+                            onClick={async () => { if (!tenantId || !confirm("Delete this employee?")) return; const {error}=await db.from("employees").delete().eq("restaurant_id",tenantId).eq("id",s.id); if(error){toast.error(error.message);return;} setStaff(old=>old.filter(x=>x.id!==s.id)); }}
                             title="Delete Employee"
                           >
                             <Trash2 size={13} />
@@ -2247,6 +2348,22 @@ export default function Home() {
                 </div>
               </div>
 
+              <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
+                {[
+                  ["Current plan", activePlanName || "Free trial"],
+                  ["Status", tenantInfo.id ? (activeRenewalDate && activeRenewalDate !== "—" && new Date(activeRenewalDate) < new Date() ? "Expired" : "Active") : "—"],
+                  ["Renewal date", activeRenewalDate || "—"],
+                  ["Payment history", String(subscriptionHistory.filter(x=>x.restaurant_id===tenantId).length)],
+                ].map(([label,value])=><div className="kpi-card" key={String(label)}><div className="kpi-top"><span>{label}</span><span className="kpi-icon teal"><CreditCard size={18}/></span></div><strong className="text-lg">{String(value)}</strong><div className="kpi-foot"><span>Restaurant subscription</span></div></div>)}
+              </div>
+              <div className="panel p-4 mb-6">
+                <div className="panel-header"><div><h2>Subscription history</h2><p>Payment and approval requests for this restaurant</p></div></div>
+                <div className="space-y-2">
+                  {subscriptionHistory.filter(x=>x.restaurant_id===tenantId).slice(0,6).map((x:any)=><div key={x.id} className="flex justify-between items-center border-b py-2 text-xs"><span><b>{x.plan}</b><span className="text-muted-foreground ml-2">{new Date(x.requested_at).toLocaleDateString("en-IN")}</span></span><span className="font-semibold">{x.status} · {money(Number(x.amount)||0)}</span></div>)}
+                  {!subscriptionHistory.filter(x=>x.restaurant_id===tenantId).length&&<div className="text-xs text-muted-foreground py-3">No subscription requests yet.</div>}
+                </div>
+              </div>
+
               {/* Grid of Plans Synced Live from Admin Configuration */}
               <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
                 {plans.map((p) => {
@@ -2260,35 +2377,28 @@ export default function Home() {
                   return (
                     <div
                       key={p.id}
-                      className="rounded-2xl p-6 border flex flex-col justify-between"
-                      style={{
-                        background: "#16231e",
-                        borderColor: isSelected ? "#52b788" : isCurrentActive ? "#38bdf8" : "#223b32",
-                      }}
+                      className={"panel rounded-2xl p-6 border flex flex-col justify-between " + (isSelected ? "ring-2 ring-emerald-500" : isCurrentActive ? "ring-1 ring-sky-400" : "")}
                     >
                       <div>
                         <div className="flex justify-between items-center mb-2">
-                          <span className="text-sm font-semibold text-gray-300">{p.name}</span>
+                          <span className="text-sm font-semibold text-foreground">{p.name}</span>
                           {isCurrentActive && (
                             <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-sky-950 text-sky-400 border border-sky-800 shadow-sm animate-pulse">
                               Active Tier
                             </span>
                           )}
                         </div>
-                        <div className="text-3xl font-extrabold text-white mt-4 mb-2">
+                        <div className="text-3xl font-extrabold text-foreground mt-4 mb-2">
                           {p.price === 0 ? "₹0" : money(p.price)}
                         </div>
-                        <div className="text-xs text-gray-400 font-medium mb-3">{p.period}</div>
-                        <p className="text-xs text-gray-300 leading-relaxed mb-6">{p.features}</p>
+                        <div className="text-xs text-muted-foreground font-medium mb-3">{p.period}</div>
+                        <p className="text-xs text-muted-foreground leading-relaxed mb-6">{p.features}</p>
                       </div>
 
                       {p.price > 0 ? (
                         <button
                           onClick={() => setActiveInlinePlan(p)}
-                          className="w-full py-2.5 px-4 rounded-xl text-xs font-bold transition-all text-gray-900"
-                          style={{
-                            background: isSelected ? "#74c69d" : "#52b788",
-                          }}
+                          className="primary-btn w-full text-xs"
                         >
                           Choose {p.name.toLowerCase()}
                         </button>
@@ -2305,13 +2415,9 @@ export default function Home() {
               {/* DYNAMIC PAYMENT BOX */}
               {activeInlinePlan && activeInlinePlan.price > 0 && (
                 <div
-                  className="max-w-md mx-auto rounded-2xl p-6 border text-center shadow-lg my-8"
-                  style={{
-                    background: "#16231e",
-                    borderColor: "#223b32",
-                  }}
+                  className="panel max-w-md mx-auto rounded-2xl p-6 border text-center shadow-lg my-8"
                 >
-                  <div className="text-sm font-bold text-white mb-4">
+                  <div className="text-sm font-bold text-foreground mb-4">
                     Pay {money(activeInlinePlan.price)}
                   </div>
 
@@ -2513,6 +2619,9 @@ export default function Home() {
                   <h1>Restaurant Directory</h1>
                   <p>Registered restaurants on RestoPulse and their active plans.</p>
                 </div>
+                <button className="primary-btn flex items-center gap-1.5" onClick={() => { setEditing(null); setForm({name:"",owner:"",email:"",phone:"",city:"",password:""}); setModal("restaurant"); }}>
+                  <Plus size={16}/> Add restaurant
+                </button>
               </div>
 
               <div className="panel management-panel mt-6">
@@ -2539,6 +2648,10 @@ export default function Home() {
                             </span>
                           </td>
                           <td className="font-mono text-sm">{r.renewal}</td>
+                          <td><div className="flex gap-1.5">
+                            <button className="quiet-btn text-xs" onClick={() => { setEditing(r.id); setForm({name:r.name,owner:r.owner,email:r.email,phone:r.phone,city:r.city||"",plan:r.plan||"Free Trial",status:r.status||"Active",renewal:r.renewal||""}); setModal("restaurant"); }}><Pencil size={13}/></button>
+                            <button className="quiet-btn text-xs text-red-600" onClick={async()=>{if(!confirm("Deactivate this restaurant?"))return;const res=await authedFetch("/api/admin/restaurants",{method:"DELETE",body:JSON.stringify({id:r.id})});const j=await res.json();if(!res.ok){toast.error(j.error||"Failed");return;}fetchAllRestaurants();toast.success("Restaurant deactivated");}}><Trash2 size={13}/></button>
+                          </div></td>
                         </tr>
                       ))}
                     </tbody>
@@ -2744,6 +2857,22 @@ export default function Home() {
       {mobileNav && <button className="nav-backdrop" aria-label="Close navigation" onClick={() => setMobileNav(false)} />}
 
       {/* DEDICATED MODAL FOR ADDING / EDITING PRICING PLANS */}
+      <Dialog open={modal === "restaurant"} onOpenChange={(v)=>!v&&setModal(null)}>
+        <DialogContent className="modal-content">
+          <DialogHeader><DialogTitle>{editing ? "Edit Restaurant" : "Add Restaurant"}</DialogTitle><DialogDescription>Manage the platform restaurant account without changing the existing console style.</DialogDescription></DialogHeader>
+          <div className="modal-fields">
+            <label>Restaurant name<input value={form.name||""} onChange={e=>setForm({...form,name:e.target.value})}/></label>
+            <label>Owner name<input value={form.owner||""} onChange={e=>setForm({...form,owner:e.target.value})}/></label>
+            <label>Owner email<input type="email" disabled={editing!==null} value={form.email||""} onChange={e=>setForm({...form,email:e.target.value})}/></label>
+            <label>Owner phone<input value={form.phone||""} onChange={e=>setForm({...form,phone:e.target.value})}/></label>
+            <label>City<input value={form.city||""} onChange={e=>setForm({...form,city:e.target.value})}/></label>
+            {!editing && <label>Temporary password<input type="password" minLength={12} placeholder="Minimum 12 characters" value={form.password||""} onChange={e=>setForm({...form,password:e.target.value})}/></label>}
+            {editing && <><label>Plan<select value={form.plan||"Free Trial"} onChange={e=>setForm({...form,plan:e.target.value})}>{plans.map(x=><option key={x.id}>{x.name}</option>)}</select></label><label>Status<select value={form.status||"Active"} onChange={e=>setForm({...form,status:e.target.value})}><option>Trial</option><option>Active</option><option>Paused</option></select></label><label>Renewal date<input type="date" value={form.renewal==="—"?"":form.renewal||""} onChange={e=>setForm({...form,renewal:e.target.value})}/></label></>}
+          </div>
+          <DialogFooter><button className="quiet-btn" onClick={()=>setModal(null)}>Cancel</button><button className="primary-btn" onClick={save}>{editing?"Save changes":"Create restaurant"}</button></DialogFooter>
+        </DialogContent>
+      </Dialog>
+
       <Dialog open={modal === "plan"} onOpenChange={(v) => !v && setModal(null)}>
         <DialogContent className="max-w-md">
           <DialogHeader>
@@ -3112,7 +3241,7 @@ export default function Home() {
               <>
                 <label>Supplier name<input value={form.name || ""} onChange={(e) => setForm({ ...form, name: e.target.value })} /></label>
                 <label>Contact person<input value={form.contact || ""} onChange={(e) => setForm({ ...form, contact: e.target.value })} /></label>
-                <label>Phone<input value={form.phone || ""} onChange={(e) => setForm({ ...form, phone: e.target.value })} /></label>
+                <label>Phone<input value={form.phone || ""} onChange={(e) => setForm({ ...form, phone: e.target.value })} /></label><label>Status<select value={form.active || "true"} onChange={(e)=>setForm({...form,active:e.target.value})}><option value="true">Active</option><option value="false">Inactive</option></select></label>
               </>
             )}
             {modal === "payment" && (
@@ -3182,12 +3311,14 @@ export default function Home() {
                 </div>
                 <button
                   className="primary-btn w-full mt-2"
-                  onClick={() => {
-                    if (!wageForm.amount) return;
-                    setWages([
-                      { id: Date.now(), staffId: selectedStaff.id, date: wageForm.date, amount: Number(wageForm.amount), status: "Unpaid", note: "Wage" },
-                      ...wages
-                    ]);
+                  onClick={async () => {
+                    if (!tenantId || !wageForm.amount) return;
+                    const {data,error}=await db.from("daily_wages").insert({
+                      restaurant_id:tenantId, employee_id:selectedStaff.id, wage_date:wageForm.date,
+                      amount:Number(wageForm.amount), status:"Unpaid", note:"Wage"
+                    }).select().single();
+                    if(error){toast.error(error.message);return;}
+                    setWages(old=>[{id:data.id,staffId:data.employee_id,date:data.wage_date,amount:Number(data.amount),status:data.status,note:data.note},...old]);
                     toast.success("Wage logged");
                   }}
                 >
@@ -3208,8 +3339,12 @@ export default function Home() {
                         <b>{money(w.amount)}</b>
                         <button
                           className={`px-2 py-0.5 rounded text-[10px] font-bold ${w.status === "Paid" ? "bg-green-100 text-green-800" : "bg-amber-100 text-amber-800"}`}
-                          onClick={() => {
-                            setWages(old => old.map(item => item.id === w.id ? { ...item, status: item.status === "Paid" ? "Unpaid" : "Paid" } : item));
+                          onClick={async () => {
+                            if(!tenantId)return;
+                            const next=w.status==="Paid"?"Unpaid":"Paid";
+                            const {error}=await db.from("daily_wages").update({status:next}).eq("restaurant_id",tenantId).eq("id",w.id);
+                            if(error){toast.error(error.message);return;}
+                            setWages(old=>old.map(item=>item.id===w.id?{...item,status:next}:item));
                           }}
                         >
                           {w.status}
@@ -3223,6 +3358,33 @@ export default function Home() {
           )}
         </SheetContent>
       </Sheet>
+
+      <Dialog open={saleHistoryOpen} onOpenChange={setSaleHistoryOpen}>
+        <DialogContent className="max-w-3xl">
+          <DialogHeader>
+            <DialogTitle>Sale History</DialogTitle>
+            <DialogDescription>Completed sales for the currently signed-in restaurant.</DialogDescription>
+          </DialogHeader>
+          <div className="max-h-[60vh] overflow-auto">
+            <table className="w-full text-sm">
+              <thead><tr className="border-b"><th className="text-left p-2">Receipt</th><th className="text-left p-2">Date & time</th><th className="text-left p-2">Items</th><th className="text-left p-2">Payment</th><th className="text-right p-2">Total</th><th /></tr></thead>
+              <tbody>
+                {orders.map((sale)=>(
+                  <tr key={sale.id} className="border-b">
+                    <td className="p-2 font-mono">{sale.bill.id}</td>
+                    <td className="p-2">{sale.bill.issuedAt}</td>
+                    <td className="p-2">{sale.bill.items.reduce((n,x)=>n+x.qty,0)} item(s)</td>
+                    <td className="p-2">{sale.bill.payment}</td>
+                    <td className="p-2 text-right font-bold">{money(sale.bill.total)}</td>
+                    <td className="p-2 text-right"><button className="quiet-btn text-xs" onClick={()=>setReceipt(sale.bill)}>View receipt</button></td>
+                  </tr>
+                ))}
+                {!orders.length && <tr><td colSpan={6} className="p-8 text-center text-muted-foreground">No completed sales yet.</td></tr>}
+              </tbody>
+            </table>
+          </div>
+        </DialogContent>
+      </Dialog>
 
       {/* PRINTABLE THERMAL RECEIPT DIALOG */}
       <Dialog open={!!receipt} onOpenChange={(v) => !v && setReceipt(null)}>

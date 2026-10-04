@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
+import { requireAdmin } from '@/lib/serverAuth';
 export const runtime='nodejs';
 export async function POST(request:NextRequest){
   const url=process.env.NEXT_PUBLIC_SUPABASE_URL;
@@ -24,4 +25,30 @@ export async function POST(request:NextRequest){
   const {error:memberError}=await admin.from('memberships').insert({user_id:ownerId,restaurant_id:restaurant.id,role:'OWNER'});
   if(memberError){await admin.from('restaurants').delete().eq('id',restaurant.id);await admin.auth.admin.deleteUser(ownerId);return NextResponse.json({error:memberError.message},{status:400})}
   return NextResponse.json({restaurant,owner_user_id:ownerId},{status:201});
+}
+
+
+export async function PATCH(request:NextRequest){
+  try{
+    const {supabase}=await requireAdmin(request);
+    const body=await request.json(); const id=String(body.id||"");
+    if(!id)return NextResponse.json({error:"Restaurant ID is required"},{status:400});
+    const payload:any={};
+    for(const key of ["name","owner_name","owner_phone","city","address","business_phone","gstin","plan","status","renewal_on"]){
+      if(body[key]!==undefined) payload[key]=body[key];
+    }
+    if(!Object.keys(payload).length)return NextResponse.json({error:"No changes supplied"},{status:400});
+    const {data,error}=await supabase.from("restaurants").update(payload).eq("id",id).select().single();
+    if(error)throw error; return NextResponse.json({success:true,restaurant:data});
+  }catch(e:any){return NextResponse.json({error:e.message||"Server error"},{status:Number(e.status)||500});}
+}
+
+export async function DELETE(request:NextRequest){
+  try{
+    const {supabase}=await requireAdmin(request);
+    const body=await request.json(); const id=String(body.id||"");
+    if(!id)return NextResponse.json({error:"Restaurant ID is required"},{status:400});
+    const {error}=await supabase.from("restaurants").update({status:"Paused"}).eq("id",id);
+    if(error)throw error; return NextResponse.json({success:true,status:"Paused"});
+  }catch(e:any){return NextResponse.json({error:e.message||"Server error"},{status:Number(e.status)||500});}
 }

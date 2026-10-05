@@ -374,7 +374,7 @@ export default function Home() {
   const [sound, setSound] = useState(false);
   const [receipt, setReceipt] = useState<Bill | null>(null);
   const [orders, setOrders] = useState<Sale[]>([]);
-  const [modal, setModal] = useState<"plan" | "dish" | "expense" | "restaurant" | "extend" | "employee" | "supplier" | "payment" | "inventory" | null>(null);
+  const [modal, setModal] = useState<"plan" | "dish" | "expense" | "restaurant" | "extend" | "employee" | "supplier" | "payment" | "inventory" | "stockAdjust" | null>(null);
   const [editing, setEditing] = useState<number | string | null>(null);
   const [form, setForm] = useState<Record<string, string>>({});
   const [dateRange, setDateRange] = useState("This week");
@@ -387,6 +387,9 @@ export default function Home() {
   const [isDataLoading, setIsDataLoading] = useState(false);
   const [invForm, setInvForm] = useState({ name: "", category: "Grains", onHand: "", unit: "bags", reorderLevel: "5" });
   const [editingInvId, setEditingInvId] = useState<string | number | null>(null);
+  const [stockAdjustItem, setStockAdjustItem] = useState<InventoryItem | null>(null);
+  const [stockAdjustQty, setStockAdjustQty] = useState("");
+  const [stockAdjustNote, setStockAdjustNote] = useState("");
 
   const [adminUpiId, setAdminUpiId] = useState<string>("admin-restopulse@upi");
   const [adminUpiBusy, setAdminUpiBusy] = useState(false);
@@ -760,16 +763,50 @@ export default function Home() {
     } catch (e:any) { toast.error(e.message || "Could not delete inventory item"); }
   };
 
-  const adjustInventory = async (item: InventoryItem, delta: number, type: string) => {
-    if (!tenantId || item.onHand + delta < 0) { toast.error("Stock cannot go below zero"); return; }
+  const adjustInventory = async (item: InventoryItem, delta: number, type: string, note = "") => {
+    if (!tenantId || item.onHand + delta < 0) { toast.error("Stock cannot go below zero"); return false; }
     try {
       const res=await authedFetch("/api/inventory",{method:"POST",body:JSON.stringify({
         restaurant_id:tenantId,id:item.id,name:item.name,category:item.category,on_hand:item.onHand+delta,unit:item.unit,
-        reorder_level:item.reorderLevel,transaction_type:type
+        reorder_level:item.reorderLevel,transaction_type:type,note
       })});
       const json=await res.json(); if(!res.ok)throw new Error(json.error||"Could not update stock");
       await loadRestaurantData(tenantId); toast.success(`${type}: ${item.name}`);
-    }catch(e:any){toast.error(e.message||"Could not update stock");}
+      return true;
+    }catch(e:any){toast.error(e.message||"Could not update stock"); return false;}
+  };
+
+  const openStockReduction = (item: InventoryItem) => {
+    if (item.onHand <= 0) { toast.error(`${item.name} is already out of stock`); return; }
+    setStockAdjustItem(item);
+    setStockAdjustQty("");
+    setStockAdjustNote("");
+    setModal("stockAdjust");
+  };
+
+  const submitStockReduction = async () => {
+    if (!stockAdjustItem) return;
+    const qty = Number(stockAdjustQty);
+    if (!Number.isFinite(qty) || qty <= 0) {
+      toast.error("Enter a quantity greater than 0");
+      return;
+    }
+    if (qty > stockAdjustItem.onHand) {
+      toast.error(`You can reduce a maximum of ${stockAdjustItem.onHand} ${stockAdjustItem.unit}`);
+      return;
+    }
+    const ok = await adjustInventory(
+      stockAdjustItem,
+      -qty,
+      "Stock reduction",
+      stockAdjustNote.trim() || `Manual stock reduction of ${qty} ${stockAdjustItem.unit}`
+    );
+    if (ok) {
+      setModal(null);
+      setStockAdjustItem(null);
+      setStockAdjustQty("");
+      setStockAdjustNote("");
+    }
   };
 
   const openInventoryModal = (item?: InventoryItem) => {
@@ -2176,7 +2213,7 @@ export default function Home() {
                             <td className="p-3 text-right">
                               <div className="inventory-actions" aria-label={`Actions for ${item.name}`}>
                                 <button className="inventory-action add" title="Add stock" aria-label={`Add stock to ${item.name}`} onClick={() => adjustInventory(item,1,"Stock addition")}><Plus size={14} strokeWidth={2.5} /></button>
-                                <button className="inventory-action reduce" title="Reduce stock" aria-label={`Reduce stock from ${item.name}`} onClick={() => adjustInventory(item,-1,"Stock reduction")}><Minus size={14} strokeWidth={2.5} /></button>
+                                <button className="inventory-action reduce" title="Reduce stock" aria-label={`Reduce stock from ${item.name}`} onClick={() => openStockReduction(item)}><Minus size={14} strokeWidth={2.5} /></button>
                                 <button className="inventory-action edit" title="Edit item" aria-label={`Edit ${item.name}`} onClick={() => openInventoryModal(item)}><Pencil size={14} /></button>
                                 <button className="inventory-action delete" title="Delete item" aria-label={`Delete ${item.name}`} onClick={() => handleDeleteInventory(item.id)}><Trash2 size={14} /></button>
                               </div>
@@ -3199,6 +3236,66 @@ export default function Home() {
         </DialogContent>
       </Dialog>
 
+      {/* CUSTOM STOCK REDUCTION MODAL */}
+      <Dialog open={modal === "stockAdjust"} onOpenChange={(v) => {
+        if (!v) {
+          setModal(null);
+          setStockAdjustItem(null);
+          setStockAdjustQty("");
+          setStockAdjustNote("");
+        }
+      }}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Reduce Stock</DialogTitle>
+            <DialogDescription>Enter the exact quantity to remove instead of reducing by one unit.</DialogDescription>
+          </DialogHeader>
+          {stockAdjustItem && (
+            <div className="space-y-4 py-2">
+              <div className="rounded-lg border p-3 bg-muted/30">
+                <div className="text-sm font-semibold">{stockAdjustItem.name}</div>
+                <div className="text-xs text-muted-foreground mt-1">Current stock: <b>{stockAdjustItem.onHand} {stockAdjustItem.unit}</b></div>
+              </div>
+              <label className="block space-y-1">
+                <span className="text-sm font-medium">Quantity to reduce</span>
+                <input
+                  type="number"
+                  min="0.01"
+                  max={stockAdjustItem.onHand}
+                  step="any"
+                  autoFocus
+                  value={stockAdjustQty}
+                  onChange={(e) => setStockAdjustQty(e.target.value)}
+                  placeholder={`e.g. 2 or 0.5 ${stockAdjustItem.unit}`}
+                  className="w-full p-2.5 border rounded-md text-sm bg-transparent"
+                />
+                <span className="text-xs text-muted-foreground">Maximum: {stockAdjustItem.onHand} {stockAdjustItem.unit}</span>
+              </label>
+              <label className="block space-y-1">
+                <span className="text-sm font-medium">Reason <span className="text-muted-foreground font-normal">(optional)</span></span>
+                <input
+                  type="text"
+                  value={stockAdjustNote}
+                  onChange={(e) => setStockAdjustNote(e.target.value)}
+                  placeholder="e.g. wastage, damaged, expired, manual correction"
+                  className="w-full p-2.5 border rounded-md text-sm bg-transparent"
+                />
+              </label>
+              {stockAdjustQty && Number(stockAdjustQty) > 0 && Number(stockAdjustQty) <= stockAdjustItem.onHand && (
+                <div className="rounded-lg border p-3 text-sm flex items-center justify-between">
+                  <span className="text-muted-foreground">Remaining stock</span>
+                  <b>{(stockAdjustItem.onHand - Number(stockAdjustQty)).toLocaleString(undefined, { maximumFractionDigits: 3 })} {stockAdjustItem.unit}</b>
+                </div>
+              )}
+            </div>
+          )}
+          <DialogFooter>
+            <button className="quiet-btn" onClick={() => { setModal(null); setStockAdjustItem(null); }}>Cancel</button>
+            <button className="primary-btn" onClick={submitStockReduction}>Reduce Stock</button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
       {/* EMPLOYEE ADD / EDIT MODAL */}
       <Dialog open={modal === "employee"} onOpenChange={(v) => !v && setModal(null)}>
         <DialogContent className="max-w-md">
@@ -3271,7 +3368,7 @@ export default function Home() {
       </Dialog>
 
       {/* GLOBAL ENTITY MODAL (SUPPLIER, EXPENSE, PAYMENT) */}
-      <Dialog open={!!modal && modal !== "inventory" && modal !== "employee" && modal !== "plan" && modal !== "dish"} onOpenChange={(v) => !v && setModal(null)}>
+      <Dialog open={!!modal && modal !== "inventory" && modal !== "stockAdjust" && modal !== "employee" && modal !== "plan" && modal !== "dish"} onOpenChange={(v) => !v && setModal(null)}>
         <DialogContent className="modal-content">
           <DialogHeader>
             <DialogTitle>

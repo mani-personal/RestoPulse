@@ -378,6 +378,8 @@ export default function Home() {
   const [editing, setEditing] = useState<number | string | null>(null);
   const [form, setForm] = useState<Record<string, string>>({});
   const [dateRange, setDateRange] = useState("This week");
+  const [liveDate, setLiveDate] = useState(new Date());
+  const [weeklyPaymentForm, setWeeklyPaymentForm] = useState({ start: "", end: "" });
 
   const [inventoryList, setInventoryList] = useState<InventoryItem[]>([]);
   const [inventoryTransactions, setInventoryTransactions] = useState<any[]>([]);
@@ -633,6 +635,14 @@ export default function Home() {
     loadUpi();
   }, [authUser, tenantId, isAdmin, authedFetch]);
 
+  // Keep the dashboard date/time synchronized with the device clock.
+  useEffect(() => {
+    const syncClock = () => setLiveDate(new Date());
+    syncClock();
+    const timer = window.setInterval(syncClock, 60 * 1000);
+    return () => window.clearInterval(timer);
+  }, []);
+
   // Initial hydration + Supabase Realtime. Polling is intentionally avoided so
   // multiple tabs/devices do not generate duplicate API/database traffic.
   useEffect(() => {
@@ -690,7 +700,7 @@ export default function Home() {
     const refreshRestaurant = () => { if (tenantIdRef.current && !isAdmin) loadRestaurantData(tenantIdRef.current); syncLiveSubscriptionStatus(); };
     if (tenantId && !isAdmin) {
       const filter = `restaurant_id=eq.${tenantId}`;
-      ["sales","inventory_items","inventory_transactions","expenses","employees","daily_wages"].forEach((table) => {
+      ["sales","inventory_items","inventory_transactions","expenses","employees","daily_wages","suppliers","supplier_payments"].forEach((table) => {
         channels.push(db.channel(`rp-${table}-${tenantId}-${Math.random()}`)
           .on("postgres_changes",{event:"*",schema:"public",table,filter},refreshRestaurant).subscribe());
       });
@@ -1151,7 +1161,11 @@ export default function Home() {
   };
 
   const openStaff = (person: Staff) => {
+    const today = new Date();
+    const monday = new Date(today); monday.setHours(0,0,0,0); monday.setDate(today.getDate() - ((today.getDay()+6)%7));
+    const sunday = new Date(monday); sunday.setDate(monday.getDate()+6);
     setSelectedStaff(person);
+    setWeeklyPaymentForm({ start: monday.toLocaleDateString("en-CA"), end: sunday.toLocaleDateString("en-CA") });
     setWageForm({
       date: new Date().toLocaleDateString("en-CA"),
       amount: String(person.dailyRate || Math.round((person.monthlySalary || 0) / 30)),
@@ -1458,7 +1472,7 @@ export default function Home() {
   const inlineQrImageUrl = `https://api.qrserver.com/v1/create-qr-code/?size=240x240&data=${encodeURIComponent(inlineUpiPayUri)}`;
 
   // Navigation Filter: Restaurant login NEVER sees the admin Pricing plans link
-  const nowForMetrics = new Date();
+  const nowForMetrics = liveDate;
   const dayStart = new Date(nowForMetrics); dayStart.setHours(0,0,0,0);
   const weekStart = new Date(dayStart); weekStart.setDate(weekStart.getDate() - ((weekStart.getDay()+6)%7));
   const monthStart = new Date(nowForMetrics.getFullYear(), nowForMetrics.getMonth(), 1);
@@ -1470,6 +1484,12 @@ export default function Home() {
   const todaySales=salesBetween(dayStart), weeklySales=salesBetween(weekStart), monthlySales=salesBetween(monthStart);
   const lowStockCount=inventoryList.filter(x=>x.onHand>0&&x.onHand<=x.reorderLevel).length;
   const outOfStockCount=inventoryList.filter(x=>x.onHand===0).length;
+  const restaurantNotifications = !isAdmin ? [
+    ...(outOfStockCount > 0 ? [{ key: "out", title: `${outOfStockCount} item(s) out of stock`, detail: "Review inventory and restock immediately." }] : []),
+    ...(lowStockCount > 0 ? [{ key: "low", title: `${lowStockCount} item(s) low in stock`, detail: "Inventory has reached the reorder level." }] : []),
+    ...(wages.filter(w => w.status === "Unpaid").length > 0 ? [{ key: "wage", title: `${wages.filter(w => w.status === "Unpaid").length} unpaid wage record(s)`, detail: "Review employee payments." }] : []),
+    ...(activeRenewalDate && activeRenewalDate !== "—" && new Date(activeRenewalDate).getTime() - nowForMetrics.getTime() <= 7 * 86400000 && new Date(activeRenewalDate).getTime() >= nowForMetrics.getTime() ? [{ key: "sub", title: "Subscription renewal is due soon", detail: `Renewal date: ${new Date(activeRenewalDate).toLocaleDateString("en-IN")}` }] : []),
+  ] : [];
   const dynamicChart=Array.from({length:7},(_,idx)=>{
     const d=new Date(dayStart); d.setDate(dayStart.getDate()-6+idx);
     const next=new Date(d); next.setDate(d.getDate()+1);
@@ -1736,16 +1756,25 @@ export default function Home() {
             <div className="notification-popover">
               <div className="popover-title">
                 <b>Notifications</b>
-                <span>{approvals.length + subscriptionRequests.length} new</span>
+                <span>{isAdmin ? approvals.length + subscriptionRequests.length : restaurantNotifications.length} new</span>
               </div>
-              {(approvals.length + subscriptionRequests.length) > 0 && (
-                <button onClick={() => nav("approvals")}>
-                  <span className="notif-icon amber">◎</span>
-                  <span>
-                    <b>{approvals.length + subscriptionRequests.length} pending items</b>
-                    <small>Review applications & proofs</small>
-                  </span>
-                </button>
+              {isAdmin ? (
+                (approvals.length + subscriptionRequests.length) > 0 ? (
+                  <button onClick={() => nav("approvals")}>
+                    <span className="notif-icon amber">◎</span>
+                    <span>
+                      <b>{approvals.length + subscriptionRequests.length} pending items</b>
+                      <small>Review applications & proofs</small>
+                    </span>
+                  </button>
+                ) : <div className="p-3 text-xs text-muted-foreground">No new platform notifications.</div>
+              ) : (
+                restaurantNotifications.length ? restaurantNotifications.map((n) => (
+                  <button key={n.key} onClick={() => { setNotifications(false); nav(n.key === "wage" ? "staff" : n.key === "sub" ? "subscription" : "inventory"); }}>
+                    <span className="notif-icon amber">◎</span>
+                    <span><b>{n.title}</b><small>{n.detail}</small></span>
+                  </button>
+                )) : <div className="p-3 text-xs text-muted-foreground">No new notifications for this restaurant.</div>
               )}
             </div>
           )}
@@ -1760,6 +1789,7 @@ export default function Home() {
                   <div className="eyebrow">OVERVIEW</div>
                   <h1>Good afternoon, {activeRestaurantName || "Owner"}</h1>
                   <p>Here’s what’s happening at {activeRestaurantName || "your restaurant"}.</p>
+                  <p className="text-xs text-muted-foreground mt-1">Live date: {liveDate.toLocaleDateString("en-IN", { weekday: "long", day: "2-digit", month: "long", year: "numeric" })}</p>
                 </div>
                 <div className="head-actions">
                   <select aria-label="Date range" value={dateRange} onChange={(e) => setDateRange(e.target.value)}>
@@ -2330,8 +2360,38 @@ export default function Home() {
                         <b className="text-xs block">{sp.name}</b>
                         <small className="text-[11px] text-muted-foreground">{sp.phone || sp.contact}</small>
                       </div>
+                      <ChevronDown size={14} className="text-muted-foreground -rotate-90" />
                     </div>
                   ))}
+                  {!suppliers.length && <div className="text-xs text-muted-foreground py-4">No suppliers added yet.</div>}
+                </div>
+
+                <div className="panel p-4 border rounded-xl bg-card md:col-span-2">
+                  {(() => {
+                    const selected = suppliers.find(sp => sp.id === supplierDetail);
+                    const supplierExpenses = selected ? expenses.filter(e => e.supplierId === selected.id) : [];
+                    const supplierPaymentsForHistory = selected ? supplierPayments.filter(p => p.supplierId === selected.id) : [];
+                    const transactions = [
+                      ...supplierExpenses.map(e => ({ id: `expense-${e.id}`, date: e.date, type: "Purchase / Expense", description: e.name, amount: Number(e.amount || 0), method: e.vendor || "—" })),
+                      ...supplierPaymentsForHistory.map(p => ({ id: `payment-${p.id}`, date: p.date, type: "Payment", description: p.note || "Supplier payment", amount: Number(p.amount || 0), method: p.method || "—" })),
+                    ].sort((a,b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+                    const purchases = supplierExpenses.reduce((n,e)=>n+Number(e.amount||0),0);
+                    const payments = supplierPaymentsForHistory.reduce((n,p)=>n+Number(p.amount||0),0);
+                    return selected ? (
+                      <>
+                        <div className="flex justify-between items-start mb-4">
+                          <div><h2 className="text-sm font-bold">{selected.name}</h2><p className="text-[11px] text-muted-foreground">{selected.contact || ""} {selected.phone ? `· ${selected.phone}` : ""}</p></div>
+                          <div className="text-right text-[11px]"><div>Purchases <b>{money(purchases)}</b></div><div>Payments <b>{money(payments)}</b></div><div>Balance <b>{money(purchases-payments)}</b></div></div>
+                        </div>
+                        <div className="font-bold text-xs mb-2">Transaction History</div>
+                        <div className="table-scroll">
+                          <table><thead><tr><th>DATE</th><th>TYPE</th><th>DESCRIPTION</th><th>METHOD / VENDOR</th><th className="text-right">AMOUNT</th></tr></thead>
+                          <tbody>{transactions.map(t => <tr key={t.id}><td>{new Date(t.date).toLocaleDateString("en-IN")}</td><td><span className="px-2 py-0.5 rounded bg-secondary text-[10px]">{t.type}</span></td><td>{t.description}</td><td>{t.method}</td><td className="text-right font-semibold">{money(t.amount)}</td></tr>)}
+                          {!transactions.length && <tr><td colSpan={5} className="text-center py-8 text-xs text-muted-foreground">No transactions recorded for this supplier yet.</td></tr>}</tbody></table>
+                        </div>
+                      </>
+                    ) : <div className="py-10 text-center text-xs text-muted-foreground">Select a supplier to view transaction history.</div>;
+                  })()}
                 </div>
               </div>
             </>
@@ -3324,6 +3384,24 @@ export default function Home() {
                 >
                   Save Wage Entry
                 </button>
+              </div>
+
+              <div className="space-y-2 p-3 border rounded-xl">
+                <div className="flex items-center justify-between gap-2">
+                  <div><div className="font-bold">Weekly Payment</div><div className="text-[10px] text-muted-foreground">Pay all unpaid wage entries for a selected week.</div></div>
+                  <Wallet size={16} className="text-indigo-600" />
+                </div>
+                <div className="grid grid-cols-2 gap-2">
+                  <label className="space-y-1"><span>Week start</span><input type="date" value={weeklyPaymentForm.start} onChange={e=>setWeeklyPaymentForm(v=>({...v,start:e.target.value}))} className="w-full p-1.5 border rounded" /></label>
+                  <label className="space-y-1"><span>Week end</span><input type="date" value={weeklyPaymentForm.end} onChange={e=>setWeeklyPaymentForm(v=>({...v,end:e.target.value}))} className="w-full p-1.5 border rounded" /></label>
+                </div>
+                {(() => {
+                  const start = weeklyPaymentForm.start ? new Date(`${weeklyPaymentForm.start}T00:00:00`) : null;
+                  const end = weeklyPaymentForm.end ? new Date(`${weeklyPaymentForm.end}T23:59:59`) : null;
+                  const weekRows = start && end ? wages.filter(w => w.staffId === selectedStaff.id && w.status === "Unpaid" && new Date(`${w.date}T12:00:00`) >= start && new Date(`${w.date}T12:00:00`) <= end) : [];
+                  const total = weekRows.reduce((n,w)=>n+Number(w.amount||0),0);
+                  return <div className="flex items-center justify-between gap-2 text-xs"><span>{weekRows.length} unpaid record(s) · <b>{money(total)}</b></span><button className="primary-btn" disabled={!weekRows.length || !tenantId} onClick={async()=>{ if(!tenantId||!weekRows.length)return; const ids=weekRows.map(w=>w.id); const {error}=await db.from("daily_wages").update({status:"Paid",note:"Weekly payment"}).eq("restaurant_id",tenantId).in("id",ids); if(error){toast.error(error.message);return;} setWages(old=>old.map(w=>ids.includes(w.id)?{...w,status:"Paid",note:"Weekly payment"}:w)); toast.success(`Weekly payment recorded · ${money(total)}`); }}>{weekRows.length ? "Pay Week" : "No unpaid wages"}</button></div>;
+                })()}
               </div>
 
               <div className="space-y-2">

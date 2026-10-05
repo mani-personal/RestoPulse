@@ -1695,8 +1695,8 @@ export default function Home() {
             </div>
           </div>
           <div className="top-actions">
-            <span className="today-label">
-              <CalendarDays size={16} /> Thu, 1 Oct 2026
+            <span className="today-label" title={liveDate.toLocaleString("en-IN")}>
+              <CalendarDays size={16} /> {liveDate.toLocaleDateString("en-IN", { weekday: "short", day: "numeric", month: "short", year: "numeric" })}
             </span>
             <span className="top-divider" />
             <button
@@ -2174,10 +2174,12 @@ export default function Home() {
                               )}
                             </td>
                             <td className="p-3 text-right">
-                              <button className="p-1.5 font-bold text-emerald-600" title="Add stock" onClick={() => adjustInventory(item,1,"Stock addition")}>+</button>
-                              <button className="p-1.5 font-bold text-amber-600" title="Reduce stock" onClick={() => adjustInventory(item,-1,"Stock reduction")}>−</button>
-                              <button className="p-1.5" onClick={() => openInventoryModal(item)}><Pencil size={15} /></button>
-                              <button className="p-1.5 text-red-600" onClick={() => handleDeleteInventory(item.id)}><Trash2 size={15} /></button>
+                              <div className="inventory-actions" aria-label={`Actions for ${item.name}`}>
+                                <button className="inventory-action add" title="Add stock" aria-label={`Add stock to ${item.name}`} onClick={() => adjustInventory(item,1,"Stock addition")}><Plus size={14} strokeWidth={2.5} /></button>
+                                <button className="inventory-action reduce" title="Reduce stock" aria-label={`Reduce stock from ${item.name}`} onClick={() => adjustInventory(item,-1,"Stock reduction")}><Minus size={14} strokeWidth={2.5} /></button>
+                                <button className="inventory-action edit" title="Edit item" aria-label={`Edit ${item.name}`} onClick={() => openInventoryModal(item)}><Pencil size={14} /></button>
+                                <button className="inventory-action delete" title="Delete item" aria-label={`Delete ${item.name}`} onClick={() => handleDeleteInventory(item.id)}><Trash2 size={14} /></button>
+                              </div>
                             </td>
                           </tr>
                         );
@@ -2193,12 +2195,18 @@ export default function Home() {
                   </table>
                 </div>
               </div>
-              <div className="panel management-panel bg-card border rounded-xl p-6 mt-4">
+              <div className="panel management-panel inventory-history-panel bg-card border rounded-xl p-6 mt-4">
                 <div className="panel-header border-b pb-3 mb-3"><h2 className="text-base font-bold">Inventory history</h2><span className="text-xs text-muted-foreground">Latest stock movements</span></div>
-                <div className="space-y-2 max-h-56 overflow-y-auto">
-                  {inventoryTransactions.map((tx:any)=><div key={tx.id} className="flex items-center justify-between gap-3 text-xs border-b py-2">
-                    <div><b>{inventoryList.find(i=>i.id===tx.inventory_item_id)?.name||"Inventory item"}</b><div className="text-muted-foreground">{tx.transaction_type} · {new Date(tx.created_at).toLocaleString("en-IN")}</div></div>
-                    <div className="text-right"><b className={Number(tx.change_quantity)>=0?"text-emerald-600":"text-red-600"}>{Number(tx.change_quantity)>=0?"+":""}{tx.change_quantity}</b><div className="text-muted-foreground">{tx.previous_quantity} → {tx.new_quantity}</div></div>
+                <div className="inventory-history-list">
+                  {inventoryTransactions.map((tx:any)=><div key={tx.id} className="inventory-history-row">
+                    <div className="inventory-history-main">
+                      <b>{inventoryList.find(i=>i.id===tx.inventory_item_id)?.name||"Inventory item"}</b>
+                      <div className="text-muted-foreground">{tx.transaction_type} · {new Date(tx.created_at).toLocaleString("en-IN", { day: "2-digit", month: "short", year: "numeric", hour: "numeric", minute: "2-digit" })}</div>
+                    </div>
+                    <div className="inventory-history-qty">
+                      <b className={Number(tx.change_quantity)>=0?"text-emerald-600":"text-red-600"}>{Number(tx.change_quantity)>=0?"+":""}{tx.change_quantity}</b>
+                      <div className="text-muted-foreground">{tx.previous_quantity} → {tx.new_quantity}</div>
+                    </div>
                   </div>)}
                   {!inventoryTransactions.length&&<div className="text-center py-5 text-xs text-muted-foreground">No inventory movements recorded yet.</div>}
                 </div>

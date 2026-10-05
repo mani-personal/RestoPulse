@@ -402,7 +402,7 @@ export default function Home() {
   const dishImageInputRef = useRef<HTMLInputElement>(null);
   const [dishImageUploading, setDishImageUploading] = useState(false);
 
-  const [printPaperSize, setPrintPaperSize] = useState<"58mm" | "80mm" | "A4">("80mm");
+  const [printPaperSize, setPrintPaperSize] = useState<"58mm" | "85mm" | "A4">("85mm");
   const [newPassword, setNewPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [pwdBusy, setPwdBusy] = useState(false);
@@ -1528,7 +1528,7 @@ export default function Home() {
       <style jsx global>{`
         @media print {
           @page {
-            size: ${printPaperSize === "A4" ? "A4" : printPaperSize === "58mm" ? "58mm auto" : "80mm auto"};
+            size: ${printPaperSize === "A4" ? "A4" : printPaperSize === "58mm" ? "58mm auto" : "85mm auto"};
             margin: ${printPaperSize === "A4" ? "10mm" : "0mm"};
           }
           body * {
@@ -1541,10 +1541,10 @@ export default function Home() {
             position: absolute !important;
             left: 0 !important;
             top: 0 !important;
-            width: ${printPaperSize === "A4" ? "100%" : printPaperSize === "58mm" ? "48mm" : "72mm"} !important;
-            max-width: ${printPaperSize === "A4" ? "100%" : printPaperSize === "58mm" ? "48mm" : "72mm"} !important;
+            width: ${printPaperSize === "A4" ? "190mm" : printPaperSize === "58mm" ? "52mm" : "79mm"} !important;
+            max-width: ${printPaperSize === "A4" ? "190mm" : printPaperSize === "58mm" ? "52mm" : "79mm"} !important;
             margin: 0 auto !important;
-            padding: ${printPaperSize === "A4" ? "8mm" : "2mm 3mm"} !important;
+            padding: ${printPaperSize === "A4" ? "8mm" : "2mm 2mm"} !important;
             background: #ffffff !important;
             color: #000000 !important;
             font-family: 'Courier New', Courier, monospace !important;
@@ -1920,7 +1920,7 @@ export default function Home() {
                       >
                         <span className="dish-photo overflow-hidden flex items-center justify-center">
                           {d.imageUrl ? (
-                            <img src={d.imageUrl} alt={d.name} className="w-full h-full object-cover rounded-lg" />
+                            <img src={d.imageUrl} alt={d.name} className="dish-image-full" />
                           ) : (
                             <span>{d.emoji}</span>
                           )}
@@ -3486,7 +3486,7 @@ export default function Home() {
           <div className="no-print flex items-center justify-between p-2.5 mb-2 rounded-xl bg-slate-800 border border-slate-700 text-xs">
             <span className="font-semibold text-gray-300">Format:</span>
             <div className="flex gap-1.5">
-              {(["58mm", "80mm", "A4"] as const).map((sz) => (
+              {(["58mm", "85mm", "A4"] as const).map((sz) => (
                 <button
                   key={sz}
                   onClick={() => setPrintPaperSize(sz)}
@@ -3505,7 +3505,7 @@ export default function Home() {
           {receipt && (
             <div
               id="printable-receipt-card"
-              className="p-5 bg-white text-black rounded-xl font-mono text-[11px] leading-relaxed border shadow-lg overflow-hidden"
+              className={`receipt-paper format-${printPaperSize} p-5 bg-white text-black rounded-xl font-mono text-[11px] leading-relaxed border shadow-lg overflow-hidden`}
             >
               {/* Receipt Header */}
               <div className="text-center space-y-0.5">

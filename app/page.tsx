@@ -146,8 +146,9 @@ type Staff = {
   role: EmployeeRole;
   initial: string;
   shift: string;
-  payType: "Monthly" | "Daily";
+  payType: "Monthly" | "Weekly" | "Daily";
   monthlySalary: number;
+  weeklySalary: number;
   dailyRate: number;
   email: string;
   phone: string;
@@ -688,7 +689,7 @@ export default function Home() {
       if (!expensesRes.error) setExpenses((expensesRes.data || []).map((x:any)=>({id:x.id,name:x.name,category:x.category,vendor:x.vendor,amount:Number(x.amount),date:x.incurred_on,supplierId:x.supplier_id})));
       if (!supplierRes.error) setSuppliers((supplierRes.data || []).map((x:any)=>({id:x.id,name:x.name,contact:x.contact_name,phone:x.phone,email:x.email})));
       if (!paymentRes.error) setSupplierPayments((paymentRes.data || []).map((x:any)=>({id:x.id,supplierId:x.supplier_id,amount:Number(x.amount),date:x.paid_on,method:x.method,note:x.note})));
-      if (!staffRes.error) setStaff((staffRes.data || []).map((x:any)=>({id:x.id,name:x.name,role:x.role,initial:x.name.slice(0,2).toUpperCase(),shift:x.shift,payType:"Daily",monthlySalary:Number(x.daily_rate)*30,dailyRate:Number(x.daily_rate),email:x.email,phone:x.phone,active:x.active})));
+      if (!staffRes.error) setStaff((staffRes.data || []).map((x:any)=>({id:x.id,name:x.name,role:x.role,initial:x.name.slice(0,2).toUpperCase(),shift:x.shift,payType:x.pay_type||"Daily",monthlySalary:Number(x.monthly_salary||0),weeklySalary:Number(x.weekly_salary||0),dailyRate:Number(x.daily_rate||0),email:x.email,phone:x.phone,active:x.active})));
       if (!wagesRes.error) setWages((wagesRes.data || []).map((x:any)=>({id:x.id,staffId:x.employee_id,date:x.wage_date,amount:Number(x.amount),status:x.status,note:x.note})));
     } catch (e) {
       console.error("Restaurant data load failed", e);
@@ -962,6 +963,7 @@ export default function Home() {
         shift: member.shift,
         payType: member.payType || "Monthly",
         monthlySalary: String(member.monthlySalary || 0),
+        weeklySalary: String(member.weeklySalary || 0),
         dailyRate: String(member.dailyRate || 0),
         email: member.email,
         phone: member.phone,
@@ -1139,9 +1141,10 @@ export default function Home() {
         toast.error("Enter employee name");
         return;
       }
-      const payType = (form.payType as "Monthly" | "Daily") || "Monthly";
+      const payType = (form.payType as "Monthly" | "Weekly" | "Daily") || "Monthly";
       const monthlySalary = Number(form.monthlySalary) || 0;
-      const dailyRate = Number(form.dailyRate) || (payType === "Monthly" ? Math.round(monthlySalary / 30) : 0);
+      const weeklySalary = Number(form.weeklySalary) || 0;
+      const dailyRate = Number(form.dailyRate) || (payType === "Monthly" ? Math.round(monthlySalary / 30) : payType === "Weekly" ? Math.round(weeklySalary / 7) : 0);
 
       const person: Staff = {
         id: editing ?? Date.now(),
@@ -1151,13 +1154,14 @@ export default function Home() {
         shift: form.shift || "09:00 – 18:00",
         payType,
         monthlySalary,
+        weeklySalary,
         dailyRate,
         email: form.email || "staff@restopulse.demo",
         phone: form.phone || "",
         active: form.active !== "false",
       };
       if (!tenantId) return;
-      const payload={restaurant_id:tenantId,name:person.name,role:person.role,shift:person.shift,daily_rate:person.dailyRate,email:person.email,phone:person.phone,active:person.active!==false};
+      const payload={restaurant_id:tenantId,name:person.name,role:person.role,shift:person.shift,daily_rate:person.dailyRate,pay_type:person.payType,monthly_salary:person.monthlySalary,weekly_salary:person.weeklySalary,email:person.email,phone:person.phone,active:person.active!==false};
       const result=editing !== null ? await db.from("employees").update(payload).eq("restaurant_id",tenantId).eq("id",String(editing)).select().single()
         : await db.from("employees").insert(payload).select().single();
       if(result.error){toast.error(result.error.message);return;}
@@ -2297,18 +2301,23 @@ export default function Home() {
               </div>
               <div className="panel management-panel inventory-history-panel bg-card border rounded-xl p-6 mt-4">
                 <div className="panel-header border-b pb-3 mb-3"><h2 className="text-base font-bold">Inventory history</h2><span className="text-xs text-muted-foreground">Latest stock movements</span></div>
-                <div className="inventory-history-list">
-                  {inventoryTransactions.map((tx:any)=><div key={tx.id} className="inventory-history-row">
-                    <div className="inventory-history-main">
-                      <b>{inventoryList.find(i=>i.id===tx.inventory_item_id)?.name||"Inventory item"}</b>
-                      <div className="text-muted-foreground">{tx.transaction_type} · {new Date(tx.created_at).toLocaleString("en-IN", { day: "2-digit", month: "short", year: "numeric", hour: "numeric", minute: "2-digit" })}</div>
-                    </div>
-                    <div className="inventory-history-qty">
-                      <b className={Number(tx.change_quantity)>=0?"text-emerald-600":"text-red-600"}>{Number(tx.change_quantity)>=0?"+":""}{tx.change_quantity}</b>
-                      <div className="text-muted-foreground">{tx.previous_quantity} → {tx.new_quantity}</div>
-                    </div>
-                  </div>)}
-                  {!inventoryTransactions.length&&<div className="text-center py-5 text-xs text-muted-foreground">No inventory movements recorded yet.</div>}
+                <div className="table-scroll inventory-history-table-wrap">
+                  <table className="inventory-history-table">
+                    <thead><tr><th>DATE & TIME</th><th>ITEM</th><th>TRANSACTION</th><th className="text-right">CHANGE</th><th className="text-right">STOCK</th></tr></thead>
+                    <tbody>
+                      {inventoryTransactions.map((tx:any)=>{
+                        const change=Number(tx.change_quantity||0);
+                        return <tr key={tx.id}>
+                          <td className="text-xs text-muted-foreground">{new Date(tx.created_at).toLocaleString("en-IN", { day:"2-digit", month:"short", year:"numeric", hour:"numeric", minute:"2-digit" })}</td>
+                          <td className="strong">{inventoryList.find(i=>i.id===tx.inventory_item_id)?.name||"Inventory item"}</td>
+                          <td><span className={`history-type-badge ${change>=0?"in":"out"}`}>{tx.transaction_type}</span></td>
+                          <td className={`text-right font-bold ${change>=0?"text-emerald-600":"text-red-600"}`}>{change>=0?"+":""}{tx.change_quantity}</td>
+                          <td className="text-right text-xs font-semibold">{tx.previous_quantity} → {tx.new_quantity}</td>
+                        </tr>
+                      })}
+                      {!inventoryTransactions.length&&<tr><td colSpan={5} className="text-center py-8 text-xs text-muted-foreground">No inventory movements recorded yet.</td></tr>}
+                    </tbody>
+                  </table>
                 </div>
               </div>
             </>
@@ -2321,7 +2330,7 @@ export default function Home() {
                 <div>
                   <div className="eyebrow text-amber-500 font-bold uppercase tracking-wider text-[11px]">YOUR PEOPLE</div>
                   <h1 className="text-2xl font-black">Team & payroll</h1>
-                  <p className="text-xs text-muted-foreground mt-0.5">Designations, role access, and compensation (Monthly & Daily).</p>
+                  <p className="text-xs text-muted-foreground mt-0.5">Designations, role access, and compensation (Monthly, Weekly & Daily).</p>
                 </div>
                 <button
                   className="bg-amber-500 hover:bg-amber-600 text-white font-bold text-xs py-2 px-4 rounded-xl flex items-center gap-1.5 transition-all shadow-md active:scale-95"
@@ -2367,7 +2376,7 @@ export default function Home() {
                       <div className="mb-4">
                         <div className="font-bold text-sm text-foreground leading-tight">{s.name}</div>
                         <div className="flex items-center gap-1.5 mt-1">
-                          <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-indigo-50 dark:bg-indigo-950/60 text-indigo-600 dark:text-indigo-400 border border-indigo-200 dark:border-indigo-800">
+                          <span className={`designation-badge designation-${s.role.toLowerCase()}`}>
                             {s.role}
                           </span>
                           <span className="text-[10px] text-muted-foreground">· {s.payType}</span>
@@ -2382,10 +2391,10 @@ export default function Home() {
                       </div>
                       <div className="flex justify-between items-center">
                         <span className="text-muted-foreground">
-                          {s.payType === "Monthly" ? "Monthly Salary" : "Daily Rate"}
+                          {s.payType === "Monthly" ? "Monthly Salary" : s.payType === "Weekly" ? "Weekly Salary" : "Daily Rate"}
                         </span>
                         <b className="font-mono text-foreground font-semibold">
-                          {s.payType === "Monthly" ? money(s.monthlySalary) : `${money(s.dailyRate)} / day`}
+                          {s.payType === "Monthly" ? money(s.monthlySalary) : s.payType === "Weekly" ? `${money(s.weeklySalary)} / week` : `${money(s.dailyRate)} / day`}
                         </b>
                       </div>
                     </div>
@@ -2408,17 +2417,18 @@ export default function Home() {
 
               <div className="panel management-panel mt-6">
                 <div className="table-scroll">
-                  <table>
+                  <table className="enhanced-data-table">
                     <thead>
-                      <tr><th>DESCRIPTION</th><th>CATEGORY</th><th>VENDOR</th><th>AMOUNT</th></tr>
+                      <tr><th>DATE</th><th>DESCRIPTION</th><th>CATEGORY</th><th>VENDOR</th><th className="text-right">AMOUNT</th></tr>
                     </thead>
                     <tbody>
                       {expenses.map((e) => (
                         <tr key={e.id}>
+                          <td className="text-xs text-muted-foreground">{new Date(`${e.date}T12:00:00`).toLocaleDateString("en-IN", {day:"2-digit",month:"short",year:"numeric"})}</td>
                           <td className="strong">{e.name}</td>
-                          <td><span className="px-2 py-0.5 rounded bg-secondary text-[11px]">{e.category}</span></td>
-                          <td>{e.vendor}</td>
-                          <td className="strong">{money(e.amount)}</td>
+                          <td><span className="data-badge">{e.category}</span></td>
+                          <td>{e.vendor || "—"}</td>
+                          <td className="strong text-right">{money(e.amount)}</td>
                         </tr>
                       ))}
                       {!expenses.length && (
@@ -2493,8 +2503,8 @@ export default function Home() {
                         </div>
                         <div className="font-bold text-xs mb-2">Transaction History</div>
                         <div className="table-scroll">
-                          <table><thead><tr><th>DATE</th><th>TYPE</th><th>DESCRIPTION</th><th>METHOD / VENDOR</th><th className="text-right">AMOUNT</th></tr></thead>
-                          <tbody>{transactions.map(t => <tr key={t.id}><td>{new Date(t.date).toLocaleDateString("en-IN")}</td><td><span className="px-2 py-0.5 rounded bg-secondary text-[10px]">{t.type}</span></td><td>{t.description}</td><td>{t.method}</td><td className="text-right font-semibold">{money(t.amount)}</td></tr>)}
+                          <table className="enhanced-data-table"><thead><tr><th>DATE</th><th>TYPE</th><th>DESCRIPTION</th><th>METHOD / VENDOR</th><th className="text-right">AMOUNT</th></tr></thead>
+                          <tbody>{transactions.map(t => <tr key={t.id}><td>{new Date(t.date).toLocaleDateString("en-IN")}</td><td><span className={`data-badge ${t.type === "Payment" ? "payment" : "purchase"}`}>{t.type}</span></td><td>{t.description}</td><td>{t.method}</td><td className="text-right font-semibold">{money(t.amount)}</td></tr>)}
                           {!transactions.length && <tr><td colSpan={5} className="text-center py-8 text-xs text-muted-foreground">No transactions recorded for this supplier yet.</td></tr>}</tbody></table>
                         </div>
                       </>
@@ -3400,6 +3410,7 @@ export default function Home() {
                   className="w-full p-2 border rounded-lg bg-background"
                 >
                   <option value="Monthly">Monthly Salary</option>
+                  <option value="Weekly">Weekly Salary</option>
                   <option value="Daily">Daily Wage</option>
                 </select>
               </label>
@@ -3408,6 +3419,11 @@ export default function Home() {
                 <label className="block space-y-1">
                   <span className="font-semibold text-muted-foreground">Daily Rate (₹)</span>
                   <input type="number" value={form.dailyRate || ""} onChange={(e) => setForm({ ...form, dailyRate: e.target.value })} placeholder="800" className="w-full p-2 border rounded-lg bg-background" />
+                </label>
+              ) : form.payType === "Weekly" ? (
+                <label className="block space-y-1">
+                  <span className="font-semibold text-muted-foreground">Weekly Salary (₹)</span>
+                  <input type="number" value={form.weeklySalary || ""} onChange={(e) => setForm({ ...form, weeklySalary: e.target.value })} placeholder="5600" className="w-full p-2 border rounded-lg bg-background" />
                 </label>
               ) : (
                 <label className="block space-y-1">
@@ -3515,7 +3531,9 @@ export default function Home() {
                   <p className="text-indigo-600 font-semibold mt-0.5">
                     {selectedStaff.payType === "Monthly"
                       ? `Monthly: ${money(selectedStaff.monthlySalary)}`
-                      : `Daily: ${money(selectedStaff.dailyRate)}`}
+                      : selectedStaff.payType === "Weekly"
+                        ? `Weekly: ${money(selectedStaff.weeklySalary)}`
+                        : `Daily: ${money(selectedStaff.dailyRate)}`}
                   </p>
                 </div>
               </div>
@@ -3572,8 +3590,28 @@ export default function Home() {
                   const start = weeklyPaymentForm.start ? new Date(`${weeklyPaymentForm.start}T00:00:00`) : null;
                   const end = weeklyPaymentForm.end ? new Date(`${weeklyPaymentForm.end}T23:59:59`) : null;
                   const weekRows = start && end ? wages.filter(w => w.staffId === selectedStaff.id && w.status === "Unpaid" && new Date(`${w.date}T12:00:00`) >= start && new Date(`${w.date}T12:00:00`) <= end) : [];
+                  const weeklySalary = Number(selectedStaff.weeklySalary || 0);
+                  const isWeeklySalary = selectedStaff.payType === "Weekly";
                   const total = weekRows.reduce((n,w)=>n+Number(w.amount||0),0);
-                  return <div className="flex items-center justify-between gap-2 text-xs"><span>{weekRows.length} unpaid record(s) · <b>{money(total)}</b></span><button className="primary-btn" disabled={!weekRows.length || !tenantId} onClick={async()=>{ if(!tenantId||!weekRows.length)return; const ids=weekRows.map(w=>w.id); const {error}=await db.from("daily_wages").update({status:"Paid",note:"Weekly payment"}).eq("restaurant_id",tenantId).in("id",ids); if(error){toast.error(error.message);return;} setWages(old=>old.map(w=>ids.includes(w.id)?{...w,status:"Paid",note:"Weekly payment"}:w)); toast.success(`Weekly payment recorded · ${money(total)}`); }}>{weekRows.length ? "Pay Week" : "No unpaid wages"}</button></div>;
+                  const payable = isWeeklySalary && weeklySalary > 0 && !weekRows.length ? weeklySalary : total;
+                  return <div className="space-y-2 text-xs">
+                    <div className="flex items-center justify-between gap-2"><span>{isWeeklySalary ? `Weekly salary · ${money(weeklySalary)}` : `${weekRows.length} unpaid record(s) · ${money(total)}`}</span><span className="font-bold text-foreground">Payable: {money(payable)}</span></div>
+                    <button className="primary-btn w-full" disabled={!tenantId || !end || !payable} onClick={async()=>{
+                      if(!tenantId || !payable || !weeklyPaymentForm.end) return;
+                      if(isWeeklySalary && !weekRows.length){
+                        const {data,error}=await db.from("daily_wages").insert({restaurant_id:tenantId,employee_id:selectedStaff.id,wage_date:weeklyPaymentForm.end,amount:weeklySalary,status:"Paid",note:"Weekly salary"}).select().single();
+                        if(error){toast.error(error.message);return;}
+                        setWages(old=>[{id:data.id,staffId:data.employee_id,date:data.wage_date,amount:Number(data.amount),status:data.status,note:data.note},...old]);
+                        toast.success(`Weekly salary paid · ${money(weeklySalary)}`);
+                      } else {
+                        const ids=weekRows.map(w=>w.id);
+                        const {error}=await db.from("daily_wages").update({status:"Paid",note:"Weekly payment"}).eq("restaurant_id",tenantId).in("id",ids);
+                        if(error){toast.error(error.message);return;}
+                        setWages(old=>old.map(w=>ids.includes(w.id)?{...w,status:"Paid",note:"Weekly payment"}:w));
+                        toast.success(`Weekly payment recorded · ${money(total)}`);
+                      }
+                    }}>{isWeeklySalary ? "Pay Weekly Salary" : weekRows.length ? "Pay Week" : "No unpaid wages"}</button>
+                  </div>;
                 })()}
               </div>
 

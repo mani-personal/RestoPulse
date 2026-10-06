@@ -20,7 +20,7 @@ export async function POST(request:NextRequest){
   const {data:created,error:createError}=await admin.auth.admin.createUser({email,password,email_confirm:true,user_metadata:{full_name:owner}});
   if(createError||!created.user)return NextResponse.json({error:createError?.message||'Could not create owner'},{status:400});
   const ownerId=created.user.id;
-  const {data:restaurant,error:restaurantError}=await admin.from('restaurants').insert({name,owner_name:owner,owner_email:email,owner_phone:phone,city,plan,status:'Trial',renewal_on:new Date(Date.now()+14*86400000).toISOString().slice(0,10)}).select().single();
+  const {data:restaurant,error:restaurantError}=await admin.from('restaurants').insert({name,owner_name:owner,owner_email:email,owner_phone:phone,city,plan,status:'Trial',renewal_on:new Date(Date.now()+7*86400000).toISOString().slice(0,10)}).select().single();
   if(restaurantError||!restaurant){await admin.auth.admin.deleteUser(ownerId);return NextResponse.json({error:restaurantError?.message||'Could not create restaurant'},{status:400})}
   const {error:memberError}=await admin.from('memberships').insert({user_id:ownerId,restaurant_id:restaurant.id,role:'OWNER'});
   if(memberError){await admin.from('restaurants').delete().eq('id',restaurant.id);await admin.auth.admin.deleteUser(ownerId);return NextResponse.json({error:memberError.message},{status:400})}

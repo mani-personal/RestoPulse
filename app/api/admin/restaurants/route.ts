@@ -7,6 +7,16 @@ function errorResponse(error: any, fallback = 'Server error') {
   return NextResponse.json({ error: error?.message || fallback }, { status: Number(error?.status) || 500 });
 }
 
+
+export async function GET(request: NextRequest) {
+  try {
+    const { supabase } = await requireAdmin(request);
+    const { data, error } = await supabase.from("restaurants").select("*").order("created_at", { ascending: false });
+    if (error) throw error;
+    return NextResponse.json({ restaurants: data || [] });
+  } catch (e: any) { return errorResponse(e, "Could not load restaurants"); }
+}
+
 export async function POST(request: NextRequest) {
   try {
     const { supabase: admin } = await requireAdmin(request);
@@ -17,14 +27,15 @@ export async function POST(request: NextRequest) {
     const owner = String(body.owner || '').trim();
     const email = String(body.email || '').trim().toLowerCase();
     const phone = String(body.phone || '').trim();
-    const password = String(body.password || '');
+    const requestedPassword = String(body.password || '').trim();
+    const password = requestedPassword || `${crypto.randomUUID().replace(/-/g, '').slice(0, 10)}A9!x7Q2`;
     const city = String(body.city || '').trim();
 
     if (name.length < 2) return NextResponse.json({ error: 'Restaurant name is required' }, { status: 400 });
     if (owner.length < 2) return NextResponse.json({ error: 'Owner name is required' }, { status: 400 });
     if (!/^\S+@\S+\.\S+$/.test(email)) return NextResponse.json({ error: 'Enter a valid owner email' }, { status: 400 });
     if (!/^\+?[0-9 ()-]{7,20}$/.test(phone)) return NextResponse.json({ error: 'Enter a valid owner phone number' }, { status: 400 });
-    if (password.length < 12 || password.length > 128) return NextResponse.json({ error: 'Temporary password must be 12–128 characters' }, { status: 400 });
+    if (requestedPassword && (password.length < 12 || password.length > 128)) return NextResponse.json({ error: 'Temporary password must be 12–128 characters' }, { status: 400 });
 
     // requireAdmin already validates the current admin. The server client it returns
     // uses the configured server key, so user creation and tenant setup are not blocked
@@ -72,7 +83,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: memberError.message }, { status: 400 });
     }
 
-    return NextResponse.json({ restaurant, owner_user_id: ownerId }, { status: 201 });
+    return NextResponse.json({ restaurant, owner_user_id: ownerId, temporary_password: requestedPassword ? undefined : password }, { status: 201 });
   } catch (e: any) {
     return errorResponse(e, 'Could not create restaurant');
   }
@@ -85,7 +96,7 @@ export async function PATCH(request: NextRequest) {
     const id = String(body.id || '');
     if (!id) return NextResponse.json({ error: 'Restaurant ID is required' }, { status: 400 });
     const payload: Record<string, unknown> = {};
-    for (const key of ['name','owner_name','owner_phone','city','address','business_phone','gstin','plan','status','renewal_on']) {
+    for (const key of ['name','owner_name','owner_email','owner_phone','city','address','business_phone','gstin','plan','status','renewal_on']) {
       if (body[key] !== undefined) payload[key] = body[key];
     }
     if (!Object.keys(payload).length) return NextResponse.json({ error: 'No changes supplied' }, { status: 400 });

@@ -378,6 +378,8 @@ export default function Home() {
   const [editing, setEditing] = useState<number | string | null>(null);
   const [form, setForm] = useState<Record<string, string>>({});
   const [dateRange, setDateRange] = useState("This week");
+  const [customStartDate, setCustomStartDate] = useState(new Date().toLocaleDateString("en-CA"));
+  const [customEndDate, setCustomEndDate] = useState(new Date().toLocaleDateString("en-CA"));
   const [liveDate, setLiveDate] = useState(new Date());
   const [weeklyPaymentForm, setWeeklyPaymentForm] = useState({ start: "", end: "" });
 
@@ -1523,12 +1525,40 @@ export default function Home() {
   const dayStart = new Date(nowForMetrics); dayStart.setHours(0,0,0,0);
   const weekStart = new Date(dayStart); weekStart.setDate(weekStart.getDate() - ((weekStart.getDay()+6)%7));
   const monthStart = new Date(nowForMetrics.getFullYear(), nowForMetrics.getMonth(), 1);
+  const yesterdayStart = new Date(dayStart); yesterdayStart.setDate(yesterdayStart.getDate() - 1);
+  const selectedStart = (() => {
+    if (dateRange === "Today") return new Date(dayStart);
+    if (dateRange === "Yesterday") return new Date(yesterdayStart);
+    if (dateRange === "This month") return new Date(monthStart);
+    if (dateRange === "Custom") {
+      const d = new Date(`${customStartDate}T00:00:00`);
+      return Number.isNaN(d.getTime()) ? new Date(weekStart) : d;
+    }
+    return new Date(weekStart);
+  })();
+  const selectedEnd = (() => {
+    if (dateRange === "Yesterday") return new Date(dayStart);
+    if (dateRange === "Custom") {
+      const d = new Date(`${customEndDate}T23:59:59.999`);
+      return Number.isNaN(d.getTime()) ? new Date(dayStart.getTime() + 86400000) : d;
+    }
+    return new Date(dayStart.getTime() + 86400000);
+  })();
   const paidOrders = orders.filter(o => o.status === "Paid");
-  const netSales = paidOrders.reduce((n,o)=>n+(Number(o.bill?.subtotal)||0)-(Number(o.bill?.discount)||0),0);
-  const totalExpenses = expenses.reduce((n,x)=>n+Number(x.amount||0),0);
-  const paidWages = wages.filter(w=>w.status==="Paid").reduce((n,x)=>n+Number(x.amount||0),0);
-  const salesBetween = (from:Date) => paidOrders.filter(o=>new Date(o.placedAt)>=from).reduce((n,o)=>n+(Number(o.bill?.subtotal)||0)-(Number(o.bill?.discount)||0),0);
-  const todaySales=salesBetween(dayStart), weeklySales=salesBetween(weekStart), monthlySales=salesBetween(monthStart);
+  const inSelectedRange = (value: string | number | Date) => {
+    const d = new Date(value);
+    return !Number.isNaN(d.getTime()) && d >= selectedStart && d < selectedEnd;
+  };
+  const selectedOrders = paidOrders.filter(o => inSelectedRange(o.placedAt));
+  const selectedExpenses = expenses.filter(e => inSelectedRange(`${e.date}T12:00:00`));
+  const selectedWages = wages.filter(w => w.status === "Paid" && inSelectedRange(`${w.date}T12:00:00`));
+  const netSales = selectedOrders.reduce((n,o)=>n+(Number(o.bill?.subtotal)||0)-(Number(o.bill?.discount)||0),0);
+  const totalExpenses = selectedExpenses.reduce((n,x)=>n+Number(x.amount||0),0);
+  const paidWages = selectedWages.reduce((n,x)=>n+Number(x.amount||0),0);
+  const salesBetween = (from:Date, to?:Date) => paidOrders.filter(o => { const d = new Date(o.placedAt); return d >= from && (!to || d < to); }).reduce((n,o)=>n+(Number(o.bill?.subtotal)||0)-(Number(o.bill?.discount)||0),0);
+  const todaySales=salesBetween(dayStart, new Date(dayStart.getTime()+86400000));
+  const weeklySales=salesBetween(weekStart, new Date(dayStart.getTime()+86400000));
+  const monthlySales=salesBetween(monthStart, new Date(dayStart.getTime()+86400000));
   const lowStockCount=inventoryList.filter(x=>x.onHand>0&&x.onHand<=x.reorderLevel).length;
   const outOfStockCount=inventoryList.filter(x=>x.onHand===0).length;
   const restaurantNotifications = !isAdmin ? [
@@ -1537,13 +1567,15 @@ export default function Home() {
     ...(wages.filter(w => w.status === "Unpaid").length > 0 ? [{ key: "wage", title: `${wages.filter(w => w.status === "Unpaid").length} unpaid wage record(s)`, detail: "Review employee payments." }] : []),
     ...(activeRenewalDate && activeRenewalDate !== "—" && new Date(activeRenewalDate).getTime() - nowForMetrics.getTime() <= 7 * 86400000 && new Date(activeRenewalDate).getTime() >= nowForMetrics.getTime() ? [{ key: "sub", title: "Subscription renewal is due soon", detail: `Renewal date: ${new Date(activeRenewalDate).toLocaleDateString("en-IN")}` }] : []),
   ] : [];
-  const dynamicChart=Array.from({length:7},(_,idx)=>{
-    const d=new Date(dayStart); d.setDate(dayStart.getDate()-6+idx);
+  const chartStart = new Date(selectedStart);
+  const chartDays = Math.max(1, Math.min(31, Math.ceil((selectedEnd.getTime() - chartStart.getTime()) / 86400000)));
+  const dynamicChart=Array.from({length:chartDays},(_,idx)=>{
+    const d=new Date(chartStart); d.setDate(chartStart.getDate()+idx);
     const next=new Date(d); next.setDate(d.getDate()+1);
     return {
-      day:d.toLocaleDateString("en-IN",{weekday:"short"}),
-      revenue:paidOrders.filter(o=>new Date(o.placedAt)>=d&&new Date(o.placedAt)<next).reduce((n,o)=>n+Number(o.bill?.subtotal||0)-Number(o.bill?.discount||0),0),
-      expense:expenses.filter(e=>{const x=new Date(e.date);return x>=d&&x<next;}).reduce((n,e)=>n+Number(e.amount||0),0)
+      day:chartDays <= 7 ? d.toLocaleDateString("en-IN",{weekday:"short"}) : d.toLocaleDateString("en-IN",{day:"2-digit",month:"short"}),
+      revenue:paidOrders.filter(o=>{const x=new Date(o.placedAt);return x>=d&&x<next;}).reduce((n,o)=>n+Number(o.bill?.subtotal||0)-Number(o.bill?.discount||0),0),
+      expense:expenses.filter(e=>{const x=new Date(`${e.date}T12:00:00`);return x>=d&&x<next;}).reduce((n,e)=>n+Number(e.amount||0),0)
     };
   });
 
@@ -1858,7 +1890,14 @@ export default function Home() {
                     <option>Yesterday</option>
                     <option>This week</option>
                     <option>This month</option>
+                    <option>Custom</option>
                   </select>
+                  {dateRange === "Custom" && (
+                    <div className="custom-date-range" aria-label="Custom sales date range">
+                      <label><span>From</span><input type="date" value={customStartDate} max={customEndDate || undefined} onChange={(e) => setCustomStartDate(e.target.value)} /></label>
+                      <label><span>To</span><input type="date" value={customEndDate} min={customStartDate || undefined} onChange={(e) => setCustomEndDate(e.target.value)} /></label>
+                    </div>
+                  )}
                   <button className="primary-btn" onClick={() => nav("pos")}>
                     <Plus size={18} /> New order
                   </button>
@@ -1875,10 +1914,10 @@ export default function Home() {
                   { label: "Subscription history", value: String(subscriptionHistory.length), icon: CalendarDays, tone: "violet", note: "payment requests" },
                   { label: "Upcoming renewals", value: String(restaurants.filter((r:any)=>r.renewal && new Date(r.renewal)>=nowForMetrics && new Date(r.renewal)<=new Date(nowForMetrics.getTime()+30*86400000)).length), icon: Bell, tone: "green", note: "next 30 days" },
                 ] : [
-                  { label: "Net sales", value: money(netSales), icon: ArrowUpRight, tone: "teal", note: "paid sales, excluding tax" },
-                  { label: "Total orders", value: String(paidOrders.length), icon: ShoppingBag, tone: "amber", note: "completed paid orders" },
-                  { label: "Operating expenses", value: money(totalExpenses + paidWages), icon: ReceiptText, tone: "violet", note: "expenses + paid wages" },
-                  { label: "Net profit", value: money(netSales - totalExpenses - paidWages), icon: ArrowUpRight, tone: "green", note: "net sales − operating costs" },
+                  { label: "Net sales", value: money(netSales), icon: ArrowUpRight, tone: "teal", note: `${dateRange.toLowerCase()} · paid sales, excluding tax` },
+                  { label: "Total orders", value: String(selectedOrders.length), icon: ShoppingBag, tone: "amber", note: `${dateRange.toLowerCase()} · completed paid orders` },
+                  { label: "Operating expenses", value: money(totalExpenses + paidWages), icon: ReceiptText, tone: "violet", note: `${dateRange.toLowerCase()} · expenses + paid wages` },
+                  { label: "Net profit", value: money(netSales - totalExpenses - paidWages), icon: ArrowUpRight, tone: "green", note: `${dateRange.toLowerCase()} · net sales − operating costs` },
                   { label: "Today’s sales", value: money(todaySales), icon: Wallet, tone: "amber", note: "today" },
                   { label: "Weekly sales", value: money(weeklySales), icon: Wallet, tone: "teal", note: "Monday–today" },
                   { label: "Monthly sales", value: money(monthlySales), icon: Wallet, tone: "violet", note: "current month" },
@@ -1901,7 +1940,7 @@ export default function Home() {
                   <div className="panel-header">
                     <div>
                       <h2>{isAdmin ? "Subscription revenue" : "Revenue & expenses"}</h2>
-                      <p>{isAdmin ? "Approved subscription payments · last 7 days" : "Weekly trend breakdown"}</p>
+                      <p>{isAdmin ? "Approved subscription payments · last 7 days" : `${dateRange} sales and expenses`}</p>
                     </div>
                   </div>
                   <div className="chart">

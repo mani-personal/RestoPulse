@@ -1370,11 +1370,13 @@ export default function Home() {
       const planName = requestedPlan || "Free trial";
       const daysToAdd = getPlanDurationDays(planName);
 
-      await authedFetch("/api/admin/approvals", {
+      const response = await authedFetch("/api/admin/approvals", {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ restaurant_id: approvalId, action }),
       });
+      const result = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(result.error || "Failed to update restaurant approval");
 
       setApprovals((old) => old.filter((x) => x.id !== approvalId));
       toast.success(
@@ -1634,10 +1636,12 @@ export default function Home() {
   const normalizedRole = (currentUserRole || "").toLowerCase();
   const isOwnerOrAdmin = normalizedRole === "owner" || normalizedRole === "admin" || !normalizedRole;
   
-  const visibleNavTenant = navTenant.filter((item) => {
-    if (isOwnerOrAdmin) return true;
-    return !item.allowedRoles || item.allowedRoles.includes(normalizedRole);
-  });
+  const visibleNavTenant = isAdmin
+    ? []
+    : navTenant.filter((item) => {
+        if (isOwnerOrAdmin) return true;
+        return !item.allowedRoles || item.allowedRoles.includes(normalizedRole);
+      });
 
   return (
     <div className="app-shell">

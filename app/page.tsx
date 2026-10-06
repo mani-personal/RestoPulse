@@ -388,6 +388,7 @@ export default function Home() {
   const [invForm, setInvForm] = useState({ name: "", category: "Grains", onHand: "", unit: "bags", reorderLevel: "5" });
   const [editingInvId, setEditingInvId] = useState<string | number | null>(null);
   const [stockAdjustItem, setStockAdjustItem] = useState<InventoryItem | null>(null);
+  const [stockAdjustMode, setStockAdjustMode] = useState<"add" | "reduce">("reduce");
   const [stockAdjustQty, setStockAdjustQty] = useState("");
   const [stockAdjustNote, setStockAdjustNote] = useState("");
 
@@ -776,31 +777,39 @@ export default function Home() {
     }catch(e:any){toast.error(e.message||"Could not update stock"); return false;}
   };
 
-  const openStockReduction = (item: InventoryItem) => {
-    if (item.onHand <= 0) { toast.error(`${item.name} is already out of stock`); return; }
+  const openStockAdjustment = (item: InventoryItem, mode: "add" | "reduce") => {
+    if (mode === "reduce" && item.onHand <= 0) {
+      toast.error(`${item.name} is already out of stock`);
+      return;
+    }
     setStockAdjustItem(item);
+    setStockAdjustMode(mode);
     setStockAdjustQty("");
     setStockAdjustNote("");
     setModal("stockAdjust");
   };
 
-  const submitStockReduction = async () => {
+  const openStockReduction = (item: InventoryItem) => openStockAdjustment(item, "reduce");
+
+  const openStockAddition = (item: InventoryItem) => openStockAdjustment(item, "add");
+
+  const submitStockAdjustment = async () => {
     if (!stockAdjustItem) return;
     const qty = Number(stockAdjustQty);
     if (!Number.isFinite(qty) || qty <= 0) {
       toast.error("Enter a quantity greater than 0");
       return;
     }
-    if (qty > stockAdjustItem.onHand) {
+    if (stockAdjustMode === "reduce" && qty > stockAdjustItem.onHand) {
       toast.error(`You can reduce a maximum of ${stockAdjustItem.onHand} ${stockAdjustItem.unit}`);
       return;
     }
-    const ok = await adjustInventory(
-      stockAdjustItem,
-      -qty,
-      "Stock reduction",
-      stockAdjustNote.trim() || `Manual stock reduction of ${qty} ${stockAdjustItem.unit}`
-    );
+    const delta = stockAdjustMode === "add" ? qty : -qty;
+    const type = stockAdjustMode === "add" ? "Stock addition" : "Stock reduction";
+    const defaultNote = stockAdjustMode === "add"
+      ? `Manual stock addition of ${qty} ${stockAdjustItem.unit}`
+      : `Manual stock reduction of ${qty} ${stockAdjustItem.unit}`;
+    const ok = await adjustInventory(stockAdjustItem, delta, type, stockAdjustNote.trim() || defaultNote);
     if (ok) {
       setModal(null);
       setStockAdjustItem(null);
@@ -808,6 +817,7 @@ export default function Home() {
       setStockAdjustNote("");
     }
   };
+
 
   const openInventoryModal = (item?: InventoryItem) => {
     if (item) {
@@ -1561,37 +1571,51 @@ export default function Home() {
     <div className="app-shell">
       <Toaster richColors position="top-right" />
 
-      {/* DYNAMIC THERMAL & A4 PRINT RULES */}
+      {/* PRINT LAYOUT: adapts to 58mm, 85mm thermal and A4 */}
       <style jsx global>{`
         @media print {
           @page {
             size: ${printPaperSize === "A4" ? "A4" : printPaperSize === "58mm" ? "58mm auto" : "85mm auto"};
-            margin: ${printPaperSize === "A4" ? "10mm" : "0mm"};
+            margin: ${printPaperSize === "A4" ? "10mm" : "0"};
           }
-          body * {
-            visibility: hidden !important;
+          html, body {
+            width: 100% !important;
+            margin: 0 !important;
+            padding: 0 !important;
+            background: #fff !important;
           }
+          body * { visibility: hidden !important; }
           #printable-receipt-card, #printable-receipt-card * {
             visibility: visible !important;
           }
           #printable-receipt-card {
-            position: absolute !important;
-            left: 0 !important;
-            top: 0 !important;
-            width: ${printPaperSize === "A4" ? "190mm" : printPaperSize === "58mm" ? "52mm" : "79mm"} !important;
-            max-width: ${printPaperSize === "A4" ? "190mm" : printPaperSize === "58mm" ? "52mm" : "79mm"} !important;
-            margin: 0 auto !important;
-            padding: ${printPaperSize === "A4" ? "8mm" : "2mm 2mm"} !important;
-            background: #ffffff !important;
-            color: #000000 !important;
-            font-family: 'Courier New', Courier, monospace !important;
-            border: none !important;
-            box-shadow: none !important;
+            position: static !important;
+            display: block !important;
+            left: auto !important;
+            top: auto !important;
+            margin: 0 !important;
+            transform: none !important;
+            float: none !important;
             box-sizing: border-box !important;
+            height: auto !important;
+            max-height: none !important;
+            overflow: visible !important;
+            border: 0 !important;
+            border-radius: 0 !important;
+            box-shadow: none !important;
+            background: #fff !important;
+            color: #000 !important;
+            font-family: ui-monospace, SFMono-Regular, Consolas, "Courier New", monospace !important;
           }
-          .no-print {
-            display: none !important;
-          }
+          #printable-receipt-card.format-58mm { width: 58mm !important; max-width: 58mm !important; padding: 2mm !important; font-size: 9px !important; }
+          #printable-receipt-card.format-85mm { width: 85mm !important; max-width: 85mm !important; padding: 3mm !important; font-size: 10px !important; }
+          #printable-receipt-card.format-A4 { width: 190mm !important; max-width: 190mm !important; padding: 8mm !important; font-size: 12px !important; }
+          #printable-receipt-card table { width: 100% !important; table-layout: fixed !important; border-collapse: collapse !important; }
+          #printable-receipt-card th, #printable-receipt-card td { overflow-wrap: anywhere !important; word-break: break-word !important; }
+          #printable-receipt-card.format-58mm .receipt-line { grid-template-columns: minmax(0,1fr) 20px 48px !important; }
+          #printable-receipt-card.format-85mm .receipt-line { grid-template-columns: minmax(0,1fr) 28px 62px !important; }
+          #printable-receipt-card.format-A4 .receipt-line { grid-template-columns: minmax(0,1fr) 50px 100px !important; }
+          .no-print { display: none !important; }
         }
       `}</style>
 
@@ -2212,7 +2236,7 @@ export default function Home() {
                             </td>
                             <td className="p-3 text-right">
                               <div className="inventory-actions" aria-label={`Actions for ${item.name}`}>
-                                <button className="inventory-action add" title="Add stock" aria-label={`Add stock to ${item.name}`} onClick={() => adjustInventory(item,1,"Stock addition")}><Plus size={14} strokeWidth={2.5} /></button>
+                                <button className="inventory-action add" title="Add stock" aria-label={`Add stock to ${item.name}`} onClick={() => openStockAddition(item)}><Plus size={14} strokeWidth={2.5} /></button>
                                 <button className="inventory-action reduce" title="Reduce stock" aria-label={`Reduce stock from ${item.name}`} onClick={() => openStockReduction(item)}><Minus size={14} strokeWidth={2.5} /></button>
                                 <button className="inventory-action edit" title="Edit item" aria-label={`Edit ${item.name}`} onClick={() => openInventoryModal(item)}><Pencil size={14} /></button>
                                 <button className="inventory-action delete" title="Delete item" aria-label={`Delete ${item.name}`} onClick={() => handleDeleteInventory(item.id)}><Trash2 size={14} /></button>
@@ -3241,14 +3265,15 @@ export default function Home() {
         if (!v) {
           setModal(null);
           setStockAdjustItem(null);
+          setStockAdjustMode("reduce");
           setStockAdjustQty("");
           setStockAdjustNote("");
         }
       }}>
         <DialogContent className="max-w-md">
           <DialogHeader>
-            <DialogTitle>Reduce Stock</DialogTitle>
-            <DialogDescription>Enter the exact quantity to remove instead of reducing by one unit.</DialogDescription>
+            <DialogTitle>{stockAdjustMode === "add" ? "Add Stock" : "Reduce Stock"}</DialogTitle>
+            <DialogDescription>Enter the exact quantity and an optional reason for this stock movement.</DialogDescription>
           </DialogHeader>
           {stockAdjustItem && (
             <div className="space-y-4 py-2">
@@ -3257,11 +3282,11 @@ export default function Home() {
                 <div className="text-xs text-muted-foreground mt-1">Current stock: <b>{stockAdjustItem.onHand} {stockAdjustItem.unit}</b></div>
               </div>
               <label className="block space-y-1">
-                <span className="text-sm font-medium">Quantity to reduce</span>
+                <span className="text-sm font-medium">Quantity {stockAdjustMode === "add" ? "to add" : "to reduce"}</span>
                 <input
                   type="number"
                   min="0.01"
-                  max={stockAdjustItem.onHand}
+                  max={stockAdjustMode === "reduce" ? stockAdjustItem.onHand : undefined}
                   step="any"
                   autoFocus
                   value={stockAdjustQty}
@@ -3269,7 +3294,11 @@ export default function Home() {
                   placeholder={`e.g. 2 or 0.5 ${stockAdjustItem.unit}`}
                   className="w-full p-2.5 border rounded-md text-sm bg-transparent"
                 />
-                <span className="text-xs text-muted-foreground">Maximum: {stockAdjustItem.onHand} {stockAdjustItem.unit}</span>
+                {stockAdjustMode === "reduce" ? (
+                  <span className="text-xs text-muted-foreground">Maximum: {stockAdjustItem.onHand} {stockAdjustItem.unit}</span>
+                ) : (
+                  <span className="text-xs text-muted-foreground">No fixed maximum</span>
+                )}
               </label>
               <label className="block space-y-1">
                 <span className="text-sm font-medium">Reason <span className="text-muted-foreground font-normal">(optional)</span></span>
@@ -3283,15 +3312,15 @@ export default function Home() {
               </label>
               {stockAdjustQty && Number(stockAdjustQty) > 0 && Number(stockAdjustQty) <= stockAdjustItem.onHand && (
                 <div className="rounded-lg border p-3 text-sm flex items-center justify-between">
-                  <span className="text-muted-foreground">Remaining stock</span>
-                  <b>{(stockAdjustItem.onHand - Number(stockAdjustQty)).toLocaleString(undefined, { maximumFractionDigits: 3 })} {stockAdjustItem.unit}</b>
+                  <span className="text-muted-foreground">{stockAdjustMode === "add" ? "New stock" : "Remaining stock"}</span>
+                  <b>{(stockAdjustItem.onHand + (stockAdjustMode === "add" ? Number(stockAdjustQty) : -Number(stockAdjustQty))).toLocaleString(undefined, { maximumFractionDigits: 3 })} {stockAdjustItem.unit}</b>
                 </div>
               )}
             </div>
           )}
           <DialogFooter>
             <button className="quiet-btn" onClick={() => { setModal(null); setStockAdjustItem(null); }}>Cancel</button>
-            <button className="primary-btn" onClick={submitStockReduction}>Reduce Stock</button>
+            <button className="primary-btn" onClick={submitStockAdjustment}>{stockAdjustMode === "add" ? "Add Stock" : "Reduce Stock"}</button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

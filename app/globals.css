@@ -98,3 +98,22 @@
   .top-left{min-width:0;flex:1;overflow:hidden}
   .breadcrumbs{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 }
+
+/* Payroll designation badges: readable in both light and dark themes */
+.designation-badge{display:inline-flex;align-items:center;justify-content:center;padding:3px 8px;border-radius:999px;font-size:10px;font-weight:800;line-height:1.2;border:1px solid transparent;white-space:nowrap}
+.designation-manager{background:#e0e7ff;color:#3730a3;border-color:#c7d2fe}.dark .designation-manager{background:#312e81;color:#c7d2fe;border-color:#4338ca}
+.designation-accountant{background:#dcfce7;color:#166534;border-color:#bbf7d0}.dark .designation-accountant{background:#14532d;color:#bbf7d0;border-color:#166534}
+.designation-storekeeper{background:#cffafe;color:#155e75;border-color:#a5f3fc}.dark .designation-storekeeper{background:#164e63;color:#a5f3fc;border-color:#0e7490}
+.designation-staff{background:#f3f4f6;color:#374151;border-color:#d1d5db}.dark .designation-staff{background:#374151;color:#e5e7eb;border-color:#4b5563}
+
+/* Enhanced data tables */
+.enhanced-data-table th,.inventory-history-table th{position:sticky;top:0;z-index:1;background:var(--soft)}
+.enhanced-data-table td,.inventory-history-table td{padding:13px 16px;border-bottom:1px solid var(--border);vertical-align:middle}
+.enhanced-data-table tbody tr:hover,.inventory-history-table tbody tr:hover{background:var(--soft)}
+.enhanced-data-table tbody tr:last-child td,.inventory-history-table tbody tr:last-child td{border-bottom:0}
+.data-badge,.history-type-badge{display:inline-flex;align-items:center;padding:4px 8px;border-radius:999px;font-size:10px;font-weight:750;border:1px solid var(--border);background:var(--soft);color:var(--text)}
+.data-badge.payment,.history-type-badge.in{background:#dcfce7;color:#166534;border-color:#bbf7d0}.dark .data-badge.payment,.dark .history-type-badge.in{background:#14532d;color:#bbf7d0;border-color:#166534}
+.data-badge.purchase,.history-type-badge.out{background:#fee2e2;color:#991b1b;border-color:#fecaca}.dark .data-badge.purchase,.dark .history-type-badge.out{background:#7f1d1d;color:#fecaca;border-color:#991b1b}
+.inventory-history-table-wrap{max-height:390px;overflow:auto;border:1px solid var(--border);border-radius:10px}
+.inventory-history-table{min-width:760px}
+.inventory-history-table th{padding:11px 14px}.inventory-history-table td{padding:12px 14px}

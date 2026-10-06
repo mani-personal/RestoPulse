@@ -81,6 +81,7 @@ export async function GET(request: Request) {
             name: restaurant.name,
             plan: restaurant.plan || 'Free trial',
             renewal_on: restaurant.renewal_on || '—',
+            created_at: restaurant.created_at || null,
             status: restaurant.status || 'Active',
             owner_name: restaurant.owner_name || 'Owner',
             owner_email: restaurant.owner_email || email || '',

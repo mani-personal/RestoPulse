@@ -274,10 +274,14 @@ const navTenant: { id: View; label: string; icon: typeof LayoutDashboard; allowe
 ];
 
 const navPlatform: { id: View; label: string; icon: typeof Building2 }[] = [
+  { id: "dashboard", label: "Overview", icon: LayoutDashboard },
   { id: "restaurants", label: "Restaurants", icon: Building2 },
   { id: "approvals", label: "Approvals", icon: BadgeCheck },
   { id: "pricing", label: "Pricing plans", icon: CreditCard },
+  { id: "settings", label: "Settings", icon: Settings },
 ];
+
+
 
 export default function Home() {
   const db = browserDb;
@@ -519,9 +523,11 @@ export default function Home() {
 
   const fetchAllRestaurants = useCallback(async () => {
     try {
-      if (db) {
-        const { data, error } = await db.from("restaurants").select("*").order("created_at", { ascending: false });
-        if (!error && data && data.length) {
+      const res = await authedFetch("/api/admin/restaurants");
+      const json = await res.json();
+      const data = Array.isArray(json?.restaurants) ? json.restaurants : [];
+      if (res.ok) {
+          if (!data.length) { setRestaurants([]); return; }
           const mapped = data.map((x: any) => ({
             id: x.id,
             name: x.name,
@@ -552,9 +558,8 @@ export default function Home() {
             }
           }
         }
-      }
     } catch {}
-  }, [db]);
+  }, [authedFetch]);
 
   const fetchRealApprovals = useCallback(async () => {
     try {
@@ -578,8 +583,49 @@ export default function Home() {
     }
   }, []);
 
+  const AdminSettingsPanel = () => {
+  return (
+    <div>
+      <div className="page-head">
+        <div>
+          <div className="eyebrow">PLATFORM SETTINGS</div>
+          <h1>Admin Settings</h1>
+          <p>Manage platform-level payment, account, and subscription settings.</p>
+        </div>
+      </div>
+      <div className="settings-grid grid grid-cols-1 md:grid-cols-2 gap-6 mt-6">
+        <section className="panel settings-panel">
+          <h2>Platform payments</h2>
+          <p className="text-xs text-muted-foreground mt-1">UPI ID used by restaurants for subscription payments.</p>
+          <div className="settings-fields">
+            <label>Admin UPI ID<input value={adminUpiId} onChange={(e) => setAdminUpiId(e.target.value)} placeholder="merchant@upi" /></label>
+          </div>
+          <button className="primary-btn" onClick={saveAdminUpi} disabled={adminUpiBusy}>{adminUpiBusy ? "Saving…" : "Save Admin UPI ID"}</button>
+        </section>
+        <section className="panel settings-panel">
+          <h2>Admin account</h2>
+          <p className="text-xs text-muted-foreground mt-1">Signed in as the RestoPulse platform administrator.</p>
+          <div className="settings-fields">
+            <label>Email<input value={loginEmail} readOnly /></label>
+            <label>Role<input value="Platform Administrator" readOnly /></label>
+          </div>
+        </section>
+        <section className="panel settings-panel md:col-span-2">
+          <h2>Subscription operations</h2>
+          <div className="platform-stats mt-4">
+            <div><span>Active / Trial</span><strong>{restaurants.filter((r:any)=>["Active","Trial"].includes(r.status)).length}</strong></div>
+            <div><span>Expired</span><strong>{restaurants.filter((r:any)=>r.renewal && new Date(r.renewal) < new Date()).length}</strong></div>
+            <div><span>Pending approvals</span><strong>{subscriptionRequests.length + approvals.length}</strong></div>
+            <div><span>Revenue</span><strong>{money(subscriptionHistory.filter((x:any)=>x.status === "Approved").reduce((n:number,x:any)=>n+Number(x.amount||0),0))}</strong></div>
+          </div>
+        </section>
+      </div>
+    </div>
+  );
+  };
+
   useEffect(() => {
-    if (!db) {
+  if (!db) {
       setAuthLoading(false);
       return;
     }
@@ -1023,10 +1069,15 @@ export default function Home() {
         const method=editing!==null?"PATCH":"POST";
         const body:any={id:editing||undefined,name:form.name.trim(),owner:form.owner.trim(),email:form.email.trim(),phone:form.phone.trim(),city:form.city||""};
         if(method==="POST") body.password=form.password||"";
-        else { body.owner_name=form.owner.trim(); body.owner_phone=form.phone.trim(); body.address=form.address||""; body.plan=form.plan||"Free Trial"; body.status=form.status||"Active"; body.renewal_on=form.renewal||null; }
+        else { body.owner_name=form.owner.trim(); body.owner_email=form.email.trim(); body.owner_phone=form.phone.trim(); body.address=form.address||""; body.plan=form.plan||"Free Trial"; body.status=form.status||"Active"; body.renewal_on=form.renewal||null; }
         const res=await authedFetch("/api/admin/restaurants",{method,body:JSON.stringify(body)});
         const json=await res.json(); if(!res.ok)throw new Error(json.error||"Could not save restaurant");
-        setModal(null); setEditing(null); await fetchAllRestaurants(); toast.success(editing!==null?"Restaurant updated":"Restaurant created");
+        setModal(null); setEditing(null); await fetchAllRestaurants();
+        if (method === "POST" && json.temporary_password) {
+          toast.success(`Restaurant created. Temporary password: ${json.temporary_password}`, { duration: 10000 });
+        } else {
+          toast.success(editing!==null ? "Restaurant updated" : "Restaurant created");
+        }
       } catch(e:any){toast.error(e.message||"Could not save restaurant");}
       return;
     }
@@ -1346,6 +1397,7 @@ export default function Home() {
       });
 
       const resData = await res.json();
+      if (!res.ok) throw new Error(resData?.error || "Failed to process subscription request");
 
       if (action === "approve") {
         const renewalDate = resData?.renewal_on || "—";
@@ -1715,7 +1767,7 @@ export default function Home() {
         </div>
 
         {/* WORKSPACE SELECTOR */}
-        <div className="workspace-label">
+        {!isAdmin && <><div className="workspace-label">
           WORKSPACE <ChevronDown size={14} />
         </div>
         <div
@@ -1751,10 +1803,15 @@ export default function Home() {
               ))}
             </div>
           )}
-        </div>
+        </div></>}
 
-        {/* RESTAURANT NAVIGATION */}
-        <div className="nav-heading">RESTAURANT</div>
+        {isAdmin && <div className="platform-workspace-label">
+          <span className="store-avatar"><Building2 size={16}/></span>
+          <div><b className="block">Platform Admin</b><small>RestoPulse console</small></div>
+        </div>}
+
+        {/* RESTAURANT NAVIGATION — hidden for platform admins */}
+        {!isAdmin && <><div className="nav-heading">RESTAURANT</div>
         <nav aria-label="Restaurant navigation">
           {visibleNavTenant.map((item) => (
             <button
@@ -1767,7 +1824,7 @@ export default function Home() {
               {item.id === "pos" && <span className="nav-key">⌘2</span>}
             </button>
           ))}
-        </nav>
+        </nav></>}
 
         {/* PLATFORM ADMIN NAVIGATION (SHOWN ONLY IF LOGGED IN AS ADMIN) */}
         {isAdmin && (
@@ -1791,9 +1848,9 @@ export default function Home() {
           </>
         )}
 
-        {/* DYNAMIC ACTIVE PLAN CARD */}
+        {/* DYNAMIC ACTIVE PLAN CARD — restaurant accounts only */}
         <div className="sidebar-bottom">
-          <div className="trial-note">
+          {!isAdmin && <div className="trial-note">
             <span className="trial-icon">✦</span>
             <b>Active Plan</b>
             <p className="font-semibold text-white capitalize">{activePlanName || "Free trial"}</p>
@@ -1801,7 +1858,7 @@ export default function Home() {
             <button onClick={() => nav(isAdmin ? "pricing" : "subscription")}>
               Manage plan <ArrowUpRight size={14} />
             </button>
-          </div>
+          </div>}
           <button
             className="profile profile-trigger"
             onClick={() => setProfileMenu(!profileMenu)}
@@ -1941,27 +1998,27 @@ export default function Home() {
               <div className="page-head">
                 <div>
                   <div className="eyebrow">OVERVIEW</div>
-                  <h1>Good afternoon, {activeRestaurantName || "Owner"}</h1>
-                  <p>Here’s what’s happening at {activeRestaurantName || "your restaurant"}.</p>
+                  <h1>{isAdmin ? "Platform Overview" : `Good afternoon, ${activeRestaurantName || "Owner"}`}</h1>
+                  <p>{isAdmin ? "Subscription, restaurant, and approval activity across RestoPulse." : `Here’s what’s happening at ${activeRestaurantName || "your restaurant"}.`}</p>
                   <p className="text-xs text-muted-foreground mt-1">Live date: {liveDate.toLocaleDateString("en-IN", { weekday: "long", day: "2-digit", month: "long", year: "numeric" })}</p>
                 </div>
                 <div className="head-actions">
-                  <select aria-label="Date range" value={dateRange} onChange={(e) => setDateRange(e.target.value)}>
-                    <option>Today</option>
-                    <option>Yesterday</option>
-                    <option>This week</option>
-                    <option>This month</option>
-                    <option>Custom</option>
-                  </select>
-                  {dateRange === "Custom" && (
-                    <div className="custom-date-range" aria-label="Custom sales date range">
-                      <label><span>From</span><input type="date" value={customStartDate} max={customEndDate || undefined} onChange={(e) => setCustomStartDate(e.target.value)} /></label>
-                      <label><span>To</span><input type="date" value={customEndDate} min={customStartDate || undefined} onChange={(e) => setCustomEndDate(e.target.value)} /></label>
-                    </div>
-                  )}
-                  <button className="primary-btn" onClick={() => nav("pos")}>
-                    <Plus size={18} /> New order
-                  </button>
+                  {isAdmin ? (
+                    <button className="quiet-btn flex items-center gap-1.5" onClick={() => { fetchAllRestaurants(); fetchSubscriptionRequests(); fetchRealApprovals(); fetchLivePlans(); }}>
+                      <RefreshCw size={14} /> Refresh
+                    </button>
+                  ) : <>
+                    <select aria-label="Date range" value={dateRange} onChange={(e) => setDateRange(e.target.value)}>
+                      <option>Today</option><option>Yesterday</option><option>This week</option><option>This month</option><option>Custom</option>
+                    </select>
+                    {dateRange === "Custom" && (
+                      <div className="custom-date-range" aria-label="Custom sales date range">
+                        <label><span>From</span><input type="date" value={customStartDate} max={customEndDate || undefined} onChange={(e) => setCustomStartDate(e.target.value)} /></label>
+                        <label><span>To</span><input type="date" value={customEndDate} min={customStartDate || undefined} onChange={(e) => setCustomEndDate(e.target.value)} /></label>
+                      </div>
+                    )}
+                    <button className="primary-btn" onClick={() => nav("pos")}><Plus size={18} /> New order</button>
+                  </>}
                 </div>
               </div>
               <div className="kpi-grid">
@@ -2725,6 +2782,9 @@ export default function Home() {
           {/* 9. SETTINGS WITH SAFE DATABASE PERSISTENCE */}
           {view === "settings" && (
             <>
+              {isAdmin ? (
+                <AdminSettingsPanel />
+              ) : <>
               <div className="page-head">
                 <div className="eyebrow">PREFERENCES</div>
                 <h1>Settings & Tax Details</h1>
@@ -2847,6 +2907,7 @@ export default function Home() {
                   </form>
                 </section>
               </div>
+              </>}
             </>
           )}
 

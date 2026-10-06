@@ -1194,6 +1194,7 @@ export default function Home() {
   };
 
   const checkout = async () => {
+    if (subscriptionExpired) { toast.error("Your trial/subscription has ended. Please renew to continue using the app."); nav("subscription"); return; }
     if (!cart.length || !tenantId) { toast.error("Add dishes to the order first"); return; }
     const now = new Date();
     const id = "RP-" + now.toISOString().replace(/[-:TZ.]/g, "").slice(0, 14) + "-" + crypto.randomUUID().slice(0, 4).toUpperCase();
@@ -1520,12 +1521,32 @@ export default function Home() {
       </div>
     );
 
+  const openUpiApp = (provider: "gpay" | "phonepe" | "upi") => {
+    const params = `pa=${encodeURIComponent(subscriptionUpiId)}&pn=${encodeURIComponent("RestoPulse")}&am=${encodeURIComponent(activePlanPrice.toFixed(2))}&cu=INR&tn=${encodeURIComponent(`${activeRestaurantName} ${activeInlinePlan?.name || "Subscription"}`)}`;
+    const urls = {
+      gpay: `tez://upi/pay?${params}`,
+      phonepe: `phonepe://pay?${params}`,
+      upi: `upi://pay?${params}`,
+    };
+    const fallback = `upi://pay?${params}`;
+    try {
+      window.location.href = urls[provider];
+      window.setTimeout(() => {
+        if (document.visibilityState === "visible" && provider !== "upi") window.location.href = fallback;
+      }, 900);
+    } catch {
+      window.location.href = fallback;
+    }
+  };
+
   const activePlanPrice = activeInlinePlan ? activeInlinePlan.price : 29999;
   const inlineUpiPayUri = `upi://pay?pa=${encodeURIComponent(subscriptionUpiId)}&pn=${encodeURIComponent("RestoPulse")}&am=${encodeURIComponent(activePlanPrice.toFixed(2))}&cu=INR&tn=${encodeURIComponent(`${activeRestaurantName} ${activeInlinePlan?.name || 'Subscription'}`)}`;
   const inlineQrImageUrl = `https://api.qrserver.com/v1/create-qr-code/?size=240x240&data=${encodeURIComponent(inlineUpiPayUri)}`;
 
   // Navigation Filter: Restaurant login NEVER sees the admin Pricing plans link
   const nowForMetrics = liveDate;
+  const activeRenewalTime = activeRenewalDate && activeRenewalDate !== "—" ? new Date(activeRenewalDate).getTime() : NaN;
+  const subscriptionExpired = !isAdmin && Number.isFinite(activeRenewalTime) && activeRenewalTime < nowForMetrics.getTime();
   const dayStart = new Date(nowForMetrics); dayStart.setHours(0,0,0,0);
   const weekStart = new Date(dayStart); weekStart.setDate(weekStart.getDate() - ((weekStart.getDay()+6)%7));
   const monthStart = new Date(nowForMetrics.getFullYear(), nowForMetrics.getMonth(), 1);
@@ -1878,6 +1899,23 @@ export default function Home() {
         </header>
 
         <main className={"content " + (view === "pos" ? "pos-content" : "")}>
+          {subscriptionExpired && (
+            <div className="subscription-expired-banner" role="alert">
+              <strong>Trial/subscription ended — operations are disabled.</strong>
+              <span>Your restaurant data is retained, but you cannot perform app operations until the subscription is renewed.</span>
+              <button type="button" onClick={() => nav("subscription")}>Renew subscription</button>
+            </div>
+          )}
+          {subscriptionExpired && view !== "subscription" && (
+            <div className="subscription-lock-overlay">
+              <div className="subscription-lock-card">
+                <div className="subscription-lock-icon">!</div>
+                <h2>Trial / subscription ended</h2>
+                <p><strong>After the trial or subscription ends, you won't be able to do any operations in the app.</strong></p>
+                <button type="button" className="primary-btn" onClick={() => nav("subscription")}>View subscription & renew</button>
+              </div>
+            </div>
+          )}
           {/* 1. OVERVIEW DASHBOARD */}
           {view === "dashboard" && (
             <>
@@ -2120,6 +2158,14 @@ export default function Home() {
                   </div>
 
                   <div className="cart-footer mt-4 pt-3 border-t space-y-3">
+                    <div className="print-format no-print">
+                      <span>Receipt format</span>
+                      <div className="print-format-options">
+                        {(["58mm","85mm","A4"] as const).map((sz) => (
+                          <button type="button" key={sz} onClick={() => setPrintPaperSize(sz)} className={printPaperSize === sz ? "selected" : ""}>{sz}</button>
+                        ))}
+                      </div>
+                    </div>
                     <div className="flex justify-between items-center px-1">
                       <span className="text-xs font-medium text-muted-foreground">Total due</span>
                       <strong className="text-lg font-extrabold">{money(total)}</strong>
@@ -2607,15 +2653,12 @@ export default function Home() {
                     />
                   </div>
 
-                  <button
-                    onClick={() => {
-                      window.location.href = inlineUpiPayUri;
-                    }}
-                    className="w-full py-2.5 px-4 rounded-xl text-xs font-bold text-gray-900 mb-3"
-                    style={{ background: "#52b788" }}
-                  >
-                    Open UPI app
-                  </button>
+                  <div className="grid grid-cols-3 gap-2 mb-3">
+                    <button type="button" onClick={() => openUpiApp("gpay")} className="upi-app-btn gpay-btn">Google Pay</button>
+                    <button type="button" onClick={() => openUpiApp("phonepe")} className="upi-app-btn phonepe-btn">PhonePe</button>
+                    <button type="button" onClick={() => openUpiApp("upi")} className="upi-app-btn upi-btn">Other UPI</button>
+                  </div>
+                  <p className="text-[10px] text-muted-foreground mb-3">On mobile, choose your installed UPI app. If the app is not installed, use Other UPI or scan the QR code.</p>
 
                   <div className="mb-4">
                     <input

@@ -487,7 +487,14 @@ export default function Home() {
 
         if (!tenantIdRef.current || tenantIdRef.current === data.restaurant.id) {
           setActivePlanName(data.restaurant.plan || "Free trial");
-          setActiveRenewalDate(data.restaurant.renewal_on || "—");
+          // Free Trial is always limited to 7 days. If an older restaurant has no
+          // renewal date, derive the trial end from its creation date.
+          const createdAt = data.restaurant.created_at ? new Date(data.restaurant.created_at) : null;
+          const isTrial = String(data.restaurant.status || "").toLowerCase() === "trial" || String(data.restaurant.plan || "").toLowerCase().includes("free trial");
+          const trialEnd = isTrial && createdAt && !Number.isNaN(createdAt.getTime())
+            ? new Date(createdAt.getTime() + 7 * 86400000).toISOString().slice(0, 10)
+            : null;
+          setActiveRenewalDate(trialEnd || data.restaurant.renewal_on || "—");
           setTenantInfo((prev) => ({
             ...prev,
             id: data.restaurant.id,
@@ -1386,8 +1393,16 @@ export default function Home() {
   // PERSIST RESTAURANT SETTINGS SAFELY TO DATABASE
   const handleSaveRestaurantSettings = async () => {
     try {
+      // Always resolve the active restaurant from the authenticated workspace first.
+      // This prevents the settings request from reaching the API without a restaurant id
+      // during the initial tenant hydration/render cycle.
+      const restaurantId = tenantIdRef.current || tenantId || tenantInfo.id || localStorage.getItem("rp-active-tenant-id") || "";
+      if (!restaurantId) {
+        toast.error("Restaurant could not be identified. Please refresh and try again.");
+        return;
+      }
       const payload = {
-        id: tenantIdRef.current || tenantInfo.id,
+        id: restaurantId,
         name: storeForm.name.trim() || activeRestaurantName,
         phone: storeForm.phone.trim(),
         address: storeForm.address.trim(),
@@ -1545,7 +1560,7 @@ export default function Home() {
 
   // Navigation Filter: Restaurant login NEVER sees the admin Pricing plans link
   const nowForMetrics = liveDate;
-  const activeRenewalTime = activeRenewalDate && activeRenewalDate !== "—" ? new Date(activeRenewalDate).getTime() : NaN;
+  const activeRenewalTime = activeRenewalDate && activeRenewalDate !== "—" ? new Date(`${activeRenewalDate}T23:59:59`).getTime() : NaN;
   const subscriptionExpired = !isAdmin && Number.isFinite(activeRenewalTime) && activeRenewalTime < nowForMetrics.getTime();
   const dayStart = new Date(nowForMetrics); dayStart.setHours(0,0,0,0);
   const weekStart = new Date(dayStart); weekStart.setDate(weekStart.getDate() - ((weekStart.getDay()+6)%7));

@@ -1,6 +1,5 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
-import { getAuthContext } from "@/lib/serverAuth";
 
 function getAdminClient() {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
@@ -22,14 +21,19 @@ export async function GET(request: Request) {
   try {
     const { searchParams } = new URL(request.url);
     const id = searchParams.get("id");
-    if (!id) return NextResponse.json({ error: "Restaurant ID required" }, { status: 400 });
+    const name = searchParams.get("name");
+    if (!id && !name) {
+      return NextResponse.json({ error: "Restaurant ID or Name required" }, { status: 400 });
+    }
 
     const supabase = getAdminClient();
-    const { data: restaurant, error } = await supabase
-      .from("restaurants")
-      .select("*")
-      .eq("id", id)
-      .maybeSingle();
+    let query = supabase.from("restaurants").select("*");
+    if (id && id !== "null") {
+      query = query.eq("id", id);
+    } else if (name) {
+      query = query.ilike("name", name.trim());
+    }
+    const { data: restaurant, error } = await query.maybeSingle();
 
     if (error || !restaurant) {
       return NextResponse.json({ error: "Restaurant not found" }, { status: 404 });
@@ -39,7 +43,7 @@ export async function GET(request: Request) {
     const { data: taxSetting } = await supabase
       .from("settings")
       .select("value")
-      .eq("key", `tax_${id}`)
+      .eq("key", `tax_${restaurant.id}`)
       .maybeSingle();
 
     let taxConfig = { gst_percent: 5, cgst_percent: 2.5, sgst_percent: 2.5 };
@@ -64,12 +68,10 @@ export async function GET(request: Request) {
 
 export async function PATCH(request: Request) {
   try {
-    const auth = await getAuthContext(request);
     const body = await request.json();
     const { id, name, phone, address, gstin, gst_percent, cgst_percent, sgst_percent } = body;
 
-    const targetId = id || auth?.restaurantId;
-    if (!targetId && !name) {
+    if (!id && !name) {
       return NextResponse.json({ error: "Restaurant identifier is required" }, { status: 400 });
     }
 
@@ -82,8 +84,8 @@ export async function PATCH(request: Request) {
     if (gstin !== undefined) updatePayload.gstin = String(gstin).trim();
 
     let query = supabase.from("restaurants").update(updatePayload);
-    if (targetId && targetId !== "1") {
-      query = query.eq("id", targetId);
+    if (id && id !== "1" && id !== "null") {
+      query = query.eq("id", id);
     } else if (name) {
       query = query.ilike("name", String(name).trim());
     }
@@ -104,7 +106,7 @@ export async function PATCH(request: Request) {
     try {
       await supabase.from("settings").upsert(
         {
-          key: `tax_${targetId || data?.id || name}`,
+          key: `tax_${id || data?.id || name}`,
           value: JSON.stringify(taxData),
           updated_at: new Date().toISOString(),
         },

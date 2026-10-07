@@ -3575,7 +3575,7 @@ export default function Home() {
       </Dialog>
 
       {/* GLOBAL ENTITY MODAL (SUPPLIER, EXPENSE, PAYMENT) */}
-      <Dialog open={!!modal && modal !== "inventory" && modal !== "stockAdjust" && modal !== "employee" && modal !== "plan" && modal !== "dish"} onOpenChange={(v) => !v && setModal(null)}>
+      <Dialog open={modal === "supplier" || modal === "expense" || modal === "payment"} onOpenChange={(v) => !v && setModal(null)}>
         <DialogContent className="modal-content">
           <DialogHeader>
             <DialogTitle>

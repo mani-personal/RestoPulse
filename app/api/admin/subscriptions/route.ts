@@ -50,6 +50,22 @@ export async function PATCH(request:Request){
     if(!requestId)return NextResponse.json({error:"Request ID is required"},{status:400});
     const {data:req,error:reqError}=await supabase.from("subscription_requests").select("*").eq("id",requestId).single();
     if(reqError||!req)throw reqError||new Error("Subscription request not found");
+    if(action==="extend") {
+      const restaurantId=String(body.restaurant_id||"");
+      const days=Number(body.days_to_add)||0;
+      if(!restaurantId)return NextResponse.json({error:"Restaurant ID is required"},{status:400});
+      if(!Number.isFinite(days)||days<=0||days>3650)return NextResponse.json({error:"Extension must be between 1 and 3650 days"},{status:400});
+      const {data:rest,error:restError}=await supabase.from("restaurants").select("id,renewal_on,status").eq("id",restaurantId).single();
+      if(restError||!rest)throw restError||new Error("Restaurant not found");
+      const now=new Date();
+      let base=now;
+      if(rest.renewal_on){const d=new Date(rest.renewal_on);if(!isNaN(d.getTime())&&d>base)base=d;}
+      base.setDate(base.getDate()+days);
+      const renewal=base.toISOString().slice(0,10);
+      const {error:updateError}=await supabase.from("restaurants").update({status:"Active",renewal_on:renewal}).eq("id",restaurantId);
+      if(updateError)throw updateError;
+      return NextResponse.json({success:true,status:"Active",restaurant_id:restaurantId,renewal_on:renewal,days_added:days});
+    }
     if(action==="reject"){
       // Persist only the status so this endpoint remains compatible with databases
       // where the optional review metadata columns have not been migrated yet.

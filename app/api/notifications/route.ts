@@ -1,0 +1,5 @@
+import { NextResponse } from "next/server";
+import { requireUser } from "@/lib/serverAuth";
+function fail(e:any){return NextResponse.json({error:e?.message||"Server error"},{status:Number(e?.status)||500});}
+export async function GET(request:Request){try{const {supabase,user}=await requireUser(request);const rid=new URL(request.url).searchParams.get("restaurant_id");let q=supabase.from("app_notifications").select("*").eq("user_id",user.id).is("read_at",null).order("created_at",{ascending:false});if(rid)q=q.eq("restaurant_id",rid);const {data,error}=await q; if(error)throw error;return NextResponse.json({notifications:data||[]});}catch(e){return fail(e)}}
+export async function POST(request:Request){try{const {supabase,user}=await requireUser(request);const body=await request.json();const id=String(body.id||"");if(!id)return NextResponse.json({error:"Notification ID is required"},{status:400});const {data,error}=await supabase.from("app_notifications").update({read_at:new Date().toISOString()}).eq("id",id).eq("user_id",user.id).select().single();if(error)throw error;return NextResponse.json({success:true,notification:data});}catch(e){return fail(e)}}

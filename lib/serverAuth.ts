@@ -27,7 +27,9 @@ export async function requireUser(
     ?.match(/^Bearer\s+(.+)$/i)?.[1];
 
   if (!token) {
-    throw Object.assign(new Error("Sign in required"), { status: 401 });
+    throw Object.assign(new Error("Sign in required"), {
+      status: 401,
+    });
   }
 
   const supabase = getServerClient();
@@ -38,7 +40,9 @@ export async function requireUser(
   } = await supabase.auth.getUser(token);
 
   if (error || !user) {
-    throw Object.assign(new Error("Invalid session"), { status: 401 });
+    throw Object.assign(new Error("Invalid session"), {
+      status: 401,
+    });
   }
 
   return { supabase, user };
@@ -47,7 +51,10 @@ export async function requireUser(
 export async function requireAdmin(request: Request) {
   const { supabase, user } = await requireUser(request);
 
-  const { data, error } = await supabase
+  const {
+    data,
+    error,
+  } = await supabase
     .from("platform_admins")
     .select("user_id")
     .eq("user_id", user.id)
@@ -56,7 +63,9 @@ export async function requireAdmin(request: Request) {
   if (error || !data) {
     throw Object.assign(
       new Error("Platform admin access required"),
-      { status: 403 }
+      {
+        status: 403,
+      }
     );
   }
 
@@ -64,18 +73,16 @@ export async function requireAdmin(request: Request) {
 }
 
 /**
- * Checks whether the logged-in platform admin has permission
- * to access a specific Admin Console section.
+ * Require platform admin access and verify that the admin
+ * has the requested permission.
  *
- * Expected permissions are stored in platform_admins.permissions.
- *
- * Supported permission names:
- * - restaurants
- * - approvals
- * - pricing
- * - settings
- * - support
- * - admins
+ * Supported permissions:
+ * restaurants
+ * approvals
+ * pricing
+ * settings
+ * support
+ * admins
  */
 export async function requireAdminPermission(
   request: Request,
@@ -83,7 +90,10 @@ export async function requireAdminPermission(
 ) {
   const { supabase, user } = await requireUser(request);
 
-  const { data: admin, error } = await supabase
+  const {
+    data: admin,
+    error,
+  } = await supabase
     .from("platform_admins")
     .select("user_id, permissions")
     .eq("user_id", user.id)
@@ -92,53 +102,89 @@ export async function requireAdminPermission(
   if (error || !admin) {
     throw Object.assign(
       new Error("Platform admin access required"),
-      { status: 403 }
+      {
+        status: 403,
+      }
     );
   }
 
-  // If permissions are not configured, preserve existing admin access.
+  /*
+   * If permissions are not configured for an existing admin,
+   * preserve existing full-admin access.
+   */
   if (!admin.permissions) {
-    return { supabase, user, admin };
+    return {
+      supabase,
+      user,
+      admin,
+    };
   }
 
   let permissions: string[] = [];
 
+  /*
+   * JSON/array format:
+   * ["restaurants","support","settings"]
+   */
   if (Array.isArray(admin.permissions)) {
     permissions = admin.permissions.map((value: unknown) =>
-      String(value).toLowerCase()
+      String(value).trim().toLowerCase()
     );
-  } else if (typeof admin.permissions === "string") {
+  }
+
+  /*
+   * String format:
+   * ["restaurants","support"]
+   *
+   * or:
+   * restaurants,support,settings
+   */
+  else if (typeof admin.permissions === "string") {
     try {
       const parsed = JSON.parse(admin.permissions);
 
       if (Array.isArray(parsed)) {
         permissions = parsed.map((value: unknown) =>
-          String(value).toLowerCase()
+          String(value).trim().toLowerCase()
         );
       } else {
         permissions = admin.permissions
           .split(",")
-          .map((value: string) => value.trim().toLowerCase())
+          .map((value: string) =>
+            value.trim().toLowerCase()
+          )
           .filter(Boolean);
       }
     } catch {
       permissions = admin.permissions
         .split(",")
-        .map((value: string) => value.trim().toLowerCase())
+        .map((value: string) =>
+          value.trim().toLowerCase()
+        )
         .filter(Boolean);
     }
   }
 
-  const requestedPermission = permission.toLowerCase();
+  const requestedPermission = String(permission)
+    .trim()
+    .toLowerCase();
 
   if (!permissions.includes(requestedPermission)) {
     throw Object.assign(
-      new Error(`Admin permission required: ${permission}`),
-      { status: 403 }
+      new Error(
+        `Admin permission required: ${permission}`
+      ),
+      {
+        status: 403,
+      }
     );
   }
 
-  return { supabase, user, admin };
+  return {
+    supabase,
+    user,
+    admin,
+  };
 }
 
 export async function requireRestaurantMember(
@@ -149,7 +195,12 @@ export async function requireRestaurantMember(
   const { supabase, user } = await requireUser(request);
 
   if (!restaurantId) {
-    throw Object.assign(new Error("Restaurant is required"), { status: 400 });
+    throw Object.assign(
+      new Error("Restaurant is required"),
+      {
+        status: 400,
+      }
+    );
   }
 
   const {
@@ -165,7 +216,9 @@ export async function requireRestaurantMember(
   if (error || !membership) {
     throw Object.assign(
       new Error("Restaurant access denied"),
-      { status: 403 }
+      {
+        status: 403,
+      }
     );
   }
 
@@ -177,9 +230,15 @@ export async function requireRestaurantMember(
   ) {
     throw Object.assign(
       new Error("Manager access required"),
-      { status: 403 }
+      {
+        status: 403,
+      }
     );
   }
 
-  return { supabase, user, membership };
+  return {
+    supabase,
+    user,
+    membership,
+  };
 }

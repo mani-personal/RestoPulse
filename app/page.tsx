@@ -45,6 +45,12 @@ import {
   Clock,
   X,
   ImageIcon,
+  Phone,
+  Mail,
+  MessageCircle,
+  LifeBuoy,
+  ShieldCheck,
+  CheckCircle2,
 } from "lucide-react";
 import {
   AreaChart,
@@ -85,7 +91,6 @@ type View =
   | "restaurants"
   | "approvals"
   | "pricing"
-  | "support"
   | "admins";
 
 type Dish = {
@@ -275,13 +280,13 @@ const navTenant: { id: View; label: string; icon: typeof LayoutDashboard; allowe
   { id: "settings", label: "Settings", icon: Settings, allowedRoles: ["owner"] },
 ];
 
+// Standalone "Support & Help Management" removed from sidebar; consolidated inside Settings
 const navPlatform: { id: View; label: string; icon: typeof Building2 }[] = [
   { id: "dashboard", label: "Overview", icon: LayoutDashboard },
   { id: "restaurants", label: "Restaurants", icon: Building2 },
   { id: "approvals", label: "Approvals", icon: BadgeCheck },
   { id: "pricing", label: "Pricing plans", icon: CreditCard },
   { id: "settings", label: "Settings", icon: Settings },
-  { id: "support", label: "Support & Help Management", icon: Send },
 ];
 
 export default function Home() {
@@ -409,10 +414,17 @@ export default function Home() {
   const [subscriptionUpiId, setSubscriptionUpiId] = useState<string>("admin-restopulse@upi");
 
   const [supportSections, setSupportSections] = useState<any[]>([]);
-  const [adminForm, setAdminForm] = useState({ name: "", email: "", password: "", permissions: { restaurants:true, approvals:true, pricing:true, settings:true, support:true, admins:false } });
+  const [adminForm, setAdminForm] = useState({ name: "", email: "", password: "", permissions: { restaurants: true, approvals: true, pricing: true, settings: true, admins: false } });
   const [editingAdminId, setEditingAdminId] = useState<string | null>(null);
   const [supportEditingId, setSupportEditingId] = useState<string | null>(null);
-  const [supportForm, setSupportForm] = useState({ title: "Support & Help", description: "Need help with RestoPulse? Contact our support team.", phone: "8122187039", whatsapp: "8122187039", email: "hosurwebservices@gmail.com", active: true });
+  const [supportForm, setSupportForm] = useState({
+    title: "Customer Support & Desk",
+    description: "Reach out to our 24/7 technical and operations assistance team for any billing or restaurant terminal inquiries.",
+    phone: "8122187039",
+    whatsapp: "8122187039",
+    email: "hosurwebservices@gmail.com",
+    active: true,
+  });
 
   const [activeInlinePlan, setActiveInlinePlan] = useState<Plan | null>(null);
   const [inlineRefId, setInlineRefId] = useState("");
@@ -597,7 +609,7 @@ export default function Home() {
       const json = await res.json();
       if (res.ok && Array.isArray(json?.admins)) setAdmins(json.admins);
       else if (!res.ok) throw new Error(json?.error || "Could not load admins");
-    } catch (e:any) { toast.error(e.message || "Could not load admins"); }
+    } catch (e: any) { toast.error(e.message || "Could not load admins"); }
   }, [authedFetch, isAdmin]);
 
   const fetchRealApprovals = useCallback(async () => {
@@ -642,86 +654,362 @@ export default function Home() {
       if (!res.ok) throw new Error(json.error || "Could not save support section");
       setSupportSections(json.sections || []);
       setSupportEditingId(null);
-      setSupportForm({ title: "Support & Help", description: "Need help with RestoPulse? Contact our support team.", phone: "8122187039", whatsapp: "8122187039", email: "hosurwebservices@gmail.com", active: true });
-      toast.success("Support section saved");
-    } catch (e:any) { toast.error(e.message || "Could not save support section"); }
+      setSupportForm({
+        title: "Customer Support & Desk",
+        description: "Reach out to our 24/7 technical and operations assistance team for any billing or restaurant terminal inquiries.",
+        phone: "8122187039",
+        whatsapp: "8122187039",
+        email: "hosurwebservices@gmail.com",
+        active: true
+      });
+      toast.success("Support details updated successfully");
+    } catch (e: any) { toast.error(e.message || "Could not save support section"); }
   };
 
-  const deleteSupportSection = async (id:string) => {
-    if (!confirm("Delete this support section?")) return;
+  const deleteSupportSection = async (id: string) => {
+    if (!confirm("Are you sure you want to remove this support channel?")) return;
     try {
       const res = await authedFetch(`/api/support?id=${encodeURIComponent(id)}`, { method: "DELETE" });
       const json = await res.json();
       if (!res.ok) throw new Error(json.error || "Could not delete support section");
       setSupportSections(json.sections || []);
       if (supportEditingId === id) setSupportEditingId(null);
-      toast.success("Support section deleted");
-    } catch (e:any) { toast.error(e.message || "Could not delete support section"); }
+      toast.success("Support channel deleted");
+    } catch (e: any) { toast.error(e.message || "Could not delete support section"); }
   };
 
+  // ENHANCED ADMIN SETTINGS PANEL WITH COMPREHENSIVE SUPPORT & HELP STUDIO
   const AdminSettingsPanel = () => {
     return (
-      <div>
-        <div className="page-head">
+      <div className="space-y-6">
+        <div className="page-head flex flex-col sm:flex-row sm:justify-between sm:items-center gap-3">
           <div>
-            <div className="eyebrow">PLATFORM SETTINGS</div>
+            <div className="eyebrow">PLATFORM CONFIGURATION</div>
             <h1>Admin Settings</h1>
-            <p>Manage platform-level payment, account, and subscription settings.</p>
+            <p>Manage platform billing, administrator credentials, system operations, and restaurant support desks.</p>
           </div>
+          <button className="quiet-btn text-xs font-semibold" onClick={() => { fetchSupportSections(); toast.success("Settings refreshed"); }}>
+            <RefreshCw size={14} /> Refresh
+          </button>
         </div>
-        <div className="settings-grid grid grid-cols-1 md:grid-cols-2 gap-6 mt-6">
-          <section className="panel settings-panel">
-            <h2>Platform payments</h2>
-            <p className="text-xs text-muted-foreground mt-1">UPI ID used by restaurants for subscription payments.</p>
-            <div className="settings-fields">
-              <label>Admin UPI ID<input value={adminUpiId} onChange={(e) => setAdminUpiId(e.target.value)} placeholder="merchant@upi" /></label>
-            </div>
-            <button className="primary-btn" onClick={saveAdminUpi} disabled={adminUpiBusy}>{adminUpiBusy ? "Saving…" : "Save Admin UPI ID"}</button>
-          </section>
-          <section className="panel settings-panel">
-            <h2>Admin account</h2>
-            <p className="text-xs text-muted-foreground mt-1">Signed in as the RestoPulse platform administrator.</p>
-            <div className="settings-fields">
-              <label>Email<input value={loginEmail} readOnly /></label>
-              <label>Role<input value="Platform Administrator" readOnly /></label>
-            </div>
-          </section>
-          <section className="panel settings-panel md:col-span-2">
-            <h2>Subscription operations</h2>
-            <div className="platform-stats mt-4">
-              <div><span>Active / Trial</span><strong>{restaurants.filter((r:any)=>["Active","Trial"].includes(r.status)).length}</strong></div>
-              <div><span>Expired</span><strong>{restaurants.filter((r:any)=>r.renewal && new Date(r.renewal) < new Date()).length}</strong></div>
-              <div><span>Pending approvals</span><strong>{subscriptionRequests.length + approvals.length}</strong></div>
-              <div><span>Revenue</span><strong>{money(subscriptionHistory.filter((x:any)=>x.status === "Approved").reduce((n:number,x:any)=>n+Number(x.amount||0),0))}</strong></div>
-            </div>
-          </section>
-          <section className="panel settings-panel md:col-span-2">
-            <div className="flex items-start justify-between gap-3">
+
+        {/* Top Cards: Payments & Account */}
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+          <section className="panel p-6 border rounded-2xl bg-card space-y-4 shadow-sm">
+            <div className="flex items-center gap-3">
+              <span className="w-10 h-10 rounded-xl bg-amber-500/10 text-amber-500 flex items-center justify-center">
+                <Wallet size={20} />
+              </span>
               <div>
-                <h2>Support & Help Management</h2>
-                <p className="text-xs text-muted-foreground mt-1">Manage the support information displayed to restaurant users under their profile menu.</p>
+                <h2 className="text-base font-bold text-foreground">Platform Payment UPI</h2>
+                <p className="text-xs text-muted-foreground">UPI ID displayed to restaurant owners for subscription upgrades.</p>
               </div>
             </div>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mt-4">
-              <label>Title<input value={supportForm.title} onChange={e=>setSupportForm({...supportForm,title:e.target.value})}/></label>
-              <label>Email<input type="email" value={supportForm.email} onChange={e=>setSupportForm({...supportForm,email:e.target.value})}/></label>
-              <label>Call mobile number<input value={supportForm.phone} onChange={e=>setSupportForm({...supportForm,phone:e.target.value})}/></label>
-              <label>WhatsApp mobile number<input value={supportForm.whatsapp} onChange={e=>setSupportForm({...supportForm,whatsapp:e.target.value})}/></label>
-              <label className="md:col-span-2">Description<textarea value={supportForm.description} onChange={e=>setSupportForm({...supportForm,description:e.target.value})} className="w-full min-h-20 border rounded-lg p-2 bg-background text-xs"/></label>
+            <div className="space-y-2">
+              <label className="text-xs font-semibold text-muted-foreground block">Admin UPI Identifier</label>
+              <div className="flex gap-2">
+                <input
+                  value={adminUpiId}
+                  onChange={(e) => setAdminUpiId(e.target.value)}
+                  placeholder="merchant@upi"
+                  className="w-full p-2.5 border rounded-xl bg-background text-xs font-mono"
+                />
+                <button
+                  className="primary-btn shrink-0 text-xs font-bold px-4"
+                  onClick={saveAdminUpi}
+                  disabled={adminUpiBusy}
+                >
+                  {adminUpiBusy ? "Saving…" : "Save UPI"}
+                </button>
+              </div>
             </div>
-            <div className="flex gap-2 mt-3">
-              <button className="primary-btn" onClick={saveSupportSection}>{supportEditingId ? "Update support section" : "Add support section"}</button>
-              {supportEditingId && <button className="quiet-btn" onClick={()=>{setSupportEditingId(null);setSupportForm({ title: "Support & Help", description: "Need help with RestoPulse? Contact our support team.", phone: "8122187039", whatsapp: "8122187039", email: "hosurwebservices@gmail.com", active: true });}}>Cancel edit</button>}
+          </section>
+
+          <section className="panel p-6 border rounded-2xl bg-card space-y-4 shadow-sm">
+            <div className="flex items-center gap-3">
+              <span className="w-10 h-10 rounded-xl bg-indigo-500/10 text-indigo-500 flex items-center justify-center">
+                <ShieldCheck size={20} />
+              </span>
+              <div>
+                <h2 className="text-base font-bold text-foreground">Admin Account</h2>
+                <p className="text-xs text-muted-foreground">Authenticated master platform credentials and authorization.</p>
+              </div>
             </div>
-            <div className="mt-5 space-y-2">
-              {supportSections.map((section:any)=><div key={section.id} className="flex flex-col md:flex-row md:items-center md:justify-between gap-3 border rounded-xl p-3">
-                <div><b>{section.title}</b><p className="text-xs text-muted-foreground">{section.phone} · {section.email}</p></div>
-                <div className="flex gap-2"><button className="quiet-btn text-xs" onClick={()=>{setSupportEditingId(section.id);setSupportForm({...section,phone:section.phone||"",whatsapp:section.whatsapp||"",email:section.email||"",description:section.description||""});}}>Edit</button><button className="quiet-btn text-xs text-red-600" onClick={()=>deleteSupportSection(section.id)}>Delete</button></div>
-              </div>)}
-              {!supportSections.length && <div className="text-xs text-muted-foreground py-2">No support sections configured.</div>}
+            <div className="grid grid-cols-2 gap-3 text-xs">
+              <div className="p-3 border rounded-xl bg-secondary/20">
+                <span className="text-muted-foreground block text-[11px]">Signed In Email</span>
+                <b className="truncate block font-mono mt-0.5">{loginEmail}</b>
+              </div>
+              <div className="p-3 border rounded-xl bg-secondary/20">
+                <span className="text-muted-foreground block text-[11px]">System Role</span>
+                <b className="text-indigo-600 block mt-0.5">Platform Administrator</b>
+              </div>
             </div>
           </section>
         </div>
+
+        {/* Subscription Operations Stats */}
+        <section className="panel p-6 border rounded-2xl bg-card space-y-4 shadow-sm">
+          <div className="flex justify-between items-center pb-2 border-b">
+            <div>
+              <h2 className="text-base font-bold">Subscription Operations Status</h2>
+              <p className="text-xs text-muted-foreground">High-level financial and onboarding lifecycle summary.</p>
+            </div>
+          </div>
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+            <div className="p-3.5 border rounded-xl bg-background">
+              <span className="text-[11px] text-muted-foreground block">Active / Trial Workspaces</span>
+              <strong className="text-xl text-emerald-600 mt-1 block">
+                {restaurants.filter((r: any) => ["Active", "Trial"].includes(r.status)).length}
+              </strong>
+            </div>
+            <div className="p-3.5 border rounded-xl bg-background">
+              <span className="text-[11px] text-muted-foreground block">Expired Subscriptions</span>
+              <strong className="text-xl text-rose-600 mt-1 block">
+                {restaurants.filter((r: any) => r.renewal && new Date(r.renewal) < new Date()).length}
+              </strong>
+            </div>
+            <div className="p-3.5 border rounded-xl bg-background">
+              <span className="text-[11px] text-muted-foreground block">Pending Pipeline Verifications</span>
+              <strong className="text-xl text-amber-600 mt-1 block">
+                {subscriptionRequests.length + approvals.length}
+              </strong>
+            </div>
+            <div className="p-3.5 border rounded-xl bg-background">
+              <span className="text-[11px] text-muted-foreground block">Total Verified Revenue</span>
+              <strong className="text-xl text-foreground mt-1 block">
+                {money(subscriptionHistory.filter((x: any) => x.status === "Approved").reduce((n: number, x: any) => n + Number(x.amount || 0), 0))}
+              </strong>
+            </div>
+          </div>
+        </section>
+
+        {/* ENHANCED SUPPORT & HELP MANAGEMENT STUDIO */}
+        <section className="panel p-6 border rounded-2xl bg-card space-y-6 shadow-sm">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between pb-4 border-b gap-3">
+            <div className="flex items-center gap-3">
+              <span className="w-10 h-10 rounded-xl bg-emerald-500/10 text-emerald-600 flex items-center justify-center">
+                <LifeBuoy size={22} />
+              </span>
+              <div>
+                <h2 className="text-base font-bold text-foreground">Support & Help Desk Management</h2>
+                <p className="text-xs text-muted-foreground">Configure the contact methods (Phone, WhatsApp, Email) shown to all restaurant owners under their Support modal.</p>
+              </div>
+            </div>
+            <span className="px-3 py-1 rounded-full text-xs font-bold bg-secondary text-secondary-foreground self-start sm:self-auto">
+              {supportSections.length} Channel(s) Configured
+            </span>
+          </div>
+
+          <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
+            {/* Editor Form Column */}
+            <div className="lg:col-span-7 space-y-4">
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-bold uppercase tracking-wider text-muted-foreground">
+                  {supportEditingId ? "Edit Support Channel" : "Configure Channel Details"}
+                </span>
+                {supportEditingId && (
+                  <span className="text-[11px] font-bold text-amber-500 bg-amber-500/10 px-2 py-0.5 rounded-md">
+                    Editing Mode
+                  </span>
+                )}
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
+                <label className="block space-y-1 sm:col-span-2">
+                  <span className="font-semibold text-muted-foreground">Desk / Channel Title</span>
+                  <input
+                    value={supportForm.title}
+                    onChange={(e) => setSupportForm({ ...supportForm, title: e.target.value })}
+                    placeholder="e.g. 24/7 Operations & Helpdesk"
+                    className="w-full p-2.5 border rounded-xl bg-background font-medium"
+                  />
+                </label>
+
+                <label className="block space-y-1">
+                  <span className="font-semibold text-muted-foreground flex items-center gap-1.5">
+                    <Phone size={13} className="text-blue-500" /> Calling Number
+                  </span>
+                  <input
+                    value={supportForm.phone}
+                    onChange={(e) => setSupportForm({ ...supportForm, phone: e.target.value })}
+                    placeholder="e.g. 8122187039"
+                    className="w-full p-2.5 border rounded-xl bg-background font-mono"
+                  />
+                </label>
+
+                <label className="block space-y-1">
+                  <span className="font-semibold text-muted-foreground flex items-center gap-1.5">
+                    <MessageCircle size={13} className="text-emerald-500" /> WhatsApp Number
+                  </span>
+                  <input
+                    value={supportForm.whatsapp}
+                    onChange={(e) => setSupportForm({ ...supportForm, whatsapp: e.target.value })}
+                    placeholder="e.g. 8122187039"
+                    className="w-full p-2.5 border rounded-xl bg-background font-mono"
+                  />
+                </label>
+
+                <label className="block space-y-1 sm:col-span-2">
+                  <span className="font-semibold text-muted-foreground flex items-center gap-1.5">
+                    <Mail size={13} className="text-indigo-500" /> Support Email Address
+                  </span>
+                  <input
+                    type="email"
+                    value={supportForm.email}
+                    onChange={(e) => setSupportForm({ ...supportForm, email: e.target.value })}
+                    placeholder="e.g. support@restopulse.com"
+                    className="w-full p-2.5 border rounded-xl bg-background font-mono"
+                  />
+                </label>
+
+                <label className="block space-y-1 sm:col-span-2">
+                  <span className="font-semibold text-muted-foreground">Support Description & Working Hours</span>
+                  <textarea
+                    value={supportForm.description}
+                    onChange={(e) => setSupportForm({ ...supportForm, description: e.target.value })}
+                    placeholder="Need assistance with RestoPulse? Our support engineers are available Monday to Saturday..."
+                    className="w-full min-h-24 p-2.5 border rounded-xl bg-background resize-none leading-relaxed"
+                  />
+                </label>
+              </div>
+
+              <div className="flex gap-2 pt-1">
+                <button
+                  className="primary-btn font-bold text-xs py-2.5 px-5 flex items-center gap-1.5 shadow-sm"
+                  onClick={saveSupportSection}
+                >
+                  <Save size={15} /> {supportEditingId ? "Update Support Channel" : "Save Support Channel"}
+                </button>
+                {supportEditingId && (
+                  <button
+                    className="quiet-btn text-xs py-2.5 px-4 font-semibold"
+                    onClick={() => {
+                      setSupportEditingId(null);
+                      setSupportForm({
+                        title: "Customer Support & Desk",
+                        description: "Reach out to our 24/7 technical and operations assistance team for any billing or restaurant terminal inquiries.",
+                        phone: "8122187039",
+                        whatsapp: "8122187039",
+                        email: "hosurwebservices@gmail.com",
+                        active: true,
+                      });
+                    }}
+                  >
+                    Cancel Edit
+                  </button>
+                )}
+              </div>
+            </div>
+
+            {/* Live Restaurant Preview Column */}
+            <div className="lg:col-span-5 space-y-3">
+              <span className="text-xs font-bold uppercase tracking-wider text-muted-foreground block">
+                Live Restaurant Preview
+              </span>
+              <div className="p-5 rounded-2xl border bg-slate-950 text-white space-y-3 shadow-md relative overflow-hidden">
+                <div className="absolute top-0 right-0 transform translate-x-2 -translate-y-2 w-24 h-24 bg-emerald-500/10 rounded-full blur-xl pointer-events-none" />
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <span className="w-2.5 h-2.5 rounded-full bg-emerald-400 animate-pulse" />
+                    <b className="text-sm font-bold truncate">{supportForm.title || "Support & Help"}</b>
+                  </div>
+                  <span className="text-[10px] uppercase font-bold text-slate-400 bg-slate-800 px-2 py-0.5 rounded-full">
+                    Modal View
+                  </span>
+                </div>
+
+                <p className="text-xs text-slate-300 leading-relaxed min-h-12">
+                  {supportForm.description || "Support guidelines and instructions for your restaurant team."}
+                </p>
+
+                <div className="grid grid-cols-3 gap-2 pt-2 border-t border-slate-800 text-xs">
+                  <div className="p-2 rounded-xl bg-blue-600/20 border border-blue-500/30 text-blue-400 text-center font-bold flex flex-col items-center gap-1">
+                    <Phone size={14} /> Call
+                  </div>
+                  <div className="p-2 rounded-xl bg-emerald-600/20 border border-emerald-500/30 text-emerald-400 text-center font-bold flex flex-col items-center gap-1">
+                    <MessageCircle size={14} /> WhatsApp
+                  </div>
+                  <div className="p-2 rounded-xl bg-indigo-600/20 border border-indigo-500/30 text-indigo-400 text-center font-bold flex flex-col items-center gap-1">
+                    <Mail size={14} /> Email
+                  </div>
+                </div>
+
+                <div className="pt-2 text-[11px] text-slate-400 space-y-1 font-mono">
+                  {supportForm.phone && <div>📞 {supportForm.phone}</div>}
+                  {supportForm.whatsapp && <div>💬 {supportForm.whatsapp}</div>}
+                  {supportForm.email && <div>✉️ {supportForm.email}</div>}
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Configured Support Desks List */}
+          <div className="space-y-3 pt-4 border-t">
+            <h3 className="text-xs font-bold uppercase tracking-wider text-muted-foreground">
+              Configured Contact Channels
+            </h3>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+              {supportSections.map((section: any) => (
+                <div
+                  key={section.id}
+                  className={`p-4 border rounded-2xl bg-card flex flex-col justify-between space-y-3 transition-all ${
+                    supportEditingId === section.id ? "border-amber-500 ring-2 ring-amber-500/20 bg-amber-500/5" : "hover:border-border/80"
+                  }`}
+                >
+                  <div>
+                    <div className="flex items-center justify-between gap-2">
+                      <b className="text-sm font-bold text-foreground">{section.title}</b>
+                      <span className="flex items-center gap-1 text-[10px] font-bold text-emerald-600 bg-emerald-500/10 px-2 py-0.5 rounded-full">
+                        <CheckCircle2 size={11} /> Active
+                      </span>
+                    </div>
+                    <p className="text-xs text-muted-foreground mt-1 line-clamp-2 leading-relaxed">
+                      {section.description}
+                    </p>
+                  </div>
+
+                  <div className="flex flex-wrap gap-2 text-[11px] font-mono text-muted-foreground pt-2 border-t">
+                    {section.phone && <span className="bg-secondary/40 px-2 py-0.5 rounded-md">📞 {section.phone}</span>}
+                    {section.whatsapp && <span className="bg-secondary/40 px-2 py-0.5 rounded-md">💬 {section.whatsapp}</span>}
+                    {section.email && <span className="bg-secondary/40 px-2 py-0.5 rounded-md truncate max-w-[200px]">✉️ {section.email}</span>}
+                  </div>
+
+                  <div className="flex justify-end gap-1.5 pt-1">
+                    <button
+                      className="quiet-btn text-xs py-1 px-2.5 flex items-center gap-1"
+                      onClick={() => {
+                        setSupportEditingId(section.id);
+                        setSupportForm({
+                          title: section.title || "",
+                          phone: section.phone || "",
+                          whatsapp: section.whatsapp || "",
+                          email: section.email || "",
+                          description: section.description || "",
+                          active: section.active !== false,
+                        });
+                        toast.info(`Editing "${section.title}"`);
+                      }}
+                    >
+                      <Pencil size={12} /> Edit
+                    </button>
+                    <button
+                      className="quiet-btn text-xs py-1 px-2.5 text-rose-600 hover:bg-rose-50 flex items-center gap-1"
+                      onClick={() => deleteSupportSection(section.id)}
+                    >
+                      <Trash2 size={12} /> Delete
+                    </button>
+                  </div>
+                </div>
+              ))}
+              {!supportSections.length && (
+                <div className="p-8 border rounded-2xl bg-muted/20 text-center text-xs text-muted-foreground md:col-span-2">
+                  No support channels saved yet. Use the form above to add phone, WhatsApp, and email contact information.
+                </div>
+              )}
+            </div>
+          </div>
+        </section>
       </div>
     );
   };
@@ -781,7 +1069,7 @@ export default function Home() {
           const workspaces = wsRes.ok && Array.isArray(wsJson?.workspaces) ? wsJson.workspaces : [];
           setRestaurants(workspaces);
           const savedTenantId = localStorage.getItem("rp-active-tenant-id");
-          const target = workspaces.find((r:any) => r.id === savedTenantId) || workspaces[0];
+          const target = workspaces.find((r: any) => r.id === savedTenantId) || workspaces[0];
           if (target) {
             setTenantId(target.id);
             tenantIdRef.current = target.id;
@@ -864,22 +1152,22 @@ export default function Home() {
         db.from("employees").select("*").eq("restaurant_id", id).order("name"),
         db.from("daily_wages").select("*").eq("restaurant_id", id).order("wage_date", { ascending: false }),
       ]);
-      const salesJson = await salesRes.json().catch(() => ({sales: []}));
-      const inventoryJson = await inventoryRes.json().catch(() => ({items: [], transactions: []}));
-      if (salesRes.ok) setOrders((salesJson.sales || []).map((s:any) => ({
-        id:s.bill_no || s.id, time:new Date(s.placed_at).toLocaleTimeString("en-IN",{hour:"numeric",minute:"2-digit"}),
-        placedAt:s.placed_at, amount:Number(s.amount)||0, type:s.order_type, status:s.status, bill:s.receipt
+      const salesJson = await salesRes.json().catch(() => ({ sales: [] }));
+      const inventoryJson = await inventoryRes.json().catch(() => ({ items: [], transactions: [] }));
+      if (salesRes.ok) setOrders((salesJson.sales || []).map((s: any) => ({
+        id: s.bill_no || s.id, time: new Date(s.placed_at).toLocaleTimeString("en-IN", { hour: "numeric", minute: "2-digit" }),
+        placedAt: s.placed_at, amount: Number(s.amount) || 0, type: s.order_type, status: s.status, bill: s.receipt
       })));
       if (inventoryRes.ok) {
-        setInventoryList((inventoryJson.items || []).map((x:any)=>({id:x.id,name:x.name,category:x.category,onHand:Number(x.on_hand),unit:x.unit,reorderLevel:Number(x.reorder_level),cost:Number(x.cost||0)})));
+        setInventoryList((inventoryJson.items || []).map((x: any) => ({ id: x.id, name: x.name, category: x.category, onHand: Number(x.on_hand), unit: x.unit, reorderLevel: Number(x.reorder_level), cost: Number(x.cost || 0) })));
         setInventoryTransactions(inventoryJson.transactions || []);
       }
-      if (!menuRes.error) setDishes((menuRes.data || []).map((x:any)=>({id:x.id,name:x.name,category:x.category,price:Number(x.price),cost:Number(x.cost),stock:x.available,emoji:x.emoji,diet:x.diet,time:x.prep_minutes,imageUrl:x.image_url})));
-      if (!expensesRes.error) setExpenses((expensesRes.data || []).map((x:any)=>({id:x.id,name:x.name,category:x.category,vendor:x.vendor,amount:Number(x.amount),date:x.incurred_on,supplierId:x.supplier_id})));
-      if (!supplierRes.error) setSuppliers((supplierRes.data || []).map((x:any)=>({id:x.id,name:x.name,contact:x.contact_name,phone:x.phone,email:x.email})));
-      if (!paymentRes.error) setSupplierPayments((paymentRes.data || []).map((x:any)=>({id:x.id,supplierId:x.supplier_id,amount:Number(x.amount),date:x.paid_on,method:x.method,note:x.note})));
-      if (!staffRes.error) setStaff((staffRes.data || []).map((x:any)=>({id:x.id,name:x.name,role:x.role,initial:x.name.slice(0,2).toUpperCase(),shift:x.shift,payType:x.pay_type||"Daily",monthlySalary:Number(x.monthly_salary||0),weeklySalary:Number(x.weekly_salary||0),dailyRate:Number(x.daily_rate||0),email:x.email,phone:x.phone,active:x.active})));
-      if (!wagesRes.error) setWages((wagesRes.data || []).map((x:any)=>({id:x.id,staffId:x.employee_id,date:x.wage_date,amount:Number(x.amount),status:x.status,note:x.note})));
+      if (!menuRes.error) setDishes((menuRes.data || []).map((x: any) => ({ id: x.id, name: x.name, category: x.category, price: Number(x.price), cost: Number(x.cost), stock: x.available, emoji: x.emoji, diet: x.diet, time: x.prep_minutes, imageUrl: x.image_url })));
+      if (!expensesRes.error) setExpenses((expensesRes.data || []).map((x: any) => ({ id: x.id, name: x.name, category: x.category, vendor: x.vendor, amount: Number(x.amount), date: x.incurred_on, supplierId: x.supplier_id })));
+      if (!supplierRes.error) setSuppliers((supplierRes.data || []).map((x: any) => ({ id: x.id, name: x.name, contact: x.contact_name, phone: x.phone, email: x.email })));
+      if (!paymentRes.error) setSupplierPayments((paymentRes.data || []).map((x: any) => ({ id: x.id, supplierId: x.supplier_id, amount: Number(x.amount), date: x.paid_on, method: x.method, note: x.note })));
+      if (!staffRes.error) setStaff((staffRes.data || []).map((x: any) => ({ id: x.id, name: x.name, role: x.role, initial: x.name.slice(0, 2).toUpperCase(), shift: x.shift, payType: x.pay_type || "Daily", monthlySalary: Number(x.monthly_salary || 0), weeklySalary: Number(x.weekly_salary || 0), dailyRate: Number(x.daily_rate || 0), email: x.email, phone: x.phone, active: x.active })));
+      if (!wagesRes.error) setWages((wagesRes.data || []).map((x: any) => ({ id: x.id, staffId: x.employee_id, date: x.wage_date, amount: Number(x.amount), status: x.status, note: x.note })));
     } catch (e) {
       console.error("Restaurant data load failed", e);
       toast.error("Some restaurant data could not be loaded.");
@@ -892,26 +1180,26 @@ export default function Home() {
 
   useEffect(() => {
     if (!authUser || !db) return;
-    const channels:any[] = [];
+    const channels: any[] = [];
     const refreshRestaurant = () => { if (tenantIdRef.current && !isAdmin) loadRestaurantData(tenantIdRef.current); syncLiveSubscriptionStatus(); };
     if (tenantId && !isAdmin) {
       const filter = `restaurant_id=eq.${tenantId}`;
-      ["sales","inventory_items","inventory_transactions","expenses","employees","daily_wages","suppliers","supplier_payments"].forEach((table) => {
+      ["sales", "inventory_items", "inventory_transactions", "expenses", "employees", "daily_wages", "suppliers", "supplier_payments"].forEach((table) => {
         channels.push(db.channel(`rp-${table}-${tenantId}-${Math.random()}`)
-          .on("postgres_changes",{event:"*",schema:"public",table,filter},refreshRestaurant).subscribe());
+          .on("postgres_changes", { event: "*", schema: "public", table, filter }, refreshRestaurant).subscribe());
       });
       channels.push(db.channel(`rp-sub-${tenantId}-${Math.random()}`)
-        .on("postgres_changes",{event:"*",schema:"public",table:"subscription_requests",filter},refreshRestaurant).subscribe());
+        .on("postgres_changes", { event: "*", schema: "public", table: "subscription_requests", filter }, refreshRestaurant).subscribe());
     }
     if (isAdmin) {
       channels.push(db.channel(`rp-admin-restaurants-${Math.random()}`)
-        .on("postgres_changes",{event:"*",schema:"public",table:"restaurants"},()=>{fetchAllRestaurants();fetchRealApprovals();fetchAdmins();syncLiveSubscriptionStatus();}).subscribe());
+        .on("postgres_changes", { event: "*", schema: "public", table: "restaurants" }, () => { fetchAllRestaurants(); fetchRealApprovals(); fetchAdmins(); syncLiveSubscriptionStatus(); }).subscribe());
       channels.push(db.channel(`rp-admin-subscriptions-${Math.random()}`)
-        .on("postgres_changes",{event:"*",schema:"public",table:"subscription_requests"},()=>{fetchSubscriptionRequests();syncLiveSubscriptionStatus();}).subscribe());
+        .on("postgres_changes", { event: "*", schema: "public", table: "subscription_requests" }, () => { fetchSubscriptionRequests(); syncLiveSubscriptionStatus(); }).subscribe());
       channels.push(db.channel(`rp-admin-settings-${Math.random()}`)
-        .on("postgres_changes",{event:"*",schema:"public",table:"settings"},()=>{fetchLivePlans();}).subscribe());
+        .on("postgres_changes", { event: "*", schema: "public", table: "settings" }, () => { fetchLivePlans(); }).subscribe());
     }
-    return () => { channels.forEach(ch => db.removeChannel(ch)); };
+    return () => { channels.forEach((ch) => db.removeChannel(ch)); };
   }, [authUser, tenantId, isAdmin, db, loadRestaurantData, syncLiveSubscriptionStatus, fetchAllRestaurants, fetchAdmins, fetchRealApprovals, fetchSubscriptionRequests, fetchLivePlans]);
 
   const saveInventoryToStorage = (updated: InventoryItem[]) => setInventoryList(updated);
@@ -942,7 +1230,7 @@ export default function Home() {
       setModal(null); setEditingInvId(null);
       setInvForm({ name: "", category: "Grains", onHand: "", unit: "bags", reorderLevel: "5" });
       toast.success(editingInvId ? "Inventory item updated successfully!" : "Inventory item added successfully!");
-    } catch (e:any) { toast.error(e.message || "Could not save inventory item"); }
+    } catch (e: any) { toast.error(e.message || "Could not save inventory item"); }
   };
 
   const handleDeleteInventory = async (id: string | number) => {
@@ -953,20 +1241,30 @@ export default function Home() {
       if (!res.ok) throw new Error(json.error || "Could not delete inventory item");
       await loadRestaurantData(tenantId);
       toast.success("Inventory item deleted");
-    } catch (e:any) { toast.error(e.message || "Could not delete inventory item"); }
+    } catch (e: any) { toast.error(e.message || "Could not delete inventory item"); }
   };
 
   const adjustInventory = async (item: InventoryItem, delta: number, type: string, note = "") => {
     if (!tenantId || item.onHand + delta < 0) { toast.error("Stock cannot go below zero"); return false; }
     try {
-      const res=await authedFetch("/api/inventory",{method:"POST",body:JSON.stringify({
-        restaurant_id:tenantId,id:item.id,name:item.name,category:item.category,on_hand:item.onHand+delta,unit:item.unit,
-        reorder_level:item.reorderLevel,transaction_type:type,note
-      })});
-      const json=await res.json(); if(!res.ok)throw new Error(json.error||"Could not update stock");
+      const res = await authedFetch("/api/inventory", {
+        method: "POST",
+        body: JSON.stringify({
+          restaurant_id: tenantId,
+          id: item.id,
+          name: item.name,
+          category: item.category,
+          on_hand: item.onHand + delta,
+          unit: item.unit,
+          reorder_level: item.reorderLevel,
+          transaction_type: type,
+          note,
+        })
+      });
+      const json = await res.json(); if (!res.ok) throw new Error(json.error || "Could not update stock");
       await loadRestaurantData(tenantId); toast.success(`${type}: ${item.name}`);
       return true;
-    }catch(e:any){toast.error(e.message||"Could not update stock"); return false;}
+    } catch (e: any) { toast.error(e.message || "Could not update stock"); return false; }
   };
 
   const openStockAdjustment = (item: InventoryItem, mode: "add" | "reduce") => {
@@ -1026,7 +1324,6 @@ export default function Home() {
     setModal("inventory");
   };
 
-  // Image upload handler for Dishes
   const handleDishImageChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -1078,11 +1375,11 @@ export default function Home() {
   }, [dark]);
 
   useEffect(() => {
-    try { const raw=localStorage.getItem(notificationStorageKey); setReadNotificationKeys(raw ? JSON.parse(raw) : []); } catch { setReadNotificationKeys([]); }
+    try { const raw = localStorage.getItem(notificationStorageKey); setReadNotificationKeys(raw ? JSON.parse(raw) : []); } catch { setReadNotificationKeys([]); }
   }, [notificationStorageKey]);
 
-  const markNotificationRead = (key:string) => {
-    const next=Array.from(new Set([...readNotificationKeys,key]));
+  const markNotificationRead = (key: string) => {
+    const next = Array.from(new Set([...readNotificationKeys, key]));
     setReadNotificationKeys(next);
     try { localStorage.setItem(notificationStorageKey, JSON.stringify(next)); } catch {}
   };
@@ -1206,16 +1503,16 @@ export default function Home() {
       if (!adminForm.name.trim() || !adminForm.email.trim()) { toast.error("Admin name and email are required"); return; }
       try {
         const method = editingAdminId ? "PATCH" : "POST";
-        const payload:any = { name: adminForm.name.trim(), email: adminForm.email.trim(), permissions: adminForm.permissions };
+        const payload: any = { name: adminForm.name.trim(), email: adminForm.email.trim(), permissions: adminForm.permissions };
         if (adminForm.password.trim()) payload.password = adminForm.password.trim();
         if (editingAdminId) payload.id = editingAdminId;
-        const res = await authedFetch("/api/admin/admins", { method, headers:{"Content-Type":"application/json"}, body:JSON.stringify(payload) });
+        const res = await authedFetch("/api/admin/admins", { method, headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) });
         const json = await res.json();
         if (!res.ok) throw new Error(json.error || "Could not save admin");
-        setModal(null); setEditingAdminId(null); setAdminForm({name:"",email:"",password:"",permissions:{restaurants:true,approvals:true,pricing:true,settings:true,support:true,admins:false}});
+        setModal(null); setEditingAdminId(null); setAdminForm({ name: "", email: "", password: "", permissions: { restaurants: true, approvals: true, pricing: true, settings: true, admins: false } });
         await fetchAdmins();
         toast.success(editingAdminId ? "Admin updated" : (json.temporary_password ? `Admin added. Temporary password: ${json.temporary_password}` : "Admin added to the existing login"));
-      } catch(e:any) { toast.error(e.message || "Could not save admin"); }
+      } catch (e: any) { toast.error(e.message || "Could not save admin"); }
       return;
     }
     if (modal === "restaurant") {
@@ -1223,19 +1520,19 @@ export default function Home() {
         toast.error("Restaurant, owner, email and phone are required"); return;
       }
       try {
-        const method=editing!==null?"PATCH":"POST";
-        const body:any={id:editing||undefined,name:form.name.trim(),owner:form.owner.trim(),email:form.email.trim(),phone:form.phone.trim(),city:form.city||""};
-        if(method==="POST") body.password=form.password||"";
-        else { body.owner_name=form.owner.trim(); body.owner_email=form.email.trim(); body.owner_phone=form.phone.trim(); body.address=form.address||""; body.plan=form.plan||"Free Trial"; body.status=form.status||"Active"; body.renewal_on=form.renewal||null; }
-        const res=await authedFetch("/api/admin/restaurants",{method,body:JSON.stringify(body)});
-        const json=await res.json(); if(!res.ok)throw new Error(json.error||"Could not save restaurant");
+        const method = editing !== null ? "PATCH" : "POST";
+        const body: any = { id: editing || undefined, name: form.name.trim(), owner: form.owner.trim(), email: form.email.trim(), phone: form.phone.trim(), city: form.city || "" };
+        if (method === "POST") body.password = form.password || "";
+        else { body.owner_name = form.owner.trim(); body.owner_email = form.email.trim(); body.owner_phone = form.phone.trim(); body.address = form.address || ""; body.plan = form.plan || "Free Trial"; body.status = form.status || "Active"; body.renewal_on = form.renewal || null; }
+        const res = await authedFetch("/api/admin/restaurants", { method, body: JSON.stringify(body) });
+        const json = await res.json(); if (!res.ok) throw new Error(json.error || "Could not save restaurant");
         setModal(null); setEditing(null); await fetchAllRestaurants();
         if (method === "POST" && json.temporary_password) {
           toast.success(`Restaurant created. Temporary password: ${json.temporary_password}`, { duration: 10000 });
         } else {
-          toast.success(editing!==null ? "Restaurant updated" : (json.reused_existing_login ? "Restaurant created and linked to the existing owner login" : "Restaurant created"));
+          toast.success(editing !== null ? "Restaurant updated" : (json.reused_existing_login ? "Restaurant created and linked to the existing owner login" : "Restaurant created"));
         }
-      } catch(e:any){toast.error(e.message||"Could not save restaurant");}
+      } catch (e: any) { toast.error(e.message || "Could not save restaurant"); }
       return;
     }
     if (modal === "extend") {
@@ -1253,7 +1550,7 @@ export default function Home() {
         setModal(null); setEditing(null);
         await fetchAllRestaurants();
         toast.success(`Subscription extended until ${json.renewal_on || "the new renewal date"}.`);
-      } catch (e:any) { toast.error(e.message || "Could not extend subscription"); }
+      } catch (e: any) { toast.error(e.message || "Could not extend subscription"); }
       return;
     }
     if (modal === "plan") {
@@ -1290,16 +1587,16 @@ export default function Home() {
       }
       const payload = {
         restaurant_id: tenantId, name: form.name.trim(), category: form.category || "Mains",
-        price: Number(form.price), cost: Number(form.cost) || 0, available: editing ? (dishes.find(x=>x.id===editing)?.stock ?? true) : true,
+        price: Number(form.price), cost: Number(form.cost) || 0, available: editing ? (dishes.find(x => x.id === editing)?.stock ?? true) : true,
         emoji: form.emoji || "🍽", image_url: form.imageUrl?.trim() || null, diet: form.diet || "", prep_minutes: Number(form.time) || 15
       };
       const result = editing
         ? await db.from("menu_items").update(payload).eq("restaurant_id", tenantId).eq("id", editing).select().single()
         : await db.from("menu_items").insert(payload).select().single();
       if (result.error) { toast.error(result.error.message); return; }
-      const x:any=result.data;
-      const d: Dish={id:x.id,name:x.name,category:x.category,price:Number(x.price),cost:Number(x.cost),stock:x.available,emoji:x.emoji,diet:x.diet,time:x.prep_minutes,imageUrl:x.image_url};
-      setDishes(old=>editing?old.map(v=>v.id===editing?d:v):[d,...old]);
+      const x: any = result.data;
+      const d: Dish = { id: x.id, name: x.name, category: x.category, price: Number(x.price), cost: Number(x.cost), stock: x.available, emoji: x.emoji, diet: x.diet, time: x.prep_minutes, imageUrl: x.image_url };
+      setDishes(old => editing ? old.map(v => v.id === editing ? d : v) : [d, ...old]);
       toast.success(editing ? "Dish updated successfully!" : "Dish added successfully!");
     }
     if (modal === "expense") {
@@ -1323,7 +1620,7 @@ export default function Home() {
         category: newExp.category, vendor: newExp.vendor, amount: newExp.amount, incurred_on: newExp.date
       }).select().single();
       if (error) { toast.error(error.message); return; }
-      setExpenses((old) => [{...newExp,id:data.id}, ...old]);
+      setExpenses((old) => [{ ...newExp, id: data.id }, ...old]);
       toast.success("Expense recorded");
     }
     if (modal === "supplier") {
@@ -1340,12 +1637,12 @@ export default function Home() {
         email: form.email || "",
       };
       if (!tenantId) return;
-      const payload={restaurant_id:tenantId,name:newSup.name,contact_name:newSup.contact,phone:newSup.phone,email:newSup.email};
-      const result=editing ? await db.from("suppliers").update(payload).eq("restaurant_id",tenantId).eq("id",String(editing)).select().single()
+      const payload = { restaurant_id: tenantId, name: newSup.name, contact_name: newSup.contact, phone: newSup.phone, email: newSup.email };
+      const result = editing ? await db.from("suppliers").update(payload).eq("restaurant_id", tenantId).eq("id", String(editing)).select().single()
         : await db.from("suppliers").insert(payload).select().single();
-      if(result.error){toast.error(result.error.message);return;}
-      const mapped={...newSup,id:result.data.id};
-      setSuppliers(old=>editing?old.map(x=>x.id===editing?mapped:x):[mapped,...old]);
+      if (result.error) { toast.error(result.error.message); return; }
+      const mapped = { ...newSup, id: result.data.id };
+      setSuppliers(old => editing ? old.map(x => x.id === editing ? mapped : x) : [mapped, ...old]);
       setSupplierDetail(mapped.id); toast.success(editing ? "Supplier updated" : "Supplier added");
     }
     if (modal === "payment") {
@@ -1362,11 +1659,11 @@ export default function Home() {
         note: form.note || "",
       };
       if (!tenantId) return;
-      const {data,error}=await db.from("supplier_payments").insert({
-        restaurant_id:tenantId,supplier_id:newPay.supplierId,amount:newPay.amount,paid_on:newPay.date,method:newPay.method,note:newPay.note
+      const { data, error } = await db.from("supplier_payments").insert({
+        restaurant_id: tenantId, supplier_id: newPay.supplierId, amount: newPay.amount, paid_on: newPay.date, method: newPay.method, note: newPay.note
       }).select().single();
-      if(error){toast.error(error.message);return;}
-      setSupplierPayments(old=>[{...newPay,id:data.id},...old]); toast.success("Payment recorded");
+      if (error) { toast.error(error.message); return; }
+      setSupplierPayments(old => [{ ...newPay, id: data.id }, ...old]); toast.success("Payment recorded");
     }
 
     if (modal === "employee") {
@@ -1394,15 +1691,15 @@ export default function Home() {
         active: form.active !== "false",
       };
       if (!tenantId) return;
-      const payload={restaurant_id:tenantId,name:person.name,role:person.role,shift:person.shift,daily_rate:person.dailyRate,pay_type:person.payType,monthly_salary:person.monthlySalary,weekly_salary:person.weeklySalary,email:person.email,phone:person.phone,active:person.active!==false};
-      const result=editing !== null ? await db.from("employees").update(payload).eq("restaurant_id",tenantId).eq("id",String(editing)).select().single()
+      const payload = { restaurant_id: tenantId, name: person.name, role: person.role, shift: person.shift, daily_rate: person.dailyRate, pay_type: person.payType, monthly_salary: person.monthlySalary, weekly_salary: person.weeklySalary, email: person.email, phone: person.phone, active: person.active !== false };
+      const result = editing !== null ? await db.from("employees").update(payload).eq("restaurant_id", tenantId).eq("id", String(editing)).select().single()
         : await db.from("employees").insert(payload).select().single();
-      if(result.error){toast.error(result.error.message);return;}
-      const mapped={...person,id:result.data.id}; setStaff(old=>editing!==null?old.map(x=>x.id===editing?mapped:x):[mapped,...old]);
+      if (result.error) { toast.error(result.error.message); return; }
+      const mapped = { ...person, id: result.data.id }; setStaff(old => editing !== null ? old.map(x => x.id === editing ? mapped : x) : [mapped, ...old]);
       if (form.email?.trim() && form.password?.trim()) {
-        const loginRes=await authedFetch("/api/employees",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({restaurant_id:tenantId,name:person.name,email:person.email,password:form.password,role:person.role})});
-        const loginJson=await loginRes.json();
-        if(!loginRes.ok) { toast.error(loginJson.error || "Employee saved, but login could not be created"); return; }
+        const loginRes = await authedFetch("/api/employees", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ restaurant_id: tenantId, name: person.name, email: person.email, password: form.password, role: person.role }) });
+        const loginJson = await loginRes.json();
+        if (!loginRes.ok) { toast.error(loginJson.error || "Employee saved, but login could not be created"); return; }
       }
       toast.success(editing !== null ? "Employee updated" : "Employee added");
     }
@@ -1410,8 +1707,8 @@ export default function Home() {
   };
 
   const handleDeletePlan = async (planId: number) => {
-    const target = plans.find(p=>p.id===planId);
-    if (target && restaurants.some((r:any)=>String(r.plan).toLowerCase()===target.name.toLowerCase())) {
+    const target = plans.find(p => p.id === planId);
+    if (target && restaurants.some((r: any) => String(r.plan).toLowerCase() === target.name.toLowerCase())) {
       toast.error("This plan is assigned to one or more restaurants. Deactivate or migrate them before removing it.");
       return;
     }
@@ -1443,18 +1740,18 @@ export default function Home() {
       type: orderType, table: orderType === "Dine-in" ? table : "", payment, status: "Paid",
     };
     try {
-      const res=await authedFetch("/api/sales",{method:"POST",body:JSON.stringify({restaurant_id:tenantId,placed_at:now.toISOString(),receipt:bill})});
-      const json=await res.json(); if(!res.ok)throw new Error(json.error||"Could not save sale");
-      const sale:Sale={id, time, placedAt:now.toISOString(), amount:total, type:orderType, status:"Paid", bill};
-      setReceipt(bill); setOrders(old=>[sale,...old]); setCart([]); setOrderDiscount(0);
+      const res = await authedFetch("/api/sales", { method: "POST", body: JSON.stringify({ restaurant_id: tenantId, placed_at: now.toISOString(), receipt: bill }) });
+      const json = await res.json(); if (!res.ok) throw new Error(json.error || "Could not save sale");
+      const sale: Sale = { id, time, placedAt: now.toISOString(), amount: total, type: orderType, status: "Paid", bill };
+      setReceipt(bill); setOrders(old => [sale, ...old]); setCart([]); setOrderDiscount(0);
       toast.success("Payment complete · " + id);
-    } catch(e:any) { toast.error(e.message||"Sale could not be saved"); }
+    } catch (e: any) { toast.error(e.message || "Sale could not be saved"); }
   };
 
   const openStaff = (person: Staff) => {
     const today = new Date();
-    const monday = new Date(today); monday.setHours(0,0,0,0); monday.setDate(today.getDate() - ((today.getDay()+6)%7));
-    const sunday = new Date(monday); sunday.setDate(monday.getDate()+6);
+    const monday = new Date(today); monday.setHours(0, 0, 0, 0); monday.setDate(today.getDate() - ((today.getDay() + 6) % 7));
+    const sunday = new Date(monday); sunday.setDate(monday.getDate() + 6);
     setSelectedStaff(person);
     setWeeklyPaymentForm({ start: monday.toLocaleDateString("en-CA"), end: sunday.toLocaleDateString("en-CA") });
     setWageForm({
@@ -1535,7 +1832,7 @@ export default function Home() {
       });
 
       if (!res.ok) {
-        const failed = await res.clone().json().catch(()=>({error:"Failed to submit payment reference"}));
+        const failed = await res.clone().json().catch(() => ({ error: "Failed to submit payment reference" }));
         throw new Error(failed.error || "Failed to submit payment reference");
       }
 
@@ -1791,8 +2088,8 @@ export default function Home() {
   const nowForMetrics = liveDate;
   const activeRenewalTime = activeRenewalDate && activeRenewalDate !== "—" ? new Date(`${activeRenewalDate}T23:59:59`).getTime() : NaN;
   const subscriptionExpired = !isAdmin && Number.isFinite(activeRenewalTime) && activeRenewalTime < nowForMetrics.getTime();
-  const dayStart = new Date(nowForMetrics); dayStart.setHours(0,0,0,0);
-  const weekStart = new Date(dayStart); weekStart.setDate(weekStart.getDate() - ((weekStart.getDay()+6)%7));
+  const dayStart = new Date(nowForMetrics); dayStart.setHours(0, 0, 0, 0);
+  const weekStart = new Date(dayStart); weekStart.setDate(weekStart.getDate() - ((weekStart.getDay() + 6) % 7));
   const monthStart = new Date(nowForMetrics.getFullYear(), nowForMetrics.getMonth(), 1);
   const yesterdayStart = new Date(dayStart); yesterdayStart.setDate(yesterdayStart.getDate() - 1);
   const selectedStart = (() => {
@@ -1821,52 +2118,52 @@ export default function Home() {
   const selectedOrders = paidOrders.filter(o => inSelectedRange(o.placedAt));
   const selectedExpenses = expenses.filter(e => inSelectedRange(`${e.date}T12:00:00`));
   const selectedWages = wages.filter(w => w.status === "Paid" && inSelectedRange(`${w.date}T12:00:00`));
-  const netSales = selectedOrders.reduce((n,o)=>n+(Number(o.bill?.subtotal)||0)-(Number(o.bill?.discount)||0),0);
-  const totalExpenses = selectedExpenses.reduce((n,x)=>n+Number(x.amount||0),0);
-  const paidWages = selectedWages.reduce((n,x)=>n+Number(x.amount||0),0);
-  const salesBetween = (from:Date, to?:Date) => paidOrders.filter(o => { const d = new Date(o.placedAt); return d >= from && (!to || d < to); }).reduce((n,o)=>n+(Number(o.bill?.subtotal)||0)-(Number(o.bill?.discount)||0),0);
-  const todaySales=salesBetween(dayStart, new Date(dayStart.getTime()+86400000));
-  const weeklySales=salesBetween(weekStart, new Date(dayStart.getTime()+86400000));
-  const monthlySales=salesBetween(monthStart, new Date(dayStart.getTime()+86400000));
-  const lowStockCount=inventoryList.filter(x=>x.onHand>0&&x.onHand<=x.reorderLevel).length;
-  const outOfStockCount=inventoryList.filter(x=>x.onHand===0).length;
+  const netSales = selectedOrders.reduce((n, o) => n + (Number(o.bill?.subtotal) || 0) - (Number(o.bill?.discount) || 0), 0);
+  const totalExpenses = selectedExpenses.reduce((n, x) => n + Number(x.amount || 0), 0);
+  const paidWages = selectedWages.reduce((n, x) => n + Number(x.amount || 0), 0);
+  const salesBetween = (from: Date, to?: Date) => paidOrders.filter(o => { const d = new Date(o.placedAt); return d >= from && (!to || d < to); }).reduce((n, o) => n + (Number(o.bill?.subtotal) || 0) - (Number(o.bill?.discount) || 0), 0);
+  const todaySales = salesBetween(dayStart, new Date(dayStart.getTime() + 86400000));
+  const weeklySales = salesBetween(weekStart, new Date(dayStart.getTime() + 86400000));
+  const monthlySales = salesBetween(monthStart, new Date(dayStart.getTime() + 86400000));
+  const lowStockCount = inventoryList.filter(x => x.onHand > 0 && x.onHand <= x.reorderLevel).length;
+  const outOfStockCount = inventoryList.filter(x => x.onHand === 0).length;
   const restaurantNotifications = !isAdmin ? [
     ...(outOfStockCount > 0 ? [{ key: "out", title: `${outOfStockCount} item(s) out of stock`, detail: "Review inventory and restock immediately." }] : []),
     ...(lowStockCount > 0 ? [{ key: "low", title: `${lowStockCount} item(s) low in stock`, detail: "Inventory has reached the reorder level." }] : []),
     ...(wages.filter(w => w.status === "Unpaid").length > 0 ? [{ key: "wage", title: `${wages.filter(w => w.status === "Unpaid").length} unpaid wage record(s)`, detail: "Review employee payments." }] : []),
     ...(activeRenewalDate && activeRenewalDate !== "—" && new Date(activeRenewalDate).getTime() - nowForMetrics.getTime() <= 7 * 86400000 && new Date(activeRenewalDate).getTime() >= nowForMetrics.getTime() ? [{ key: "sub", title: "Subscription renewal is due soon", detail: `Renewal date: ${new Date(activeRenewalDate).toLocaleDateString("en-IN")}` }] : []),
   ] : [];
-  const visibleRestaurantNotifications = restaurantNotifications.filter((n:any) => !readNotificationKeys.includes(n.key));
+  const visibleRestaurantNotifications = restaurantNotifications.filter((n: any) => !readNotificationKeys.includes(n.key));
   const chartStart = new Date(selectedStart);
   const chartDays = Math.max(1, Math.min(31, Math.ceil((selectedEnd.getTime() - chartStart.getTime()) / 86400000)));
-  const dynamicChart=Array.from({length:chartDays},(_,idx)=>{
-    const d=new Date(chartStart); d.setDate(chartStart.getDate()+idx);
-    const next=new Date(d); next.setDate(d.getDate()+1);
+  const dynamicChart = Array.from({ length: chartDays }, (_, idx) => {
+    const d = new Date(chartStart); d.setDate(chartStart.getDate() + idx);
+    const next = new Date(d); next.setDate(d.getDate() + 1);
     return {
-      day:chartDays <= 7 ? d.toLocaleDateString("en-IN",{weekday:"short"}) : d.toLocaleDateString("en-IN",{day:"2-digit",month:"short"}),
-      revenue:paidOrders.filter(o=>{const x=new Date(o.placedAt);return x>=d&&x<next;}).reduce((n,o)=>n+Number(o.bill?.subtotal||0)-Number(o.bill?.discount||0),0),
-      expense:expenses.filter(e=>{const x=new Date(`${e.date}T12:00:00`);return x>=d&&x<next;}).reduce((n,e)=>n+Number(e.amount||0),0)
+      day: chartDays <= 7 ? d.toLocaleDateString("en-IN", { weekday: "short" }) : d.toLocaleDateString("en-IN", { day: "2-digit", month: "short" }),
+      revenue: paidOrders.filter(o => { const x = new Date(o.placedAt); return x >= d && x < next; }).reduce((n, o) => n + Number(o.bill?.subtotal || 0) - Number(o.bill?.discount || 0), 0),
+      expense: expenses.filter(e => { const x = new Date(`${e.date}T12:00:00`); return x >= d && x < next; }).reduce((n, e) => n + Number(e.amount || 0), 0)
     };
   });
 
-  const adminChart=Array.from({length:7},(_,idx)=>{
-    const d=new Date(dayStart); d.setDate(dayStart.getDate()-6+idx);
-    const next=new Date(d); next.setDate(d.getDate()+1);
-    return {day:d.toLocaleDateString("en-IN",{weekday:"short"}),revenue:subscriptionHistory.filter(x=>x.status==="Approved").filter(x=>{const t=new Date(x.reviewed_at||x.requested_at);return t>=d&&t<next;}).reduce((n,x)=>n+Number(x.amount||0),0),expense:0};
+  const adminChart = Array.from({ length: 7 }, (_, idx) => {
+    const d = new Date(dayStart); d.setDate(dayStart.getDate() - 6 + idx);
+    const next = new Date(d); next.setDate(d.getDate() + 1);
+    return { day: d.toLocaleDateString("en-IN", { weekday: "short" }), revenue: subscriptionHistory.filter(x => x.status === "Approved").filter(x => { const t = new Date(x.reviewed_at || x.requested_at); return t >= d && t < next; }).reduce((n, x) => n + Number(x.amount || 0), 0), expense: 0 };
   });
-  const subscriptionRevenue = subscriptionHistory.filter(x => x.status === "Approved").reduce((n,x)=>{
-    const amount=Number(x.amount||0); const fallback=plans.find(p=>p.name.toLowerCase()===String(x.plan||"").toLowerCase())?.price||0;
-    return n+(amount||fallback);
-  },0);
-  const activeSubscriptionCount = restaurants.filter((r:any)=>["Active","Trial"].includes(r.status) && r.renewal && new Date(r.renewal)>=nowForMetrics).length;
-  const expiredSubscriptionCount = restaurants.filter((r:any)=>r.renewal && new Date(r.renewal)<nowForMetrics).length;
+  const subscriptionRevenue = subscriptionHistory.filter(x => x.status === "Approved").reduce((n, x) => {
+    const amount = Number(x.amount || 0); const fallback = plans.find(p => p.name.toLowerCase() === String(x.plan || "").toLowerCase())?.price || 0;
+    return n + (amount || fallback);
+  }, 0);
+  const activeSubscriptionCount = restaurants.filter((r: any) => ["Active", "Trial"].includes(r.status) && r.renewal && new Date(r.renewal) >= nowForMetrics).length;
+  const expiredSubscriptionCount = restaurants.filter((r: any) => r.renewal && new Date(r.renewal) < nowForMetrics).length;
 
   const normalizedRole = (currentUserRole || "").toLowerCase();
   const isOwnerOrAdmin = normalizedRole === "owner" || normalizedRole === "admin" || !normalizedRole;
   
-  const currentAdminRecord = isAdmin ? admins.find((a:any)=>a.id===authUser) : null;
-  const currentAdminPermissions:any = currentAdminRecord?.permissions || {};
-  const visibleNavPlatform = isAdmin ? navPlatform.filter((item:any) => {
+  const currentAdminRecord = isAdmin ? admins.find((a: any) => a.id === authUser) : null;
+  const currentAdminPermissions: any = currentAdminRecord?.permissions || {};
+  const visibleNavPlatform = isAdmin ? navPlatform.filter((item: any) => {
     if (item.id === "dashboard") return true;
     if (currentAdminRecord && admins[0]?.id === authUser) return true;
     return currentAdminPermissions[item.id] === true;
@@ -2157,7 +2454,7 @@ export default function Home() {
                   </div>
                 ) : <div className="p-3 text-xs text-muted-foreground">No new platform notifications.</div>
               ) : (
-                visibleRestaurantNotifications.length ? visibleRestaurantNotifications.map((n:any) => (
+                visibleRestaurantNotifications.length ? visibleRestaurantNotifications.map((n: any) => (
                   <div key={n.key} className="p-2 border-b last:border-0">
                     <button className="w-full text-left flex items-start gap-2" onClick={() => { markNotificationRead(n.key); setNotifications(false); nav(n.key === "wage" ? "staff" : n.key === "sub" ? "subscription" : "inventory"); }}>
                       <span className="notif-icon amber">!</span><span><b>{n.title}</b><small>{n.detail}</small></span>
@@ -2584,7 +2881,7 @@ export default function Home() {
                     <div className="print-format no-print">
                       <span>Receipt format</span>
                       <div className="print-format-options">
-                        {(["58mm","85mm","A4"] as const).map((sz) => (
+                        {(["58mm", "85mm", "A4"] as const).map((sz) => (
                           <button type="button" key={sz} onClick={() => setPrintPaperSize(sz)} className={printPaperSize === sz ? "selected" : ""}>{sz}</button>
                         ))}
                       </div>
@@ -2607,7 +2904,7 @@ export default function Home() {
             </>
           )}
 
-          {/* 3. MENU & DISHES (WITH IMAGE PREVIEWS, EDIT, AND DELETE) */}
+          {/* 3. MENU & DISHES */}
           {view === "menu" && (
             <>
               <div className="page-head flex flex-col sm:flex-row sm:items-center justify-between gap-4">
@@ -2710,11 +3007,11 @@ export default function Home() {
               <div className="kpi-grid mt-4">
                 {[
                   ["Total items", inventoryList.length, "catalogued stock"],
-                  ["Available stock", inventoryList.reduce((n,x)=>n+Number(x.onHand||0),0), "units on hand"],
-                  ["Stock value", money(inventoryList.reduce((n,x)=>n+Number(x.onHand||0)*Number(x.cost||0),0)), "based on recorded cost"],
-                  ["Low stock", inventoryList.filter(x=>x.onHand>0&&x.onHand<=x.reorderLevel).length, "reorder attention"],
-                  ["Out of stock", inventoryList.filter(x=>x.onHand===0).length, "needs replenishment"],
-                ].map(([label,value,note])=><div className="kpi-card" key={String(label)}><div className="kpi-top"><span>{label}</span><span className="kpi-icon teal"><Package size={19}/></span></div><strong>{String(value)}</strong><div className="kpi-foot"><span>{note}</span></div></div>)}
+                  ["Available stock", inventoryList.reduce((n, x) => n + Number(x.onHand || 0), 0), "units on hand"],
+                  ["Stock value", money(inventoryList.reduce((n, x) => n + Number(x.onHand || 0) * Number(x.cost || 0), 0)), "based on recorded cost"],
+                  ["Low stock", inventoryList.filter(x => x.onHand > 0 && x.onHand <= x.reorderLevel).length, "reorder attention"],
+                  ["Out of stock", inventoryList.filter(x => x.onHand === 0).length, "needs replenishment"],
+                ].map(([label, value, note]) => <div className="kpi-card" key={String(label)}><div className="kpi-top"><span>{label}</span><span className="kpi-icon teal"><Package size={19}/></span></div><strong>{String(value)}</strong><div className="kpi-foot"><span>{note}</span></div></div>)}
               </div>
               <div className="panel management-panel bg-card border rounded-xl p-6 mt-4">
                 <div className="table-scroll overflow-x-auto">
@@ -2774,17 +3071,17 @@ export default function Home() {
                   <table className="inventory-history-table">
                     <thead><tr><th>DATE & TIME</th><th>ITEM</th><th>TRANSACTION</th><th className="text-right">CHANGE</th><th className="text-right">STOCK</th></tr></thead>
                     <tbody>
-                      {inventoryTransactions.map((tx:any)=>{
-                        const change=Number(tx.change_quantity||0);
+                      {inventoryTransactions.map((tx: any) => {
+                        const change = Number(tx.change_quantity || 0);
                         return <tr key={tx.id}>
-                          <td className="text-xs text-muted-foreground">{new Date(tx.created_at).toLocaleString("en-IN", { day:"2-digit", month:"short", year:"numeric", hour:"numeric", minute:"2-digit" })}</td>
-                          <td className="strong">{inventoryList.find(i=>i.id===tx.inventory_item_id)?.name||"Inventory item"}</td>
-                          <td><span className={`history-type-badge ${change>=0?"in":"out"}`}>{tx.transaction_type}</span></td>
-                          <td className={`text-right font-bold ${change>=0?"text-emerald-600":"text-red-600"}`}>{change>=0?"+":""}{tx.change_quantity}</td>
+                          <td className="text-xs text-muted-foreground">{new Date(tx.created_at).toLocaleString("en-IN", { day: "2-digit", month: "short", year: "numeric", hour: "numeric", minute: "2-digit" })}</td>
+                          <td className="strong">{inventoryList.find(i => i.id === tx.inventory_item_id)?.name || "Inventory item"}</td>
+                          <td><span className={`history-type-badge ${change >= 0 ? "in" : "out"}`}>{tx.transaction_type}</span></td>
+                          <td className={`text-right font-bold ${change >= 0 ? "text-emerald-600" : "text-red-600"}`}>{change >= 0 ? "+" : ""}{tx.change_quantity}</td>
                           <td className="text-right text-xs font-semibold">{tx.previous_quantity} → {tx.new_quantity}</td>
                         </tr>
                       })}
-                      {!inventoryTransactions.length&&<tr><td colSpan={5} className="text-center py-8 text-xs text-muted-foreground">No inventory movements recorded yet.</td></tr>}
+                      {!inventoryTransactions.length && <tr><td colSpan={5} className="text-center py-8 text-xs text-muted-foreground">No inventory movements recorded yet.</td></tr>}
                     </tbody>
                   </table>
                 </div>
@@ -2834,7 +3131,7 @@ export default function Home() {
                           </button>
                           <button
                             className="p-1.5 text-muted-foreground hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-950/40 rounded-lg transition-colors"
-                            onClick={async () => { if (!tenantId || !confirm("Delete this employee?")) return; const {error}=await db.from("employees").delete().eq("restaurant_id",tenantId).eq("id",s.id); if(error){toast.error(error.message);return;} setStaff(old=>old.filter(x=>x.id!==s.id)); }}
+                            onClick={async () => { if (!tenantId || !confirm("Delete this employee?")) return; const { error } = await db.from("employees").delete().eq("restaurant_id", tenantId).eq("id", s.id); if (error) { toast.error(error.message); return; } setStaff(old => old.filter(x => x.id !== s.id)); }}
                             title="Delete Employee"
                           >
                             <Trash2 size={13} />
@@ -2893,7 +3190,7 @@ export default function Home() {
                     <tbody>
                       {expenses.map((e) => (
                         <tr key={e.id}>
-                          <td className="text-xs text-muted-foreground">{new Date(`${e.date}T12:00:00`).toLocaleDateString("en-IN", {day:"2-digit",month:"short",year:"numeric"})}</td>
+                          <td className="text-xs text-muted-foreground">{new Date(`${e.date}T12:00:00`).toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" })}</td>
                           <td className="strong">{e.name}</td>
                           <td><span className="data-badge">{e.category}</span></td>
                           <td>{e.vendor || "—"}</td>
@@ -2961,14 +3258,14 @@ export default function Home() {
                     const transactions = [
                       ...supplierExpenses.map(e => ({ id: `expense-${e.id}`, date: e.date, type: "Purchase / Expense", description: e.name, amount: Number(e.amount || 0), method: e.vendor || "—" })),
                       ...supplierPaymentsForHistory.map(p => ({ id: `payment-${p.id}`, date: p.date, type: "Payment", description: p.note || "Supplier payment", amount: Number(p.amount || 0), method: p.method || "—" })),
-                    ].sort((a,b) => new Date(b.date).getTime() - new Date(a.date).getTime());
-                    const purchases = supplierExpenses.reduce((n,e)=>n+Number(e.amount||0),0);
-                    const payments = supplierPaymentsForHistory.reduce((n,p)=>n+Number(p.amount||0),0);
+                    ].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+                    const purchases = supplierExpenses.reduce((n, e) => n + Number(e.amount || 0), 0);
+                    const payments = supplierPaymentsForHistory.reduce((n, p) => n + Number(p.amount || 0), 0);
                     return selected ? (
                       <>
                         <div className="flex justify-between items-start mb-4">
                           <div><h2 className="text-sm font-bold">{selected.name}</h2><p className="text-[11px] text-muted-foreground">{selected.contact || ""} {selected.phone ? `· ${selected.phone}` : ""}</p></div>
-                          <div className="text-right text-[11px]"><div>Purchases <b>{money(purchases)}</b></div><div>Payments <b>{money(payments)}</b></div><div>Balance <b>{money(purchases-payments)}</b></div></div>
+                          <div className="text-right text-[11px]"><div>Purchases <b>{money(purchases)}</b></div><div>Payments <b>{money(payments)}</b></div><div>Balance <b>{money(purchases - payments)}</b></div></div>
                         </div>
                         <div className="font-bold text-xs mb-2">Transaction History</div>
                         <div className="table-scroll">
@@ -3000,14 +3297,14 @@ export default function Home() {
                   ["Current plan", activePlanName || "Free trial"],
                   ["Status", tenantInfo.id ? (activeRenewalDate && activeRenewalDate !== "—" && new Date(activeRenewalDate) < new Date() ? "Expired" : "Active") : "—"],
                   ["Renewal date", activeRenewalDate || "—"],
-                  ["Payment history", String(subscriptionHistory.filter(x=>x.restaurant_id===tenantId).length)],
-                ].map(([label,value])=><div className="kpi-card" key={String(label)}><div className="kpi-top"><span>{label}</span><span className="kpi-icon teal"><CreditCard size={18}/></span></div><strong className="text-lg">{String(value)}</strong><div className="kpi-foot"><span>Restaurant subscription</span></div></div>)}
+                  ["Payment history", String(subscriptionHistory.filter(x => x.restaurant_id === tenantId).length)],
+                ].map(([label, value]) => <div className="kpi-card" key={String(label)}><div className="kpi-top"><span>{label}</span><span className="kpi-icon teal"><CreditCard size={18}/></span></div><strong className="text-lg">{String(value)}</strong><div className="kpi-foot"><span>Restaurant subscription</span></div></div>)}
               </div>
               <div className="panel p-4 mb-6">
                 <div className="panel-header"><div><h2>Subscription history</h2><p>Payment and approval requests for this restaurant</p></div></div>
                 <div className="space-y-2">
-                  {subscriptionHistory.filter(x=>x.restaurant_id===tenantId).slice(0,6).map((x:any)=><div key={x.id} className="flex justify-between items-center border-b py-2 text-xs"><span><b>{x.plan}</b><span className="text-muted-foreground ml-2">{new Date(x.requested_at).toLocaleDateString("en-IN")}</span></span><span className="font-semibold">{x.status} · {money(Number(x.amount)||0)}</span></div>)}
-                  {!subscriptionHistory.filter(x=>x.restaurant_id===tenantId).length&&<div className="text-xs text-muted-foreground py-3">No subscription requests yet.</div>}
+                  {subscriptionHistory.filter(x => x.restaurant_id === tenantId).slice(0, 6).map((x: any) => <div key={x.id} className="flex justify-between items-center border-b py-2 text-xs"><span><b>{x.plan}</b><span className="text-muted-foreground ml-2">{new Date(x.requested_at).toLocaleDateString("en-IN")}</span></span><span className="font-semibold">{x.status} · {money(Number(x.amount) || 0)}</span></div>)}
+                  {!subscriptionHistory.filter(x => x.restaurant_id === tenantId).length && <div className="text-xs text-muted-foreground py-3">No subscription requests yet.</div>}
                 </div>
               </div>
 
@@ -3061,9 +3358,7 @@ export default function Home() {
 
               {/* DYNAMIC PAYMENT BOX */}
               {activeInlinePlan && activeInlinePlan.price > 0 && (
-                <div
-                  className="panel max-w-md mx-auto rounded-2xl p-6 border text-center shadow-lg my-8"
-                >
+                <div className="panel max-w-md mx-auto rounded-2xl p-6 border text-center shadow-lg my-8">
                   <div className="text-sm font-bold text-foreground mb-4">
                     Pay {money(activeInlinePlan.price)}
                   </div>
@@ -3127,7 +3422,7 @@ export default function Home() {
           )}
 
           {/* 9. SETTINGS WITH SAFE DATABASE PERSISTENCE */}
-          {(view === "settings" || (isAdmin && view === "support")) && (
+          {view === "settings" && (
             <>
               {isAdmin ? (
                 <AdminSettingsPanel />
@@ -3267,7 +3562,7 @@ export default function Home() {
                   <h1>Restaurant Directory</h1>
                   <p>Registered restaurants on RestoPulse and their active plans.</p>
                 </div>
-                <button className="primary-btn flex items-center gap-1.5" onClick={() => { setEditing(null); setForm({name:"",owner:"",email:"",phone:"",city:"",password:""}); setModal("restaurant"); }}>
+                <button className="primary-btn flex items-center gap-1.5" onClick={() => { setEditing(null); setForm({ name: "", owner: "", email: "", phone: "", city: "", password: "" }); setModal("restaurant"); }}>
                   <Plus size={16}/> Add restaurant
                 </button>
               </div>
@@ -3298,9 +3593,9 @@ export default function Home() {
                           </td>
                           <td className="font-mono text-sm">{r.renewal}</td>
                           <td><div className="flex gap-1.5">
-                            <button className="quiet-btn text-xs" title="Edit restaurant" onClick={() => { setEditing(r.id); setForm({name:r.name,owner:r.owner,email:r.email,phone:r.phone,city:r.city||"",plan:r.plan||"Free Trial",status:r.status||"Active",renewal:r.renewal||""}); setModal("restaurant"); }}><Pencil size={13}/></button>
-                            <button className="quiet-btn text-xs" title="Extend subscription" onClick={() => { setEditing(r.id); setForm({days:"30"}); setModal("extend"); }}><Clock size={13}/></button>
-                            <button className="quiet-btn text-xs text-red-600" title="Deactivate restaurant" onClick={async()=>{if(!confirm("Deactivate this restaurant?"))return;const res=await authedFetch("/api/admin/restaurants",{method:"DELETE",body:JSON.stringify({id:r.id})});const j=await res.json();if(!res.ok){toast.error(j.error||"Failed");return;}fetchAllRestaurants();toast.success("Restaurant deactivated");}}><Trash2 size={13}/></button>
+                            <button className="quiet-btn text-xs" title="Edit restaurant" onClick={() => { setEditing(r.id); setForm({ name: r.name, owner: r.owner, email: r.email, phone: r.phone, city: r.city || "", plan: r.plan || "Free Trial", status: r.status || "Active", renewal: r.renewal || "" }); setModal("restaurant"); }}><Pencil size={13}/></button>
+                            <button className="quiet-btn text-xs" title="Extend subscription" onClick={() => { setEditing(r.id); setForm({ days: "30" }); setModal("extend"); }}><Clock size={13}/></button>
+                            <button className="quiet-btn text-xs text-red-600" title="Deactivate restaurant" onClick={async () => { if (!confirm("Deactivate this restaurant?")) return; const res = await authedFetch("/api/admin/restaurants", { method: "DELETE", body: JSON.stringify({ id: r.id }) }); const j = await res.json(); if (!res.ok) { toast.error(j.error || "Failed"); return; } fetchAllRestaurants(); toast.success("Restaurant deactivated"); }}><Trash2 size={13}/></button>
                           </div></td>
                         </tr>
                       ))}
@@ -3316,15 +3611,15 @@ export default function Home() {
             <>
               <div className="page-head flex flex-col sm:flex-row sm:justify-between sm:items-center gap-3">
                 <div><div className="eyebrow">PLATFORM ADMINISTRATION</div><h1>Manage Admins</h1><p>Add, edit, or remove platform administrators.</p></div>
-                <button className="primary-btn flex items-center gap-1.5" onClick={()=>{setEditingAdminId(null);setAdminForm({name:"",email:"",password:"",permissions:{restaurants:true,approvals:true,pricing:true,settings:true,support:true,admins:false}});setModal("admin");}}><Plus size={16}/> Add new admin</button>
+                <button className="primary-btn flex items-center gap-1.5" onClick={() => { setEditingAdminId(null); setAdminForm({ name: "", email: "", password: "", permissions: { restaurants: true, approvals: true, pricing: true, settings: true, admins: false } }); setModal("admin"); }}><Plus size={16}/> Add new admin</button>
               </div>
               <div className="panel management-panel mt-6">
                 <div className="table-scroll"><table><thead><tr><th>ADMIN</th><th>EMAIL</th><th>CREATED</th><th>ACTIONS</th></tr></thead>
-                <tbody>{admins.map((a:any)=><tr key={a.id}><td><b>{a.name}</b></td><td>{a.email}</td><td>{a.created_at ? new Date(a.created_at).toLocaleDateString("en-IN") : "—"}</td><td><div className="flex gap-1.5">
-                  <button className="quiet-btn text-xs" title="Edit admin" onClick={()=>{setEditingAdminId(a.id);setAdminForm({name:a.name||"",email:a.email||"",password:"",permissions:{restaurants:true,approvals:true,pricing:true,settings:true,support:true,admins:false,...(a.permissions||{})}});setModal("admin");}}><Pencil size={13}/></button>
-                  <button className="quiet-btn text-xs text-red-600" title="Remove admin" onClick={async()=>{if(!confirm(`Remove ${a.name || a.email} from platform admins?`))return;const res=await authedFetch("/api/admin/admins",{method:"DELETE",headers:{"Content-Type":"application/json"},body:JSON.stringify({id:a.id})});const j=await res.json();if(!res.ok){toast.error(j.error||"Could not remove admin");return;}await fetchAdmins();toast.success("Admin access removed");}}><Trash2 size={13}/></button>
+                <tbody>{admins.map((a: any) => <tr key={a.id}><td><b>{a.name}</b></td><td>{a.email}</td><td>{a.created_at ? new Date(a.created_at).toLocaleDateString("en-IN") : "—"}</td><td><div className="flex gap-1.5">
+                  <button className="quiet-btn text-xs" title="Edit admin" onClick={() => { setEditingAdminId(a.id); setAdminForm({ name: a.name || "", email: a.email || "", password: "", permissions: { restaurants: true, approvals: true, pricing: true, settings: true, admins: false, ...(a.permissions || {}) } }); setModal("admin"); }}><Pencil size={13}/></button>
+                  <button className="quiet-btn text-xs text-red-600" title="Remove admin" onClick={async () => { if (!confirm(`Remove ${a.name || a.email} from platform admins?`)) return; const res = await authedFetch("/api/admin/admins", { method: "DELETE", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ id: a.id }) }); const j = await res.json(); if (!res.ok) { toast.error(j.error || "Could not remove admin"); return; } await fetchAdmins(); toast.success("Admin access removed"); }}><Trash2 size={13}/></button>
                 </div></td></tr>)}
-                {!admins.length&&<tr><td colSpan={4} className="text-center py-8 text-muted-foreground">No platform admins found.</td></tr>}</tbody></table></div>
+                {!admins.length && <tr><td colSpan={4} className="text-center py-8 text-muted-foreground">No platform admins found.</td></tr>}</tbody></table></div>
               </div>
             </>
           )}
@@ -3524,63 +3819,63 @@ export default function Home() {
 
       {mobileNav && <button className="nav-backdrop" aria-label="Close navigation" onClick={() => setMobileNav(false)} />}
 
-      <Dialog open={modal === "extend"} onOpenChange={(v)=>!v&&setModal(null)}>
+      <Dialog open={modal === "extend"} onOpenChange={(v) => !v && setModal(null)}>
         <DialogContent className="max-w-md">
           <DialogHeader><DialogTitle>Extend Subscription</DialogTitle><DialogDescription>Extend the selected restaurant's current subscription without changing its plan.</DialogDescription></DialogHeader>
           <div className="modal-fields">
-            <label>Extension period<select value={form.days||"30"} onChange={e=>setForm({...form,days:e.target.value})}>
+            <label>Extension period<select value={form.days || "30"} onChange={e => setForm({ ...form, days: e.target.value })}>
               <option value="7">7 days</option><option value="30">30 days</option><option value="90">90 days</option><option value="180">180 days</option><option value="365">365 days</option>
             </select></label>
           </div>
-          <DialogFooter><button className="quiet-btn" onClick={()=>setModal(null)}>Cancel</button><button className="primary-btn" onClick={save}>Extend subscription</button></DialogFooter>
+          <DialogFooter><button className="quiet-btn" onClick={() => setModal(null)}>Cancel</button><button className="primary-btn" onClick={save}>Extend subscription</button></DialogFooter>
         </DialogContent>
       </Dialog>
 
-      <Dialog open={modal === "admin"} onOpenChange={(v)=>!v&&setModal(null)}>
+      <Dialog open={modal === "admin"} onOpenChange={(v) => !v && setModal(null)}>
         <DialogContent className="max-w-md">
           <DialogHeader><DialogTitle>{editingAdminId ? "Edit Admin" : "Add New Admin"}</DialogTitle><DialogDescription>Manage platform administrator access.</DialogDescription></DialogHeader>
           <div className="modal-fields">
-            <label>Admin name<input value={adminForm.name} onChange={e=>setAdminForm({...adminForm,name:e.target.value})} /></label>
-            <label>Admin email<input type="email" value={adminForm.email} onChange={e=>setAdminForm({...adminForm,email:e.target.value})} /></label>
-            <label>Password {editingAdminId ? "(leave blank to keep current)" : "(optional)"}<input type="password" minLength={12} placeholder="Minimum 12 characters" value={adminForm.password} onChange={e=>setAdminForm({...adminForm,password:e.target.value})} /></label>
-            <div className="border rounded-xl p-3 space-y-2"><b className="text-xs">Section access</b>{([['restaurants','Restaurants'],['approvals','Approvals'],['pricing','Pricing plans'],['settings','Settings'],['support','Support & Help'],['admins','Manage admins']] as const).map(([key,label])=><label key={key} className="flex items-center gap-2 text-xs"><input type="checkbox" checked={!!adminForm.permissions[key]} onChange={e=>setAdminForm({...adminForm,permissions:{...adminForm.permissions,[key]:e.target.checked}})} />{label}</label>)}</div>
+            <label>Admin name<input value={adminForm.name} onChange={e => setAdminForm({ ...adminForm, name: e.target.value })} /></label>
+            <label>Admin email<input type="email" value={adminForm.email} onChange={e => setAdminForm({ ...adminForm, email: e.target.value })} /></label>
+            <label>Password {editingAdminId ? "(leave blank to keep current)" : "(optional)"}<input type="password" minLength={12} placeholder="Minimum 12 characters" value={adminForm.password} onChange={e => setAdminForm({ ...adminForm, password: e.target.value })} /></label>
+            <div className="border rounded-xl p-3 space-y-2"><b className="text-xs">Section access</b>{([['restaurants', 'Restaurants'], ['approvals', 'Approvals'], ['pricing', 'Pricing plans'], ['settings', 'Settings'], ['admins', 'Manage admins']] as const).map(([key, label]) => <label key={key} className="flex items-center gap-2 text-xs"><input type="checkbox" checked={!!(adminForm.permissions as any)[key]} onChange={e => setAdminForm({ ...adminForm, permissions: { ...adminForm.permissions, [key]: e.target.checked } })} />{label}</label>)}</div>
           </div>
-          <DialogFooter><button className="quiet-btn" onClick={()=>setModal(null)}>Cancel</button><button className="primary-btn" onClick={save}>{editingAdminId ? "Save changes" : "Add admin"}</button></DialogFooter>
+          <DialogFooter><button className="quiet-btn" onClick={() => setModal(null)}>Cancel</button><button className="primary-btn" onClick={save}>{editingAdminId ? "Save changes" : "Add admin"}</button></DialogFooter>
         </DialogContent>
       </Dialog>
 
-      <Dialog open={modal === "support"} onOpenChange={(v)=>!v&&setModal(null)}>
+      <Dialog open={modal === "support"} onOpenChange={(v) => !v && setModal(null)}>
         <DialogContent className="max-w-md">
           <DialogHeader><DialogTitle>Support & Help</DialogTitle><DialogDescription>Contact RestoPulse support using the options below.</DialogDescription></DialogHeader>
           <div className="space-y-3 py-2">
-            {(supportSections.filter((x:any)=>x.active !== false)).map((section:any)=><div key={section.id} className="border rounded-xl p-4 space-y-2">
+            {(supportSections.filter((x: any) => x.active !== false)).map((section: any) => <div key={section.id} className="border rounded-xl p-4 space-y-2">
               <h3 className="font-bold">{section.title}</h3>
               <p className="text-xs text-muted-foreground">{section.description}</p>
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 pt-2">
-                {section.phone && <a className="primary-btn text-center" href={`tel:${String(section.phone).replace(/\s+/g,"")}`}>Call</a>}
-                {section.whatsapp && <a className="primary-btn text-center" href={`https://wa.me/${String(section.whatsapp).replace(/\D/g,"")}`} target="_blank" rel="noreferrer">WhatsApp</a>}
+                {section.phone && <a className="primary-btn text-center" href={`tel:${String(section.phone).replace(/\s+/g, "")}`}>Call</a>}
+                {section.whatsapp && <a className="primary-btn text-center" href={`https://wa.me/${String(section.whatsapp).replace(/\D/g, "")}`} target="_blank" rel="noreferrer">WhatsApp</a>}
                 {section.email && <a className="quiet-btn text-center" href={`mailto:${section.email}`}>Email</a>}
               </div>
             </div>)}
             {!supportSections.length && <div className="text-sm text-muted-foreground">Support contact information is not configured yet.</div>}
           </div>
-          <DialogFooter><button className="quiet-btn" onClick={()=>setModal(null)}>Close</button></DialogFooter>
+          <DialogFooter><button className="quiet-btn" onClick={() => setModal(null)}>Close</button></DialogFooter>
         </DialogContent>
       </Dialog>
 
-      <Dialog open={modal === "restaurant"} onOpenChange={(v)=>!v&&setModal(null)}>
+      <Dialog open={modal === "restaurant"} onOpenChange={(v) => !v && setModal(null)}>
         <DialogContent className="modal-content">
           <DialogHeader><DialogTitle>{editing ? "Edit Restaurant" : "Add Restaurant"}</DialogTitle><DialogDescription>Manage the platform restaurant account without changing the existing console style.</DialogDescription></DialogHeader>
           <div className="modal-fields">
-            <label>Restaurant name<input value={form.name||""} onChange={e=>setForm({...form,name:e.target.value})}/></label>
-            <label>Owner name<input value={form.owner||""} onChange={e=>setForm({...form,owner:e.target.value})}/></label>
-            <label>Owner email<input type="email" disabled={editing!==null} value={form.email||""} onChange={e=>setForm({...form,email:e.target.value})}/></label>
-            <label>Owner phone<input value={form.phone||""} onChange={e=>setForm({...form,phone:e.target.value})}/></label>
-            <label>City<input value={form.city||""} onChange={e=>setForm({...form,city:e.target.value})}/></label>
-            {!editing && <label>Temporary password<input type="password" minLength={12} placeholder="Minimum 12 characters" value={form.password||""} onChange={e=>setForm({...form,password:e.target.value})}/></label>}
-            {editing && <><label>Plan<select value={form.plan||"Free Trial"} onChange={e=>setForm({...form,plan:e.target.value})}>{plans.map(x=><option key={x.id}>{x.name}</option>)}</select></label><label>Status<select value={form.status||"Active"} onChange={e=>setForm({...form,status:e.target.value})}><option>Trial</option><option>Active</option><option>Paused</option></select></label><label>Renewal date<input type="date" value={form.renewal==="—"?"":form.renewal||""} onChange={e=>setForm({...form,renewal:e.target.value})}/></label></>}
+            <label>Restaurant name<input value={form.name || ""} onChange={e => setForm({ ...form, name: e.target.value })} /></label>
+            <label>Owner name<input value={form.owner || ""} onChange={e => setForm({ ...form, owner: e.target.value })} /></label>
+            <label>Owner email<input type="email" disabled={editing !== null} value={form.email || ""} onChange={e => setForm({ ...form, email: e.target.value })} /></label>
+            <label>Owner phone<input value={form.phone || ""} onChange={e => setForm({ ...form, phone: e.target.value })} /></label>
+            <label>City<input value={form.city || ""} onChange={e => setForm({ ...form, city: e.target.value })} /></label>
+            {!editing && <label>Temporary password<input type="password" minLength={12} placeholder="Minimum 12 characters" value={form.password || ""} onChange={e => setForm({ ...form, password: e.target.value })} /></label>}
+            {editing && <><label>Plan<select value={form.plan || "Free Trial"} onChange={e => setForm({ ...form, plan: e.target.value })}>{plans.map(x => <option key={x.id}>{x.name}</option>)}</select></label><label>Status<select value={form.status || "Active"} onChange={e => setForm({ ...form, status: e.target.value })}><option>Trial</option><option>Active</option><option>Paused</option></select></label><label>Renewal date<input type="date" value={form.renewal === "—" ? "" : form.renewal || ""} onChange={e => setForm({ ...form, renewal: e.target.value })} /></label></>}
           </div>
-          <DialogFooter><button className="quiet-btn" onClick={()=>setModal(null)}>Cancel</button><button className="primary-btn" onClick={save}>{editing?"Save changes":"Create restaurant"}</button></DialogFooter>
+          <DialogFooter><button className="quiet-btn" onClick={() => setModal(null)}>Cancel</button><button className="primary-btn" onClick={save}>{editing ? "Save changes" : "Create restaurant"}</button></DialogFooter>
         </DialogContent>
       </Dialog>
 
@@ -4029,7 +4324,7 @@ export default function Home() {
               <>
                 <label>Supplier name<input value={form.name || ""} onChange={(e) => setForm({ ...form, name: e.target.value })} /></label>
                 <label>Contact person<input value={form.contact || ""} onChange={(e) => setForm({ ...form, contact: e.target.value })} /></label>
-                <label>Phone<input value={form.phone || ""} onChange={(e) => setForm({ ...form, phone: e.target.value })} /></label><label>Status<select value={form.active || "true"} onChange={(e)=>setForm({...form,active:e.target.value})}><option value="true">Active</option><option value="false">Inactive</option></select></label>
+                <label>Phone<input value={form.phone || ""} onChange={(e) => setForm({ ...form, phone: e.target.value })} /></label><label>Status<select value={form.active || "true"} onChange={(e) => setForm({ ...form, active: e.target.value })}><option value="true">Active</option><option value="false">Inactive</option></select></label>
               </>
             )}
             {modal === "payment" && (
@@ -4103,12 +4398,12 @@ export default function Home() {
                   className="primary-btn w-full mt-2"
                   onClick={async () => {
                     if (!tenantId || !wageForm.amount) return;
-                    const {data,error}=await db.from("daily_wages").insert({
-                      restaurant_id:tenantId, employee_id:selectedStaff.id, wage_date:wageForm.date,
-                      amount:Number(wageForm.amount), status:"Unpaid", note:"Wage"
+                    const { data, error } = await db.from("daily_wages").insert({
+                      restaurant_id: tenantId, employee_id: selectedStaff.id, wage_date: wageForm.date,
+                      amount: Number(wageForm.amount), status: "Unpaid", note: "Wage"
                     }).select().single();
-                    if(error){toast.error(error.message);return;}
-                    setWages(old=>[{id:data.id,staffId:data.employee_id,date:data.wage_date,amount:Number(data.amount),status:data.status,note:data.note},...old]);
+                    if (error) { toast.error(error.message); return; }
+                    setWages(old => [{ id: data.id, staffId: data.employee_id, date: data.wage_date, amount: Number(data.amount), status: data.status, note: data.note }, ...old]);
                     toast.success("Wage logged");
                   }}
                 >
@@ -4122,8 +4417,8 @@ export default function Home() {
                   <Wallet size={16} className="text-indigo-600" />
                 </div>
                 <div className="grid grid-cols-2 gap-2">
-                  <label className="space-y-1"><span>Week start</span><input type="date" value={weeklyPaymentForm.start} onChange={e=>setWeeklyPaymentForm(v=>({...v,start:e.target.value}))} className="w-full p-1.5 border rounded" /></label>
-                  <label className="space-y-1"><span>Week end</span><input type="date" value={weeklyPaymentForm.end} onChange={e=>setWeeklyPaymentForm(v=>({...v,end:e.target.value}))} className="w-full p-1.5 border rounded" /></label>
+                  <label className="space-y-1"><span>Week start</span><input type="date" value={weeklyPaymentForm.start} onChange={e => setWeeklyPaymentForm(v => ({ ...v, start: e.target.value }))} className="w-full p-1.5 border rounded" /></label>
+                  <label className="space-y-1"><span>Week end</span><input type="date" value={weeklyPaymentForm.end} onChange={e => setWeeklyPaymentForm(v => ({ ...v, end: e.target.value }))} className="w-full p-1.5 border rounded" /></label>
                 </div>
                 {(() => {
                   const start = weeklyPaymentForm.start ? new Date(`${weeklyPaymentForm.start}T00:00:00`) : null;
@@ -4131,22 +4426,22 @@ export default function Home() {
                   const weekRows = start && end ? wages.filter(w => w.staffId === selectedStaff.id && w.status === "Unpaid" && new Date(`${w.date}T12:00:00`) >= start && new Date(`${w.date}T12:00:00`) <= end) : [];
                   const weeklySalary = Number(selectedStaff.weeklySalary || 0);
                   const isWeeklySalary = selectedStaff.payType === "Weekly";
-                  const total = weekRows.reduce((n,w)=>n+Number(w.amount||0),0);
+                  const total = weekRows.reduce((n, w) => n + Number(w.amount || 0), 0);
                   const payable = isWeeklySalary && weeklySalary > 0 && !weekRows.length ? weeklySalary : total;
                   return <div className="space-y-2 text-xs">
                     <div className="flex items-center justify-between gap-2"><span>{isWeeklySalary ? `Weekly salary · ${money(weeklySalary)}` : `${weekRows.length} unpaid record(s) · ${money(total)}`}</span><span className="font-bold text-foreground">Payable: {money(payable)}</span></div>
-                    <button className="primary-btn w-full" disabled={!tenantId || !end || !payable} onClick={async()=>{
-                      if(!tenantId || !payable || !weeklyPaymentForm.end) return;
-                      if(isWeeklySalary && !weekRows.length){
-                        const {data,error}=await db.from("daily_wages").insert({restaurant_id:tenantId,employee_id:selectedStaff.id,wage_date:weeklyPaymentForm.end,amount:weeklySalary,status:"Paid",note:"Weekly salary"}).select().single();
-                        if(error){toast.error(error.message);return;}
-                        setWages(old=>[{id:data.id,staffId:data.employee_id,date:data.wage_date,amount:Number(data.amount),status:data.status,note:data.note},...old]);
+                    <button className="primary-btn w-full" disabled={!tenantId || !end || !payable} onClick={async () => {
+                      if (!tenantId || !payable || !weeklyPaymentForm.end) return;
+                      if (isWeeklySalary && !weekRows.length) {
+                        const { data, error } = await db.from("daily_wages").insert({ restaurant_id: tenantId, employee_id: selectedStaff.id, wage_date: weeklyPaymentForm.end, amount: weeklySalary, status: "Paid", note: "Weekly salary" }).select().single();
+                        if (error) { toast.error(error.message); return; }
+                        setWages(old => [{ id: data.id, staffId: data.employee_id, date: data.wage_date, amount: Number(data.amount), status: data.status, note: data.note }, ...old]);
                         toast.success(`Weekly salary paid · ${money(weeklySalary)}`);
                       } else {
-                        const ids=weekRows.map(w=>w.id);
-                        const {error}=await db.from("daily_wages").update({status:"Paid",note:"Weekly payment"}).eq("restaurant_id",tenantId).in("id",ids);
-                        if(error){toast.error(error.message);return;}
-                        setWages(old=>old.map(w=>ids.includes(w.id)?{...w,status:"Paid",note:"Weekly payment"}:w));
+                        const ids = weekRows.map(w => w.id);
+                        const { error } = await db.from("daily_wages").update({ status: "Paid", note: "Weekly payment" }).eq("restaurant_id", tenantId).in("id", ids);
+                        if (error) { toast.error(error.message); return; }
+                        setWages(old => old.map(w => ids.includes(w.id) ? { ...w, status: "Paid", note: "Weekly payment" } : w));
                         toast.success(`Weekly payment recorded · ${money(total)}`);
                       }
                     }}>{isWeeklySalary ? "Pay Weekly Salary" : weekRows.length ? "Pay Week" : "No unpaid wages"}</button>
@@ -4168,11 +4463,11 @@ export default function Home() {
                         <button
                           className={`px-2 py-0.5 rounded text-[10px] font-bold ${w.status === "Paid" ? "bg-green-100 text-green-800" : "bg-amber-100 text-amber-800"}`}
                           onClick={async () => {
-                            if(!tenantId)return;
-                            const next=w.status==="Paid"?"Unpaid":"Paid";
-                            const {error}=await db.from("daily_wages").update({status:next}).eq("restaurant_id",tenantId).eq("id",w.id);
-                            if(error){toast.error(error.message);return;}
-                            setWages(old=>old.map(item=>item.id===w.id?{...item,status:next}:item));
+                            if (!tenantId) return;
+                            const next = w.status === "Paid" ? "Unpaid" : "Paid";
+                            const { error } = await db.from("daily_wages").update({ status: next }).eq("restaurant_id", tenantId).eq("id", w.id);
+                            if (error) { toast.error(error.message); return; }
+                            setWages(old => old.map(item => item.id === w.id ? { ...item, status: next } : item));
                           }}
                         >
                           {w.status}
@@ -4197,14 +4492,14 @@ export default function Home() {
             <table className="w-full text-sm">
               <thead><tr className="border-b"><th className="text-left p-2">Receipt</th><th className="text-left p-2">Date & time</th><th className="text-left p-2">Items</th><th className="text-left p-2">Payment</th><th className="text-right p-2">Total</th><th /></tr></thead>
               <tbody>
-                {orders.map((sale)=>(
+                {orders.map((sale) => (
                   <tr key={sale.id} className="border-b">
                     <td className="p-2 font-mono">{sale.bill.id}</td>
                     <td className="p-2">{sale.bill.issuedAt}</td>
-                    <td className="p-2">{sale.bill.items.reduce((n,x)=>n+x.qty,0)} item(s)</td>
+                    <td className="p-2">{sale.bill.items.reduce((n, x) => n + x.qty, 0)} item(s)</td>
                     <td className="p-2">{sale.bill.payment}</td>
                     <td className="p-2 text-right font-bold">{money(sale.bill.total)}</td>
-                    <td className="p-2 text-right"><button className="quiet-btn text-xs" onClick={()=>setReceipt(sale.bill)}>View receipt</button></td>
+                    <td className="p-2 text-right"><button className="quiet-btn text-xs" onClick={() => setReceipt(sale.bill)}>View receipt</button></td>
                   </tr>
                 ))}
                 {!orders.length && <tr><td colSpan={6} className="p-8 text-center text-muted-foreground">No completed sales yet.</td></tr>}
@@ -4224,7 +4519,7 @@ export default function Home() {
             </DialogDescription>
           </DialogHeader>
 
-          {/* Paper Size Format Selector (58mm, 80mm, A4) */}
+          {/* Paper Size Format Selector (58mm, 85mm, A4) */}
           <div className="no-print flex items-center justify-between p-2.5 mb-2 rounded-xl bg-slate-800 border border-slate-700 text-xs">
             <span className="font-semibold text-gray-300">Format:</span>
             <div className="flex gap-1.5">

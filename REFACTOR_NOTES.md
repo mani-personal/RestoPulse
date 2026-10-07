@@ -92,9 +92,9 @@ It also adds RLS, indexes, inventory transaction tracking, and Realtime publicat
 - Changed the Admin Profile action from Manage employees to Admin managements.
 - Support configuration is persisted in the existing settings table; no schema migration is required.
 
-## 2026-10-07 – Custom subscription extension, support contacts, receipt print and responsive hardening
-- Admin restaurant subscription extension now supports selecting an exact renewal date instead of only fixed day presets.
-- Subscription extension API validates the selected date and prevents moving a restaurant's renewal date backwards.
-- Restaurant Profile > Support & Help now explicitly displays the support mobile number and email, in addition to Call/WhatsApp/Email actions.
-- Receipt preview and print layouts were unified for 58mm, 85mm and A4, including table column widths, wrapping and print page sizing.
-- Added responsive hardening for dialogs, sheets, tables, forms, KPI grids, POS, Admin pages and Restaurant Console pages across mobile and laptop/tablet widths.
+## 2026-10-07 Multi-admin, subscription extension and multi-restaurant SSO
+- Added Admin Console Manage Admins workflow: add, edit, and remove platform admins.
+- Fixed direct restaurant subscription extension so it no longer requires a subscription request ID.
+- Added authenticated /api/workspaces endpoint and verified multi-restaurant workspace switching through memberships.
+- Restaurant owner logins can be linked to multiple restaurants; switching clears tenant-scoped state before loading the selected restaurant.
+- Added backward-compatible migration to remove the restaurants.owner_email uniqueness restriction required for multi-restaurant ownership.

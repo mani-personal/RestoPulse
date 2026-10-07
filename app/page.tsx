@@ -281,7 +281,6 @@ const navPlatform: { id: View; label: string; icon: typeof Building2 }[] = [
   { id: "approvals", label: "Approvals", icon: BadgeCheck },
   { id: "pricing", label: "Pricing plans", icon: CreditCard },
   { id: "settings", label: "Settings", icon: Settings },
-  { id: "support", label: "Support & Help Management", icon: Send },
 ];
 
 
@@ -357,8 +356,6 @@ export default function Home() {
   const [accountRole, setAccountRole] = useState<"admin" | "restaurant">("restaurant");
   const [mobileNav, setMobileNav] = useState(false);
   const [notifications, setNotifications] = useState(false);
-  const [readNotificationKeys, setReadNotificationKeys] = useState<string[]>([]);
-  const notificationStorageKey = `rp-read-notifications:${authUser || "anonymous"}:${tenantId || "platform"}`;
   const [dark, setDark] = useState(false);
   const [dishes, setDishes] = useState<Dish[]>(initialDishes);
 
@@ -411,7 +408,7 @@ export default function Home() {
   const [subscriptionUpiId, setSubscriptionUpiId] = useState<string>("admin-restopulse@upi");
 
   const [supportSections, setSupportSections] = useState<any[]>([]);
-  const [adminForm, setAdminForm] = useState({ name: "", email: "", password: "", permissions: { restaurants:true, approvals:true, pricing:true, settings:true, support:true, admins:false } });
+  const [adminForm, setAdminForm] = useState({ name: "", email: "", password: "" });
   const [editingAdminId, setEditingAdminId] = useState<string | null>(null);
   const [supportEditingId, setSupportEditingId] = useState<string | null>(null);
   const [supportForm, setSupportForm] = useState({ title: "Support & Help", description: "Need help with RestoPulse? Contact our support team.", phone: "8122187039", whatsapp: "8122187039", email: "hosurwebservices@gmail.com", active: true });
@@ -876,6 +873,7 @@ export default function Home() {
     // restaurant only.
     setOrders([]); setDishes([]); setExpenses([]); setSuppliers([]); setSupplierPayments([]);
     setStaff([]); setWages([]); setInventoryList([]); setInventoryTransactions([]);
+    setReceipt(null);
     setIsDataLoading(true);
     try {
       const [salesRes, inventoryRes, menuRes, expensesRes, supplierRes, paymentRes, staffRes, wagesRes] = await Promise.all([
@@ -1104,16 +1102,6 @@ export default function Home() {
     localStorage.setItem("rp-theme", dark ? "dark" : "light");
   }, [dark]);
 
-  useEffect(() => {
-    try { const raw=localStorage.getItem(notificationStorageKey); setReadNotificationKeys(raw ? JSON.parse(raw) : []); } catch { setReadNotificationKeys([]); }
-  }, [notificationStorageKey]);
-
-  const markNotificationRead = (key:string) => {
-    const next=Array.from(new Set([...readNotificationKeys,key]));
-    setReadNotificationKeys(next);
-    try { localStorage.setItem(notificationStorageKey, JSON.stringify(next)); } catch {}
-  };
-
   const displayed = dishes.filter(
     (d) => (category === "All items" || d.category === category) && d.name.toLowerCase().includes(query.toLowerCase())
   );
@@ -1235,13 +1223,13 @@ export default function Home() {
       if (!adminForm.name.trim() || !adminForm.email.trim()) { toast.error("Admin name and email are required"); return; }
       try {
         const method = editingAdminId ? "PATCH" : "POST";
-        const payload:any = { name: adminForm.name.trim(), email: adminForm.email.trim(), permissions: adminForm.permissions };
+        const payload:any = { name: adminForm.name.trim(), email: adminForm.email.trim() };
         if (adminForm.password.trim()) payload.password = adminForm.password.trim();
         if (editingAdminId) payload.id = editingAdminId;
         const res = await authedFetch("/api/admin/admins", { method, headers:{"Content-Type":"application/json"}, body:JSON.stringify(payload) });
         const json = await res.json();
         if (!res.ok) throw new Error(json.error || "Could not save admin");
-        setModal(null); setEditingAdminId(null); setAdminForm({name:"",email:"",password:"",permissions:{restaurants:true,approvals:true,pricing:true,settings:true,support:true,admins:false}});
+        setModal(null); setEditingAdminId(null); setAdminForm({name:"",email:"",password:""});
         await fetchAdmins();
         toast.success(editingAdminId ? "Admin updated" : (json.temporary_password ? `Admin added. Temporary password: ${json.temporary_password}` : "Admin added to the existing login"));
       } catch(e:any) { toast.error(e.message || "Could not save admin"); }
@@ -1428,11 +1416,6 @@ export default function Home() {
         : await db.from("employees").insert(payload).select().single();
       if(result.error){toast.error(result.error.message);return;}
       const mapped={...person,id:result.data.id}; setStaff(old=>editing!==null?old.map(x=>x.id===editing?mapped:x):[mapped,...old]);
-      if (form.email?.trim() && form.password?.trim()) {
-        const loginRes=await authedFetch("/api/employees",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({restaurant_id:tenantId,name:person.name,email:person.email,password:form.password,role:person.role})});
-        const loginJson=await loginRes.json();
-        if(!loginRes.ok) { toast.error(loginJson.error || "Employee saved, but login could not be created"); return; }
-      }
       toast.success(editing !== null ? "Employee updated" : "Employee added");
     }
     setModal(null);
@@ -1873,7 +1856,6 @@ export default function Home() {
     ...(wages.filter(w => w.status === "Unpaid").length > 0 ? [{ key: "wage", title: `${wages.filter(w => w.status === "Unpaid").length} unpaid wage record(s)`, detail: "Review employee payments." }] : []),
     ...(activeRenewalDate && activeRenewalDate !== "—" && new Date(activeRenewalDate).getTime() - nowForMetrics.getTime() <= 7 * 86400000 && new Date(activeRenewalDate).getTime() >= nowForMetrics.getTime() ? [{ key: "sub", title: "Subscription renewal is due soon", detail: `Renewal date: ${new Date(activeRenewalDate).toLocaleDateString("en-IN")}` }] : []),
   ] : [];
-  const visibleRestaurantNotifications = restaurantNotifications.filter((n:any) => !readNotificationKeys.includes(n.key));
   const chartStart = new Date(selectedStart);
   const chartDays = Math.max(1, Math.min(31, Math.ceil((selectedEnd.getTime() - chartStart.getTime()) / 86400000)));
   const dynamicChart=Array.from({length:chartDays},(_,idx)=>{
@@ -1901,14 +1883,6 @@ export default function Home() {
   const normalizedRole = (currentUserRole || "").toLowerCase();
   const isOwnerOrAdmin = normalizedRole === "owner" || normalizedRole === "admin" || !normalizedRole;
   
-  const currentAdminRecord = isAdmin ? admins.find((a:any)=>a.id===authUser) : null;
-  const currentAdminPermissions:any = currentAdminRecord?.permissions || {};
-  const visibleNavPlatform = isAdmin ? navPlatform.filter((item:any) => {
-    if (item.id === "dashboard") return true;
-    if (currentAdminRecord && admins[0]?.id === authUser) return true;
-    return currentAdminPermissions[item.id] === true;
-  }) : [];
-
   const visibleNavTenant = isAdmin
     ? []
     : navTenant.filter((item) => {
@@ -2052,7 +2026,7 @@ export default function Home() {
           <>
             <div className="nav-heading admin-heading">PLATFORM ADMIN</div>
             <nav aria-label="Platform navigation">
-              {visibleNavPlatform.map((item) => (
+              {navPlatform.map((item) => (
                 <button
                   key={item.id}
                   className={"nav-link " + (view === item.id ? "active" : "")}
@@ -2134,7 +2108,7 @@ export default function Home() {
               onClick={() => setNotifications(!notifications)}
             >
               <Bell size={19} />
-              {((isAdmin ? ((approvals.length + subscriptionRequests.length) > 0 && !readNotificationKeys.includes("admin-pending")) : visibleRestaurantNotifications.length > 0)) && <span className="notification-dot" />}
+              <span className="notification-dot" />
             </button>
             <button
               className="profile-avatar top-avatar profile-top-button"
@@ -2182,31 +2156,154 @@ export default function Home() {
             <div className="notification-popover">
               <div className="popover-title">
                 <b>Notifications</b>
-                <span>{isAdmin ? ((approvals.length + subscriptionRequests.length) && !readNotificationKeys.includes("admin-pending") ? approvals.length + subscriptionRequests.length : 0) : visibleRestaurantNotifications.length} new</span>
+                <span>{isAdmin ? approvals.length + subscriptionRequests.length : restaurantNotifications.length} new</span>
               </div>
               {isAdmin ? (
-                (approvals.length + subscriptionRequests.length) > 0 && !readNotificationKeys.includes("admin-pending") ? (
-                  <div className="p-2 space-y-2">
-                    <button className="w-full text-left" onClick={() => { markNotificationRead("admin-pending"); nav("approvals"); }}>
-                      <span className="notif-icon amber">◎</span><span><b>{approvals.length + subscriptionRequests.length} pending items</b><small>Review applications & proofs</small></span>
-                    </button>
-                    <button className="quiet-btn w-full text-xs" onClick={() => markNotificationRead("admin-pending")}>Mark as read</button>
-                  </div>
+                (approvals.length + subscriptionRequests.length) > 0 ? (
+                  <button onClick={() => nav("approvals")}>
+                    <span className="notif-icon amber">◎</span>
+                    <span>
+                      <b>{approvals.length + subscriptionRequests.length} pending items</b>
+                      <small>Review applications & proofs</small>
+                    </span>
+                  </button>
                 ) : <div className="p-3 text-xs text-muted-foreground">No new platform notifications.</div>
               ) : (
-                visibleRestaurantNotifications.length ? visibleRestaurantNotifications.map((n:any) => (
-                  <div key={n.key} className="p-2 border-b last:border-0">
-                    <button className="w-full text-left flex items-start gap-2" onClick={() => { markNotificationRead(n.key); setNotifications(false); nav(n.key === "wage" ? "staff" : n.key === "sub" ? "subscription" : "inventory"); }}>
-                      <span className="notif-icon amber">!</span><span><b>{n.title}</b><small>{n.detail}</small></span>
-                    </button>
-                    <button className="quiet-btn text-[11px] mt-1" onClick={() => markNotificationRead(n.key)}>Mark as read</button>
-                  </div>
+                restaurantNotifications.length ? restaurantNotifications.map((n) => (
+                  <button key={n.key} onClick={() => { setNotifications(false); nav(n.key === "wage" ? "staff" : n.key === "sub" ? "subscription" : "inventory"); }}>
+                    <span className="notif-icon amber">◎</span>
+                    <span><b>{n.title}</b><small>{n.detail}</small></span>
+                  </button>
                 )) : <div className="p-3 text-xs text-muted-foreground">No new notifications for this restaurant.</div>
               )}
             </div>
           )}
         </header>
-        <main className="content">
+
+        <main className={"content " + (view === "pos" ? "pos-content" : "")}>
+          {subscriptionExpired && (
+            <div className="subscription-expired-banner" role="alert">
+              <strong>Trial/subscription ended — operations are disabled.</strong>
+              <span>Your restaurant data is retained, but you cannot perform app operations until the subscription is renewed.</span>
+              <button type="button" onClick={() => nav("subscription")}>Renew subscription</button>
+            </div>
+          )}
+          {subscriptionExpired && view !== "subscription" && (
+            <div className="subscription-lock-overlay">
+              <div className="subscription-lock-card">
+                <div className="subscription-lock-icon">!</div>
+                <h2>Trial / subscription ended</h2>
+                <p><strong>After the trial or subscription ends, you won't be able to do any operations in the app.</strong></p>
+                <button type="button" className="primary-btn" onClick={() => nav("subscription")}>View subscription & renew</button>
+              </div>
+            </div>
+          )}
+          {/* 1. OVERVIEW DASHBOARD */}
+          {view === "dashboard" && (
+            <>
+              <div className="page-head">
+                <div>
+                  <div className="eyebrow">OVERVIEW</div>
+                  <h1>{isAdmin ? "Platform Overview" : `Good afternoon, ${activeRestaurantName || "Owner"}`}</h1>
+                  <p>{isAdmin ? "Subscription, restaurant, and approval activity across RestoPulse." : `Here’s what’s happening at ${activeRestaurantName || "your restaurant"}.`}</p>
+                  <p className="text-xs text-muted-foreground mt-1">Live date: {liveDate.toLocaleDateString("en-IN", { weekday: "long", day: "2-digit", month: "long", year: "numeric" })}</p>
+                </div>
+                <div className="head-actions">
+                  {isAdmin ? (
+                    <button className="quiet-btn flex items-center gap-1.5" onClick={() => { fetchAllRestaurants(); fetchSubscriptionRequests(); fetchRealApprovals(); fetchLivePlans(); }}>
+                      <RefreshCw size={14} /> Refresh
+                    </button>
+                  ) : <>
+                    <select aria-label="Date range" value={dateRange} onChange={(e) => setDateRange(e.target.value)}>
+                      <option>Today</option><option>Yesterday</option><option>This week</option><option>This month</option><option>Custom</option>
+                    </select>
+                    {dateRange === "Custom" && (
+                      <div className="custom-date-range" aria-label="Custom sales date range">
+                        <label><span>From</span><input type="date" value={customStartDate} max={customEndDate || undefined} onChange={(e) => setCustomStartDate(e.target.value)} /></label>
+                        <label><span>To</span><input type="date" value={customEndDate} min={customStartDate || undefined} onChange={(e) => setCustomEndDate(e.target.value)} /></label>
+                      </div>
+                    )}
+                    <button className="primary-btn" onClick={() => nav("pos")}><Plus size={18} /> New order</button>
+                  </>}
+                </div>
+              </div>
+              <div className="kpi-grid">
+                {(isAdmin ? [
+                  { label: "Net subscription revenue", value: money(subscriptionRevenue), icon: CreditCard, tone: "teal", note: "approved subscription payments" },
+                  { label: "Subscribed restaurants", value: String(activeSubscriptionCount), icon: Building2, tone: "amber", note: "active/trial with renewal" },
+                  { label: "Active subscriptions", value: String(restaurants.filter((r:any)=>r.status==="Active").length), icon: BadgeCheck, tone: "green", note: "currently active" },
+                  { label: "Expired subscriptions", value: String(expiredSubscriptionCount), icon: Clock, tone: "violet", note: "renewal date passed" },
+                  { label: "Pending payments", value: String(subscriptionRequests.length), icon: ReceiptText, tone: "amber", note: "awaiting review" },
+                  { label: "Plans", value: String(plans.filter(p=>p.active).length), icon: CreditCard, tone: "teal", note: "active pricing plans" },
+                  { label: "Subscription history", value: String(subscriptionHistory.length), icon: CalendarDays, tone: "violet", note: "payment requests" },
+                  { label: "Upcoming renewals", value: String(restaurants.filter((r:any)=>r.renewal && new Date(r.renewal)>=nowForMetrics && new Date(r.renewal)<=new Date(nowForMetrics.getTime()+30*86400000)).length), icon: Bell, tone: "green", note: "next 30 days" },
+                ] : [
+                  { label: "Net sales", value: money(netSales), icon: ArrowUpRight, tone: "teal", note: `${dateRange.toLowerCase()} · paid sales, excluding tax` },
+                  { label: "Total orders", value: String(selectedOrders.length), icon: ShoppingBag, tone: "amber", note: `${dateRange.toLowerCase()} · completed paid orders` },
+                  { label: "Operating expenses", value: money(totalExpenses + paidWages), icon: ReceiptText, tone: "violet", note: `${dateRange.toLowerCase()} · expenses + paid wages` },
+                  { label: "Net profit", value: money(netSales - totalExpenses - paidWages), icon: ArrowUpRight, tone: "green", note: `${dateRange.toLowerCase()} · net sales − operating costs` },
+                  { label: "Today’s sales", value: money(todaySales), icon: Wallet, tone: "amber", note: "today" },
+                  { label: "Weekly sales", value: money(weeklySales), icon: Wallet, tone: "teal", note: "Monday–today" },
+                  { label: "Monthly sales", value: money(monthlySales), icon: Wallet, tone: "violet", note: "current month" },
+                  { label: "Low stock", value: String(lowStockCount + outOfStockCount), icon: Package, tone: outOfStockCount ? "amber" : "green", note: `${lowStockCount} low · ${outOfStockCount} out` },
+                ]).map((k) => (
+                  <div className="kpi-card" key={k.label}>
+                    <div className="kpi-top">
+                      <span>{k.label}</span>
+                      <span className={"kpi-icon " + k.tone}><k.icon size={19} /></span>
+                    </div>
+                    <strong>{k.value}</strong>
+                    <div className="kpi-foot"><span>{k.note}</span></div>
+                  </div>
+                ))}
+              </div>
+
+              {/* Weekly Trend Chart and Top Dishes */}
+              <div className="analytics-grid">
+                <section className="panel chart-panel">
+                  <div className="panel-header">
+                    <div>
+                      <h2>{isAdmin ? "Subscription revenue" : "Revenue & expenses"}</h2>
+                      <p>{isAdmin ? "Approved subscription payments · last 7 days" : `${dateRange} sales and expenses`}</p>
+                    </div>
+                  </div>
+                  <div className="chart">
+                    <ResponsiveContainer width="100%" height="100%">
+                      <AreaChart data={isAdmin ? adminChart : dynamicChart} margin={{ top: 15, right: 8, left: -17, bottom: 0 }}>
+                        <CartesianGrid strokeDasharray="3 5" vertical={false} stroke="var(--chart-grid)" />
+                        <XAxis dataKey="day" tickLine={false} axisLine={false} tick={{ fill: "var(--text-muted)", fontSize: 12 }} dy={12} />
+                        <YAxis tickLine={false} axisLine={false} tick={{ fill: "var(--text-muted)", fontSize: 12 }} tickFormatter={(v) => `${v / 1000}k`} />
+                        <Tooltip formatter={(v) => money(Number(v))} contentStyle={{ background: "var(--panel)", border: "1px solid var(--border)", borderRadius: 12 }} />
+                        <Area type="monotone" dataKey="revenue" stroke="#f59e0b" strokeWidth={3} fillOpacity={0.2} fill="#f59e0b" />
+                        <Area type="monotone" dataKey="expense" stroke="#10b981" strokeWidth={2} fillOpacity={0} />
+                      </AreaChart>
+                    </ResponsiveContainer>
+                  </div>
+                </section>
+                <section className="panel top-dishes">
+                  <div className="panel-header">
+                    <div><h2>{isAdmin ? "Recent subscription payments" : "Top performing dishes"}</h2></div>
+                  </div>
+                  {isAdmin ? subscriptionHistory.filter(x=>x.status==="Approved").slice(0,5).map((x:any)=>(
+                    <div className="leader-row" key={x.id}>
+                      <span className="leader-rank">₹</span>
+                      <span className="dish-thumb overflow-hidden flex items-center justify-center"><CreditCard size={18}/></span>
+                      <div className="leader-info"><b>{x.restaurant_name}</b><small>{x.plan} · {x.reviewed_at ? new Date(x.reviewed_at).toLocaleDateString("en-IN") : "Approved"}</small></div>
+                      <strong>{money(Number(x.amount)||(plans.find(p=>p.name.toLowerCase()===String(x.plan||"").toLowerCase())?.price||0))}</strong>
+                    </div>
+                  )) : dishes.slice(0, 4).map((d, i) => (
+                    <div className="leader-row" key={d.id}>
+                      <span className="leader-rank">0{i + 1}</span>
+                      <span className="dish-thumb overflow-hidden flex items-center justify-center">{d.imageUrl ? <img src={d.imageUrl} alt={d.name} className="w-full h-full object-cover rounded-lg" /> : d.emoji}</span>
+                      <div className="leader-info"><b>{d.name}</b><small>Menu item</small></div>
+                      <strong>{money(d.price)}</strong>
+                    </div>
+                  ))}
+                  {isAdmin && !subscriptionHistory.length && <div className="py-8 text-center text-xs text-muted-foreground">No subscription payments recorded yet.</div>}
+                </section>
+              </div>
+            </>
+          )}
 
           {/* 2. POS TERMINAL */}
           {view === "pos" && (
@@ -2889,7 +2986,7 @@ export default function Home() {
           )}
 
           {/* 9. SETTINGS WITH SAFE DATABASE PERSISTENCE */}
-          {(view === "settings" || (isAdmin && view === "support")) && (
+          {view === "settings" && (
             <>
               {isAdmin ? (
                 <AdminSettingsPanel />
@@ -3078,12 +3175,12 @@ export default function Home() {
             <>
               <div className="page-head flex flex-col sm:flex-row sm:justify-between sm:items-center gap-3">
                 <div><div className="eyebrow">PLATFORM ADMINISTRATION</div><h1>Manage Admins</h1><p>Add, edit, or remove platform administrators.</p></div>
-                <button className="primary-btn flex items-center gap-1.5" onClick={()=>{setEditingAdminId(null);setAdminForm({name:"",email:"",password:"",permissions:{restaurants:true,approvals:true,pricing:true,settings:true,support:true,admins:false}});setModal("admin");}}><Plus size={16}/> Add new admin</button>
+                <button className="primary-btn flex items-center gap-1.5" onClick={()=>{setEditingAdminId(null);setAdminForm({name:"",email:"",password:""});setModal("admin");}}><Plus size={16}/> Add new admin</button>
               </div>
               <div className="panel management-panel mt-6">
                 <div className="table-scroll"><table><thead><tr><th>ADMIN</th><th>EMAIL</th><th>CREATED</th><th>ACTIONS</th></tr></thead>
                 <tbody>{admins.map((a:any)=><tr key={a.id}><td><b>{a.name}</b></td><td>{a.email}</td><td>{a.created_at ? new Date(a.created_at).toLocaleDateString("en-IN") : "—"}</td><td><div className="flex gap-1.5">
-                  <button className="quiet-btn text-xs" title="Edit admin" onClick={()=>{setEditingAdminId(a.id);setAdminForm({name:a.name||"",email:a.email||"",password:"",permissions:{restaurants:true,approvals:true,pricing:true,settings:true,support:true,admins:false,...(a.permissions||{})}});setModal("admin");}}><Pencil size={13}/></button>
+                  <button className="quiet-btn text-xs" title="Edit admin" onClick={()=>{setEditingAdminId(a.id);setAdminForm({name:a.name||"",email:a.email||"",password:""});setModal("admin");}}><Pencil size={13}/></button>
                   <button className="quiet-btn text-xs text-red-600" title="Remove admin" onClick={async()=>{if(!confirm(`Remove ${a.name || a.email} from platform admins?`))return;const res=await authedFetch("/api/admin/admins",{method:"DELETE",headers:{"Content-Type":"application/json"},body:JSON.stringify({id:a.id})});const j=await res.json();if(!res.ok){toast.error(j.error||"Could not remove admin");return;}await fetchAdmins();toast.success("Admin access removed");}}><Trash2 size={13}/></button>
                 </div></td></tr>)}
                 {!admins.length&&<tr><td colSpan={4} className="text-center py-8 text-muted-foreground">No platform admins found.</td></tr>}</tbody></table></div>
@@ -3305,7 +3402,6 @@ export default function Home() {
             <label>Admin name<input value={adminForm.name} onChange={e=>setAdminForm({...adminForm,name:e.target.value})} /></label>
             <label>Admin email<input type="email" value={adminForm.email} onChange={e=>setAdminForm({...adminForm,email:e.target.value})} /></label>
             <label>Password {editingAdminId ? "(leave blank to keep current)" : "(optional)"}<input type="password" minLength={12} placeholder="Minimum 12 characters" value={adminForm.password} onChange={e=>setAdminForm({...adminForm,password:e.target.value})} /></label>
-            <div className="border rounded-xl p-3 space-y-2"><b className="text-xs">Section access</b>{([['restaurants','Restaurants'],['approvals','Approvals'],['pricing','Pricing plans'],['settings','Settings'],['support','Support & Help'],['admins','Manage admins']] as const).map(([key,label])=><label key={key} className="flex items-center gap-2 text-xs"><input type="checkbox" checked={!!adminForm.permissions[key]} onChange={e=>setAdminForm({...adminForm,permissions:{...adminForm.permissions,[key]:e.target.checked}})} />{label}</label>)}</div>
           </div>
           <DialogFooter><button className="quiet-btn" onClick={()=>setModal(null)}>Cancel</button><button className="primary-btn" onClick={save}>{editingAdminId ? "Save changes" : "Add admin"}</button></DialogFooter>
         </DialogContent>
@@ -3728,12 +3824,6 @@ export default function Home() {
                 </label>
               )}
             </div>
-
-            <label className="block space-y-1">
-              <span className="font-semibold text-muted-foreground">Login password {editing ? "(leave blank to keep existing)" : ""}</span>
-              <input type="password" value={form.password || ""} onChange={(e) => setForm({ ...form, password: e.target.value })} placeholder="Minimum 12 characters" className="w-full p-2 border rounded-lg bg-background" />
-              <span className="text-[11px] text-muted-foreground">The employee signs in with the email above and receives only the selected designation's permissions.</span>
-            </label>
 
             <div className="grid grid-cols-2 gap-3">
               <label className="block space-y-1">

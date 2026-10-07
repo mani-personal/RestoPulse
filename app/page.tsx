@@ -84,7 +84,8 @@ type View =
   | "subscription"
   | "restaurants"
   | "approvals"
-  | "pricing";
+  | "pricing"
+  | "support";
 
 type Dish = {
   id: number | string;
@@ -380,7 +381,7 @@ export default function Home() {
   const [sound, setSound] = useState(false);
   const [receipt, setReceipt] = useState<Bill | null>(null);
   const [orders, setOrders] = useState<Sale[]>([]);
-  const [modal, setModal] = useState<"plan" | "dish" | "expense" | "restaurant" | "extend" | "employee" | "supplier" | "payment" | "inventory" | "stockAdjust" | null>(null);
+  const [modal, setModal] = useState<"plan" | "dish" | "expense" | "restaurant" | "extend" | "employee" | "supplier" | "payment" | "inventory" | "stockAdjust" | "support" | null>(null);
   const [editing, setEditing] = useState<number | string | null>(null);
   const [form, setForm] = useState<Record<string, string>>({});
   const [dateRange, setDateRange] = useState("This week");
@@ -403,6 +404,10 @@ export default function Home() {
   const [adminUpiId, setAdminUpiId] = useState<string>("admin-restopulse@upi");
   const [adminUpiBusy, setAdminUpiBusy] = useState(false);
   const [subscriptionUpiId, setSubscriptionUpiId] = useState<string>("admin-restopulse@upi");
+
+  const [supportSections, setSupportSections] = useState<any[]>([]);
+  const [supportEditingId, setSupportEditingId] = useState<string | null>(null);
+  const [supportForm, setSupportForm] = useState({ title: "Support & Help", description: "Need help with RestoPulse? Contact our support team.", phone: "8122187039", whatsapp: "8122187039", email: "hosurwebservices@gmail.com", active: true });
 
   const [activeInlinePlan, setActiveInlinePlan] = useState<Plan | null>(null);
   const [inlineRefId, setInlineRefId] = useState("");
@@ -589,6 +594,43 @@ export default function Home() {
     }
   }, []);
 
+  const fetchSupportSections = useCallback(async () => {
+    try {
+      const res = await authedFetch("/api/support");
+      const json = await res.json();
+      if (res.ok && Array.isArray(json?.sections)) setSupportSections(json.sections);
+    } catch {}
+  }, [authedFetch]);
+
+  const saveSupportSection = async () => {
+    if (!supportForm.title.trim()) { toast.error("Enter a support section title"); return; }
+    try {
+      const res = await authedFetch("/api/support", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ ...supportForm, id: supportEditingId || undefined })
+      });
+      const json = await res.json();
+      if (!res.ok) throw new Error(json.error || "Could not save support section");
+      setSupportSections(json.sections || []);
+      setSupportEditingId(null);
+      setSupportForm({ title: "Support & Help", description: "Need help with RestoPulse? Contact our support team.", phone: "8122187039", whatsapp: "8122187039", email: "hosurwebservices@gmail.com", active: true });
+      toast.success("Support section saved");
+    } catch (e:any) { toast.error(e.message || "Could not save support section"); }
+  };
+
+  const deleteSupportSection = async (id:string) => {
+    if (!confirm("Delete this support section?")) return;
+    try {
+      const res = await authedFetch(`/api/support?id=${encodeURIComponent(id)}`, { method: "DELETE" });
+      const json = await res.json();
+      if (!res.ok) throw new Error(json.error || "Could not delete support section");
+      setSupportSections(json.sections || []);
+      if (supportEditingId === id) setSupportEditingId(null);
+      toast.success("Support section deleted");
+    } catch (e:any) { toast.error(e.message || "Could not delete support section"); }
+  };
+
   const AdminSettingsPanel = () => {
   return (
     <div>
@@ -623,6 +665,32 @@ export default function Home() {
             <div><span>Expired</span><strong>{restaurants.filter((r:any)=>r.renewal && new Date(r.renewal) < new Date()).length}</strong></div>
             <div><span>Pending approvals</span><strong>{subscriptionRequests.length + approvals.length}</strong></div>
             <div><span>Revenue</span><strong>{money(subscriptionHistory.filter((x:any)=>x.status === "Approved").reduce((n:number,x:any)=>n+Number(x.amount||0),0))}</strong></div>
+          </div>
+        </section>
+        <section className="panel settings-panel md:col-span-2">
+          <div className="flex items-start justify-between gap-3">
+            <div>
+              <h2>Support & Help Management</h2>
+              <p className="text-xs text-muted-foreground mt-1">Manage the support information displayed to restaurant users under their profile menu.</p>
+            </div>
+          </div>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mt-4">
+            <label>Title<input value={supportForm.title} onChange={e=>setSupportForm({...supportForm,title:e.target.value})}/></label>
+            <label>Email<input type="email" value={supportForm.email} onChange={e=>setSupportForm({...supportForm,email:e.target.value})}/></label>
+            <label>Call mobile number<input value={supportForm.phone} onChange={e=>setSupportForm({...supportForm,phone:e.target.value})}/></label>
+            <label>WhatsApp mobile number<input value={supportForm.whatsapp} onChange={e=>setSupportForm({...supportForm,whatsapp:e.target.value})}/></label>
+            <label className="md:col-span-2">Description<textarea value={supportForm.description} onChange={e=>setSupportForm({...supportForm,description:e.target.value})} className="w-full min-h-20 border rounded-lg p-2 bg-background text-xs"/></label>
+          </div>
+          <div className="flex gap-2 mt-3">
+            <button className="primary-btn" onClick={saveSupportSection}>{supportEditingId ? "Update support section" : "Add support section"}</button>
+            {supportEditingId && <button className="quiet-btn" onClick={()=>{setSupportEditingId(null);setSupportForm({ title: "Support & Help", description: "Need help with RestoPulse? Contact our support team.", phone: "8122187039", whatsapp: "8122187039", email: "hosurwebservices@gmail.com", active: true });}}>Cancel edit</button>}
+          </div>
+          <div className="mt-5 space-y-2">
+            {supportSections.map((section:any)=><div key={section.id} className="flex flex-col md:flex-row md:items-center md:justify-between gap-3 border rounded-xl p-3">
+              <div><b>{section.title}</b><p className="text-xs text-muted-foreground">{section.phone} · {section.email}</p></div>
+              <div className="flex gap-2"><button className="quiet-btn text-xs" onClick={()=>{setSupportEditingId(section.id);setSupportForm({...section,phone:section.phone||"",whatsapp:section.whatsapp||"",email:section.email||"",description:section.description||""});}}>Edit</button><button className="quiet-btn text-xs text-red-600" onClick={()=>deleteSupportSection(section.id)}>Delete</button></div>
+            </div>)}
+            {!supportSections.length && <div className="text-xs text-muted-foreground py-2">No support sections configured.</div>}
           </div>
         </section>
       </div>
@@ -747,6 +815,7 @@ export default function Home() {
   // multiple tabs/devices do not generate duplicate API/database traffic.
   useEffect(() => {
     if (!authUser) return;
+    fetchSupportSections();
     // Platform data is loaded only for Admin. Restaurant users must not load
     // the platform restaurant list during startup because it can overwrite the
     // authenticated membership workspace before hydration finishes.
@@ -759,7 +828,7 @@ export default function Home() {
     if (!isAdmin && tenantId) {
       syncLiveSubscriptionStatus();
     }
-  }, [authUser, isAdmin, tenantId, fetchSubscriptionRequests, fetchRealApprovals, fetchAllRestaurants, syncLiveSubscriptionStatus, fetchLivePlans]);
+  }, [authUser, isAdmin, tenantId, fetchSubscriptionRequests, fetchRealApprovals, fetchAllRestaurants, syncLiveSubscriptionStatus, fetchLivePlans, fetchSupportSections]);
 
   const loadRestaurantData = useCallback(async (id: string) => {
     if (!id || isAdmin) return;
@@ -1126,6 +1195,24 @@ export default function Home() {
           toast.success(editing!==null ? "Restaurant updated" : "Restaurant created");
         }
       } catch(e:any){toast.error(e.message||"Could not save restaurant");}
+      return;
+    }
+    if (modal === "extend") {
+      if (!editing) { toast.error("Select a restaurant first"); return; }
+      const days = Number(form.days || 30);
+      if (!Number.isFinite(days) || days <= 0) { toast.error("Enter a valid extension period"); return; }
+      try {
+        const res = await authedFetch("/api/admin/subscriptions", {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ action: "extend", restaurant_id: String(editing), days_to_add: days })
+        });
+        const json = await res.json();
+        if (!res.ok) throw new Error(json.error || "Could not extend subscription");
+        setModal(null); setEditing(null);
+        await fetchAllRestaurants();
+        toast.success(`Subscription extended until ${json.renewal_on || "the new renewal date"}.`);
+      } catch (e:any) { toast.error(e.message || "Could not extend subscription"); }
       return;
     }
     if (modal === "plan") {
@@ -1987,9 +2074,20 @@ export default function Home() {
               <button onClick={() => nav("settings")}>
                 <Settings size={17} /> Account & settings
               </button>
-              <button onClick={() => nav("staff")}>
-                <Users size={17} /> Manage employees
-              </button>
+              {isAdmin ? (
+                <button onClick={() => nav("settings")}>
+                  <Users size={17} /> Admin managements
+                </button>
+              ) : (
+                <>
+                  <button onClick={() => nav("staff")}>
+                    <Users size={17} /> Manage employees
+                  </button>
+                  <button onClick={() => { setProfileMenu(false); setModal("support"); }}>
+                    <Send size={17} /> Support & Help
+                  </button>
+                </>
+              )}
               <button onClick={handleSignOut} className="text-red-600 hover:text-red-700">
                 <LogOut size={17} /> Sign out
               </button>
@@ -2985,6 +3083,7 @@ export default function Home() {
                         <th>PLAN</th>
                         <th>STATUS</th>
                         <th>RENEWAL</th>
+                        <th>ACTIONS</th>
                       </tr>
                     </thead>
                     <tbody>
@@ -3000,8 +3099,9 @@ export default function Home() {
                           </td>
                           <td className="font-mono text-sm">{r.renewal}</td>
                           <td><div className="flex gap-1.5">
-                            <button className="quiet-btn text-xs" onClick={() => { setEditing(r.id); setForm({name:r.name,owner:r.owner,email:r.email,phone:r.phone,city:r.city||"",plan:r.plan||"Free Trial",status:r.status||"Active",renewal:r.renewal||""}); setModal("restaurant"); }}><Pencil size={13}/></button>
-                            <button className="quiet-btn text-xs text-red-600" onClick={async()=>{if(!confirm("Deactivate this restaurant?"))return;const res=await authedFetch("/api/admin/restaurants",{method:"DELETE",body:JSON.stringify({id:r.id})});const j=await res.json();if(!res.ok){toast.error(j.error||"Failed");return;}fetchAllRestaurants();toast.success("Restaurant deactivated");}}><Trash2 size={13}/></button>
+                            <button className="quiet-btn text-xs" title="Edit restaurant" onClick={() => { setEditing(r.id); setForm({name:r.name,owner:r.owner,email:r.email,phone:r.phone,city:r.city||"",plan:r.plan||"Free Trial",status:r.status||"Active",renewal:r.renewal||""}); setModal("restaurant"); }}><Pencil size={13}/></button>
+                            <button className="quiet-btn text-xs" title="Extend subscription" onClick={() => { setEditing(r.id); setForm({days:"30"}); setModal("extend"); }}><Clock size={13}/></button>
+                            <button className="quiet-btn text-xs text-red-600" title="Deactivate restaurant" onClick={async()=>{if(!confirm("Deactivate this restaurant?"))return;const res=await authedFetch("/api/admin/restaurants",{method:"DELETE",body:JSON.stringify({id:r.id})});const j=await res.json();if(!res.ok){toast.error(j.error||"Failed");return;}fetchAllRestaurants();toast.success("Restaurant deactivated");}}><Trash2 size={13}/></button>
                           </div></td>
                         </tr>
                       ))}
@@ -3206,6 +3306,37 @@ export default function Home() {
       </div>
 
       {mobileNav && <button className="nav-backdrop" aria-label="Close navigation" onClick={() => setMobileNav(false)} />}
+
+      <Dialog open={modal === "extend"} onOpenChange={(v)=>!v&&setModal(null)}>
+        <DialogContent className="max-w-md">
+          <DialogHeader><DialogTitle>Extend Subscription</DialogTitle><DialogDescription>Extend the selected restaurant's current subscription without changing its plan.</DialogDescription></DialogHeader>
+          <div className="modal-fields">
+            <label>Extension period<select value={form.days||"30"} onChange={e=>setForm({...form,days:e.target.value})}>
+              <option value="7">7 days</option><option value="30">30 days</option><option value="90">90 days</option><option value="180">180 days</option><option value="365">365 days</option>
+            </select></label>
+          </div>
+          <DialogFooter><button className="quiet-btn" onClick={()=>setModal(null)}>Cancel</button><button className="primary-btn" onClick={save}>Extend subscription</button></DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={modal === "support"} onOpenChange={(v)=>!v&&setModal(null)}>
+        <DialogContent className="max-w-md">
+          <DialogHeader><DialogTitle>Support & Help</DialogTitle><DialogDescription>Contact RestoPulse support using the options below.</DialogDescription></DialogHeader>
+          <div className="space-y-3 py-2">
+            {(supportSections.filter((x:any)=>x.active !== false)).map((section:any)=><div key={section.id} className="border rounded-xl p-4 space-y-2">
+              <h3 className="font-bold">{section.title}</h3>
+              <p className="text-xs text-muted-foreground">{section.description}</p>
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 pt-2">
+                {section.phone && <a className="primary-btn text-center" href={`tel:${String(section.phone).replace(/\s+/g,"")}`}>Call</a>}
+                {section.whatsapp && <a className="primary-btn text-center" href={`https://wa.me/${String(section.whatsapp).replace(/\D/g,"")}`} target="_blank" rel="noreferrer">WhatsApp</a>}
+                {section.email && <a className="quiet-btn text-center" href={`mailto:${section.email}`}>Email</a>}
+              </div>
+            </div>)}
+            {!supportSections.length && <div className="text-sm text-muted-foreground">Support contact information is not configured yet.</div>}
+          </div>
+          <DialogFooter><button className="quiet-btn" onClick={()=>setModal(null)}>Close</button></DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       {/* DEDICATED MODAL FOR ADDING / EDITING PRICING PLANS */}
       <Dialog open={modal === "restaurant"} onOpenChange={(v)=>!v&&setModal(null)}>

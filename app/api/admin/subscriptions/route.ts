@@ -51,15 +51,59 @@ export async function PATCH(request:Request){
     const {data:req,error:reqError}=await supabase.from("subscription_requests").select("*").eq("id",requestId).single();
     if(reqError||!req)throw reqError||new Error("Subscription request not found");
     if(action==="reject"){
-      const {error}=await supabase.from("subscription_requests").update({status:"Rejected",reviewed_at:new Date().toISOString(),reviewed_by:user.id}).eq("id",requestId);
-      if(error)throw error; return NextResponse.json({success:true,status:"Rejected"});
+      // Persist only the status so this endpoint remains compatible with databases
+      // where the optional review metadata columns have not been migrated yet.
+      const {data:updated,error}=await supabase
+        .from("subscription_requests")
+        .update({status:"Rejected"})
+        .eq("id",requestId)
+        .eq("status","Pending")
+        .select("id,status,restaurant_id")
+        .maybeSingle();
+      if(error)throw error;
+      if(!updated) return NextResponse.json({error:"Subscription request is no longer pending"},{status:409});
+      return NextResponse.json({success:true,status:"Rejected",request_id:updated.id});
     }
+    if(action!=="approve") return NextResponse.json({error:"Invalid subscription action"},{status:400});
     const days=Number(body.days_to_add)||((String(req.plan).toLowerCase().includes("year"))?365:(String(req.plan).toLowerCase().includes("7")?7:30));
-    const {data:rest,error:restError}=await supabase.from("restaurants").select("id,renewal_on").eq("id",req.restaurant_id).single(); if(restError||!rest)throw restError||new Error("Restaurant not found");
+
+    // Older payment requests can contain a null restaurant_id. Resolve the tenant
+    // from the request owner email before attempting the UUID lookup so approval
+    // never sends the literal string "null" to Postgres.
+    let restaurantId = req.restaurant_id ? String(req.restaurant_id) : "";
+    if (!restaurantId || restaurantId === "null" || restaurantId === "undefined") {
+      if (req.owner_email) {
+        const {data:byEmail}=await supabase
+          .from("restaurants")
+          .select("id,renewal_on")
+          .eq("owner_email",String(req.owner_email).trim().toLowerCase())
+          .maybeSingle();
+        if (byEmail?.id) restaurantId=String(byEmail.id);
+      }
+      if (!restaurantId && req.restaurant_name) {
+        const {data:byName}=await supabase
+          .from("restaurants")
+          .select("id,renewal_on")
+          .eq("name",String(req.restaurant_name).trim())
+          .maybeSingle();
+        if (byName?.id) restaurantId=String(byName.id);
+      }
+    }
+    if (!restaurantId) return NextResponse.json({error:"Could not identify the restaurant for this payment request"},{status:400});
+
+    const {data:rest,error:restError}=await supabase.from("restaurants").select("id,renewal_on").eq("id",restaurantId).single(); if(restError||!rest)throw restError||new Error("Restaurant not found");
     let base=new Date(); if(rest.renewal_on){const d=new Date(rest.renewal_on);if(!isNaN(d.getTime())&&d>base)base=d;}
     base.setDate(base.getDate()+days); const renewal=base.toISOString().slice(0,10);
     const {error:updateError}=await supabase.from("restaurants").update({status:"Active",plan:req.plan,renewal_on:renewal}).eq("id",rest.id); if(updateError)throw updateError;
-    const {error:reqUpdate}=await supabase.from("subscription_requests").update({status:"Approved",reviewed_at:new Date().toISOString(),reviewed_by:user.id}).eq("id",requestId); if(reqUpdate)throw reqUpdate;
-    return NextResponse.json({success:true,status:"Approved",restaurant_id:rest.id,plan:req.plan,renewal_on:renewal});
+    const {data:reqUpdate,error:reqUpdateError}=await supabase
+      .from("subscription_requests")
+      .update({status:"Approved"})
+      .eq("id",requestId)
+      .eq("status","Pending")
+      .select("id,status,restaurant_id")
+      .maybeSingle();
+    if(reqUpdateError)throw reqUpdateError;
+    if(!reqUpdate) return NextResponse.json({error:"Subscription request is no longer pending"},{status:409});
+    return NextResponse.json({success:true,status:"Approved",restaurant_id:rest.id,plan:req.plan,renewal_on:renewal,request_id:reqUpdate.id});
   }catch(e){return fail(e);}
 }

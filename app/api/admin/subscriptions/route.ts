@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
-import { requirePlatformAdmin } from "@/lib/serverAuth";
+import { requireAdmin } from "@/lib/serverAuth";
 
 function getAdminClient() {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
@@ -20,12 +20,20 @@ function getAdminClient() {
 
 export async function GET(request: Request) {
   try {
-    await requirePlatformAdmin(request);
+    await requireAdmin(request);
     const supabase = getAdminClient();
 
     const [requestsRes, historyRes] = await Promise.all([
-      supabase.from("subscription_requests").select("*").eq("status", "Pending").order("requested_at", { ascending: false }),
-      supabase.from("subscription_requests").select("*").order("requested_at", { ascending: false }).limit(100),
+      supabase
+        .from("subscription_requests")
+        .select("*")
+        .eq("status", "Pending")
+        .order("requested_at", { ascending: false }),
+      supabase
+        .from("subscription_requests")
+        .select("*")
+        .order("requested_at", { ascending: false })
+        .limit(100),
     ]);
 
     return NextResponse.json({
@@ -39,7 +47,7 @@ export async function GET(request: Request) {
 
 export async function PATCH(request: Request) {
   try {
-    await requirePlatformAdmin(request);
+    await requireAdmin(request);
     const supabase = getAdminClient();
     const body = await request.json();
     const { request_id, restaurant_id, restaurant_name, owner_email, plan_name, days_to_add, action } = body;
@@ -86,7 +94,7 @@ export async function PATCH(request: Request) {
       return NextResponse.json({ error: "Restaurant record not found" }, { status: 404 });
     }
 
-    // Renewal date calculation: stack onto existing valid future date
+    // Renewal date calculation
     let baseDate = new Date();
     if (targetRest.renewal_on && targetRest.renewal_on !== "—") {
       const existing = new Date(targetRest.renewal_on);

@@ -83,3 +83,18 @@ It also adds RLS, indexes, inventory transaction tracking, and Realtime publicat
 - Fixed subscription renewal rejection/approval to persist status without depending on optional `reviewed_at`/`reviewed_by` columns.
 - Fixed approval of legacy subscription requests with a null `restaurant_id` by resolving the restaurant from owner email/name before UUID lookup.
 - Pending subscription queues now remove only successfully transitioned requests.
+
+## 2026-10-07 Support, Admin Management & Subscription Extension
+- Added Restaurant Console Profile -> Support & Help with Call, WhatsApp, and Email actions.
+- Default support contact: 8122187039 / hosurwebservices@gmail.com.
+- Added Admin Settings -> Support & Help Management with add, edit, and delete support sections.
+- Added Admin subscription extension controls for 7/30/90/180/365 day extensions.
+- Changed the Admin Profile action from Manage employees to Admin managements.
+- Support configuration is persisted in the existing settings table; no schema migration is required.
+
+## 2026-10-07 – Custom subscription extension, support contacts, receipt print and responsive hardening
+- Admin restaurant subscription extension now supports selecting an exact renewal date instead of only fixed day presets.
+- Subscription extension API validates the selected date and prevents moving a restaurant's renewal date backwards.
+- Restaurant Profile > Support & Help now explicitly displays the support mobile number and email, in addition to Call/WhatsApp/Email actions.
+- Receipt preview and print layouts were unified for 58mm, 85mm and A4, including table column widths, wrapping and print page sizing.
+- Added responsive hardening for dialogs, sheets, tables, forms, KPI grids, POS, Admin pages and Restaurant Console pages across mobile and laptop/tablet widths.

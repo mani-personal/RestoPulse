@@ -45,48 +45,34 @@ export async function POST(request:Request){
 
 export async function PATCH(request:Request){
   try{
-    const {supabase,user}=await requireAdmin(request); const body=await request.json();
-    const requestId=String(body.request_id||""); const action=String(body.action||"");
+    const {supabase}=await requireAdmin(request); const body=await request.json();
+    const action=String(body.action||"");
+
+    // Direct subscription extension acts on a restaurant, not on a payment
+    // request, so request_id is intentionally not required for this action.
+    if(action==="extend") {
+      const restaurantId=String(body.restaurant_id||"");
+      const days=Number(body.days_to_add)||0;
+      if(!restaurantId)return NextResponse.json({error:"Restaurant ID is required"},{status:400});
+      if(!Number.isFinite(days)||days<=0||days>3650)return NextResponse.json({error:"Extension must be between 1 and 3650 days"},{status:400});
+      const {data:rest,error:restError}=await supabase.from("restaurants").select("id,renewal_on,status").eq("id",restaurantId).single();
+      if(restError||!rest)throw restError||new Error("Restaurant not found");
+      const now=new Date();
+      let base=now;
+      if(rest.renewal_on){const d=new Date(rest.renewal_on);if(!isNaN(d.getTime())&&d>base)base=d;}
+      base.setDate(base.getDate()+days);
+      const renewal=base.toISOString().slice(0,10);
+      const {error:updateError}=await supabase.from("restaurants").update({status:"Active",renewal_on:renewal}).eq("id",restaurantId);
+      if(updateError)throw updateError;
+      return NextResponse.json({success:true,status:"Active",restaurant_id:restaurantId,renewal_on:renewal,days_added:days});
+    }
+
+    const requestId=String(body.request_id||"");
     if(!requestId)return NextResponse.json({error:"Request ID is required"},{status:400});
     const {data:req,error:reqError}=await supabase.from("subscription_requests").select("*").eq("id",requestId).single();
     if(reqError||!req)throw reqError||new Error("Subscription request not found");
-    if(action==="extend") {
-      const restaurantId=String(body.restaurant_id||"");
-      const requestedDate=String(body.renewal_on||"").trim();
-      const days=Number(body.days_to_add)||0;
-      if(!restaurantId)return NextResponse.json({error:"Restaurant ID is required"},{status:400});
-      const {data:rest,error:restError}=await supabase.from("restaurants").select("id,renewal_on,status").eq("id",restaurantId).single();
-      if(restError||!rest)throw restError||new Error("Restaurant not found");
 
-      let renewal:string;
-      if(requestedDate){
-        if(!/^\d{4}-\d{2}-\d{2}$/.test(requestedDate))return NextResponse.json({error:"Enter a valid renewal date"},{status:400});
-        const target=new Date(`${requestedDate}T00:00:00`);
-        if(Number.isNaN(target.getTime()))return NextResponse.json({error:"Enter a valid renewal date"},{status:400});
-        const today=new Date(); today.setHours(0,0,0,0);
-        if(target < today)return NextResponse.json({error:"Renewal date cannot be in the past"},{status:400});
-        if(rest.renewal_on){
-          const current=new Date(`${String(rest.renewal_on).slice(0,10)}T00:00:00`);
-          if(!Number.isNaN(current.getTime()) && target < current){
-            return NextResponse.json({error:`Choose a date on or after the current renewal date (${String(rest.renewal_on).slice(0,10)})`},{status:400});
-          }
-        }
-        renewal=requestedDate;
-      } else {
-        if(!Number.isFinite(days)||days<=0||days>3650)return NextResponse.json({error:"Extension must be between 1 and 3650 days"},{status:400});
-        const now=new Date();
-        let base=now;
-        if(rest.renewal_on){const d=new Date(rest.renewal_on);if(!isNaN(d.getTime())&&d>base)base=d;}
-        base.setDate(base.getDate()+days);
-        renewal=base.toISOString().slice(0,10);
-      }
-      const {error:updateError}=await supabase.from("restaurants").update({status:"Active",renewal_on:renewal}).eq("id",restaurantId);
-      if(updateError)throw updateError;
-      return NextResponse.json({success:true,status:"Active",restaurant_id:restaurantId,renewal_on:renewal,days_added:days||null});
-    }
     if(action==="reject"){
-      // Persist only the status so this endpoint remains compatible with databases
-      // where the optional review metadata columns have not been migrated yet.
       const {data:updated,error}=await supabase
         .from("subscription_requests")
         .update({status:"Rejected"})
@@ -95,49 +81,32 @@ export async function PATCH(request:Request){
         .select("id,status,restaurant_id")
         .maybeSingle();
       if(error)throw error;
-      if(!updated) return NextResponse.json({error:"Subscription request is no longer pending"},{status:409});
+      if(!updated)return NextResponse.json({error:"Subscription request is no longer pending"},{status:409});
       return NextResponse.json({success:true,status:"Rejected",request_id:updated.id});
     }
-    if(action!=="approve") return NextResponse.json({error:"Invalid subscription action"},{status:400});
-    const days=Number(body.days_to_add)||((String(req.plan).toLowerCase().includes("year"))?365:(String(req.plan).toLowerCase().includes("7")?7:30));
 
-    // Older payment requests can contain a null restaurant_id. Resolve the tenant
-    // from the request owner email before attempting the UUID lookup so approval
-    // never sends the literal string "null" to Postgres.
-    let restaurantId = req.restaurant_id ? String(req.restaurant_id) : "";
-    if (!restaurantId || restaurantId === "null" || restaurantId === "undefined") {
-      if (req.owner_email) {
-        const {data:byEmail}=await supabase
-          .from("restaurants")
-          .select("id,renewal_on")
-          .eq("owner_email",String(req.owner_email).trim().toLowerCase())
-          .maybeSingle();
-        if (byEmail?.id) restaurantId=String(byEmail.id);
+    if(action!=="approve")return NextResponse.json({error:"Invalid subscription action"},{status:400});
+    const days=Number(body.days_to_add)||((String(req.plan).toLowerCase().includes("year"))?365:(String(req.plan).toLowerCase().includes("7")?7:30));
+    let restaurantId=req.restaurant_id?String(req.restaurant_id):"";
+    if(!restaurantId||restaurantId==="null"||restaurantId==="undefined"){
+      if(req.owner_email){
+        const {data:byEmail}=await supabase.from("restaurants").select("id,renewal_on").eq("owner_email",String(req.owner_email).trim().toLowerCase()).maybeSingle();
+        if(byEmail?.id)restaurantId=String(byEmail.id);
       }
-      if (!restaurantId && req.restaurant_name) {
-        const {data:byName}=await supabase
-          .from("restaurants")
-          .select("id,renewal_on")
-          .eq("name",String(req.restaurant_name).trim())
-          .maybeSingle();
-        if (byName?.id) restaurantId=String(byName.id);
+      if(!restaurantId&&req.restaurant_name){
+        const {data:byName}=await supabase.from("restaurants").select("id,renewal_on").eq("name",String(req.restaurant_name).trim()).maybeSingle();
+        if(byName?.id)restaurantId=String(byName.id);
       }
     }
-    if (!restaurantId) return NextResponse.json({error:"Could not identify the restaurant for this payment request"},{status:400});
-
-    const {data:rest,error:restError}=await supabase.from("restaurants").select("id,renewal_on").eq("id",restaurantId).single(); if(restError||!rest)throw restError||new Error("Restaurant not found");
+    if(!restaurantId)return NextResponse.json({error:"Could not identify the restaurant for this payment request"},{status:400});
+    const {data:rest,error:restError}=await supabase.from("restaurants").select("id,renewal_on").eq("id",restaurantId).single();
+    if(restError||!rest)throw restError||new Error("Restaurant not found");
     let base=new Date(); if(rest.renewal_on){const d=new Date(rest.renewal_on);if(!isNaN(d.getTime())&&d>base)base=d;}
     base.setDate(base.getDate()+days); const renewal=base.toISOString().slice(0,10);
     const {error:updateError}=await supabase.from("restaurants").update({status:"Active",plan:req.plan,renewal_on:renewal}).eq("id",rest.id); if(updateError)throw updateError;
-    const {data:reqUpdate,error:reqUpdateError}=await supabase
-      .from("subscription_requests")
-      .update({status:"Approved"})
-      .eq("id",requestId)
-      .eq("status","Pending")
-      .select("id,status,restaurant_id")
-      .maybeSingle();
+    const {data:reqUpdate,error:reqUpdateError}=await supabase.from("subscription_requests").update({status:"Approved"}).eq("id",requestId).eq("status","Pending").select("id,status,restaurant_id").maybeSingle();
     if(reqUpdateError)throw reqUpdateError;
-    if(!reqUpdate) return NextResponse.json({error:"Subscription request is no longer pending"},{status:409});
+    if(!reqUpdate)return NextResponse.json({error:"Subscription request is no longer pending"},{status:409});
     return NextResponse.json({success:true,status:"Approved",restaurant_id:rest.id,plan:req.plan,renewal_on:renewal,request_id:reqUpdate.id});
   }catch(e){return fail(e);}
 }

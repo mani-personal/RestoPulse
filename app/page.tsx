@@ -284,8 +284,6 @@ const navPlatform: { id: View; label: string; icon: typeof Building2 }[] = [
   { id: "support", label: "Support & Help Management", icon: Send },
 ];
 
-
-
 export default function Home() {
   const db = browserDb;
   const [authLoading, setAuthLoading] = useState(true);
@@ -449,7 +447,7 @@ export default function Home() {
         }
       }
     } catch {}
-  }, [activeInlinePlan]);
+  }, [activeInlinePlan, authedFetch]);
 
   const getPlanDurationDays = (planName: string) => {
     const found = plans.find((p) => p.name.toLowerCase() === planName.toLowerCase());
@@ -523,8 +521,6 @@ export default function Home() {
 
         if (!tenantIdRef.current || tenantIdRef.current === data.restaurant.id) {
           setActivePlanName(data.restaurant.plan || "Free trial");
-          // Free Trial is always limited to 7 days. If an older restaurant has no
-          // renewal date, derive the trial end from its creation date.
           const createdAt = data.restaurant.created_at ? new Date(data.restaurant.created_at) : null;
           const isTrial = String(data.restaurant.status || "").toLowerCase() === "trial" || String(data.restaurant.plan || "").toLowerCase().includes("free trial");
           const trialEnd = isTrial && createdAt && !Number.isNaN(createdAt.getTime())
@@ -554,47 +550,43 @@ export default function Home() {
   }, [authUser, loginEmail]);
 
   const fetchAllRestaurants = useCallback(async () => {
-    // Restaurant users must never hydrate their workspace from the platform
-    // restaurant list. That list can contain every restaurant and can race
-    // with membership hydration during the first render, causing a brief
-    // switch to another restaurant. Only the platform Admin needs this list.
     if (!isAdmin) return;
     try {
       const res = await authedFetch("/api/admin/restaurants");
       const json = await res.json();
       const data = Array.isArray(json?.restaurants) ? json.restaurants : [];
       if (res.ok) {
-          if (!data.length) { setRestaurants([]); return; }
-          const mapped = data.map((x: any) => ({
-            id: x.id,
-            name: x.name,
-            owner: x.owner_name,
-            email: x.owner_email,
-            phone: x.owner_phone,
-            city: x.city,
-            plan: x.plan,
-            status: x.status,
-            renewal: x.renewal_on || "—",
-            initial: (x.name || "RS").slice(0, 2).toUpperCase(),
-          }));
-          setRestaurants(mapped);
+        if (!data.length) { setRestaurants([]); return; }
+        const mapped = data.map((x: any) => ({
+          id: x.id,
+          name: x.name,
+          owner: x.owner_name,
+          email: x.owner_email,
+          phone: x.owner_phone,
+          city: x.city,
+          plan: x.plan,
+          status: x.status,
+          renewal: x.renewal_on || "—",
+          initial: (x.name || "RS").slice(0, 2).toUpperCase(),
+        }));
+        setRestaurants(mapped);
 
-          const savedTenantId = localStorage.getItem("rp-active-tenant-id");
-          const target = mapped.find((r: any) => r.id === savedTenantId) || mapped.find((r: any) => r.id === tenantIdRef.current) || mapped[0];
+        const savedTenantId = localStorage.getItem("rp-active-tenant-id");
+        const target = mapped.find((r: any) => r.id === savedTenantId) || mapped.find((r: any) => r.id === tenantIdRef.current) || mapped[0];
 
-          if (!tenantIdRef.current && target) {
-            setTenantId(target.id);
-            setActiveRestaurantName(target.name);
-            setActivePlanName(target.plan || "Free trial");
-            setActiveRenewalDate(target.renewal || "—");
-          } else if (tenantIdRef.current) {
-            const current = mapped.find((r: any) => r.id === tenantIdRef.current);
-            if (current) {
-              setActivePlanName(current.plan || "Free trial");
-              setActiveRenewalDate(current.renewal || "—");
-            }
+        if (!tenantIdRef.current && target) {
+          setTenantId(target.id);
+          setActiveRestaurantName(target.name);
+          setActivePlanName(target.plan || "Free trial");
+          setActiveRenewalDate(target.renewal || "—");
+        } else if (tenantIdRef.current) {
+          const current = mapped.find((r: any) => r.id === tenantIdRef.current);
+          if (current) {
+            setActivePlanName(current.plan || "Free trial");
+            setActiveRenewalDate(current.renewal || "—");
           }
         }
+      }
     } catch {}
   }, [authedFetch, isAdmin]);
 
@@ -616,7 +608,7 @@ export default function Home() {
         setApprovals(json.approvals);
       }
     } catch {}
-  }, []);
+  }, [authedFetch]);
 
   const fetchSubscriptionRequests = useCallback(async () => {
     try {
@@ -628,7 +620,7 @@ export default function Home() {
       const localReqs = localStorage.getItem("rp-local-sub-requests");
       if (localReqs) setSubscriptionRequests(JSON.parse(localReqs));
     }
-  }, []);
+  }, [authedFetch]);
 
   const fetchSupportSections = useCallback(async () => {
     try {
@@ -668,74 +660,74 @@ export default function Home() {
   };
 
   const AdminSettingsPanel = () => {
-  return (
-    <div>
-      <div className="page-head">
-        <div>
-          <div className="eyebrow">PLATFORM SETTINGS</div>
-          <h1>Admin Settings</h1>
-          <p>Manage platform-level payment, account, and subscription settings.</p>
+    return (
+      <div>
+        <div className="page-head">
+          <div>
+            <div className="eyebrow">PLATFORM SETTINGS</div>
+            <h1>Admin Settings</h1>
+            <p>Manage platform-level payment, account, and subscription settings.</p>
+          </div>
+        </div>
+        <div className="settings-grid grid grid-cols-1 md:grid-cols-2 gap-6 mt-6">
+          <section className="panel settings-panel">
+            <h2>Platform payments</h2>
+            <p className="text-xs text-muted-foreground mt-1">UPI ID used by restaurants for subscription payments.</p>
+            <div className="settings-fields">
+              <label>Admin UPI ID<input value={adminUpiId} onChange={(e) => setAdminUpiId(e.target.value)} placeholder="merchant@upi" /></label>
+            </div>
+            <button className="primary-btn" onClick={saveAdminUpi} disabled={adminUpiBusy}>{adminUpiBusy ? "Saving…" : "Save Admin UPI ID"}</button>
+          </section>
+          <section className="panel settings-panel">
+            <h2>Admin account</h2>
+            <p className="text-xs text-muted-foreground mt-1">Signed in as the RestoPulse platform administrator.</p>
+            <div className="settings-fields">
+              <label>Email<input value={loginEmail} readOnly /></label>
+              <label>Role<input value="Platform Administrator" readOnly /></label>
+            </div>
+          </section>
+          <section className="panel settings-panel md:col-span-2">
+            <h2>Subscription operations</h2>
+            <div className="platform-stats mt-4">
+              <div><span>Active / Trial</span><strong>{restaurants.filter((r:any)=>["Active","Trial"].includes(r.status)).length}</strong></div>
+              <div><span>Expired</span><strong>{restaurants.filter((r:any)=>r.renewal && new Date(r.renewal) < new Date()).length}</strong></div>
+              <div><span>Pending approvals</span><strong>{subscriptionRequests.length + approvals.length}</strong></div>
+              <div><span>Revenue</span><strong>{money(subscriptionHistory.filter((x:any)=>x.status === "Approved").reduce((n:number,x:any)=>n+Number(x.amount||0),0))}</strong></div>
+            </div>
+          </section>
+          <section className="panel settings-panel md:col-span-2">
+            <div className="flex items-start justify-between gap-3">
+              <div>
+                <h2>Support & Help Management</h2>
+                <p className="text-xs text-muted-foreground mt-1">Manage the support information displayed to restaurant users under their profile menu.</p>
+              </div>
+            </div>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mt-4">
+              <label>Title<input value={supportForm.title} onChange={e=>setSupportForm({...supportForm,title:e.target.value})}/></label>
+              <label>Email<input type="email" value={supportForm.email} onChange={e=>setSupportForm({...supportForm,email:e.target.value})}/></label>
+              <label>Call mobile number<input value={supportForm.phone} onChange={e=>setSupportForm({...supportForm,phone:e.target.value})}/></label>
+              <label>WhatsApp mobile number<input value={supportForm.whatsapp} onChange={e=>setSupportForm({...supportForm,whatsapp:e.target.value})}/></label>
+              <label className="md:col-span-2">Description<textarea value={supportForm.description} onChange={e=>setSupportForm({...supportForm,description:e.target.value})} className="w-full min-h-20 border rounded-lg p-2 bg-background text-xs"/></label>
+            </div>
+            <div className="flex gap-2 mt-3">
+              <button className="primary-btn" onClick={saveSupportSection}>{supportEditingId ? "Update support section" : "Add support section"}</button>
+              {supportEditingId && <button className="quiet-btn" onClick={()=>{setSupportEditingId(null);setSupportForm({ title: "Support & Help", description: "Need help with RestoPulse? Contact our support team.", phone: "8122187039", whatsapp: "8122187039", email: "hosurwebservices@gmail.com", active: true });}}>Cancel edit</button>}
+            </div>
+            <div className="mt-5 space-y-2">
+              {supportSections.map((section:any)=><div key={section.id} className="flex flex-col md:flex-row md:items-center md:justify-between gap-3 border rounded-xl p-3">
+                <div><b>{section.title}</b><p className="text-xs text-muted-foreground">{section.phone} · {section.email}</p></div>
+                <div className="flex gap-2"><button className="quiet-btn text-xs" onClick={()=>{setSupportEditingId(section.id);setSupportForm({...section,phone:section.phone||"",whatsapp:section.whatsapp||"",email:section.email||"",description:section.description||""});}}>Edit</button><button className="quiet-btn text-xs text-red-600" onClick={()=>deleteSupportSection(section.id)}>Delete</button></div>
+              </div>)}
+              {!supportSections.length && <div className="text-xs text-muted-foreground py-2">No support sections configured.</div>}
+            </div>
+          </section>
         </div>
       </div>
-      <div className="settings-grid grid grid-cols-1 md:grid-cols-2 gap-6 mt-6">
-        <section className="panel settings-panel">
-          <h2>Platform payments</h2>
-          <p className="text-xs text-muted-foreground mt-1">UPI ID used by restaurants for subscription payments.</p>
-          <div className="settings-fields">
-            <label>Admin UPI ID<input value={adminUpiId} onChange={(e) => setAdminUpiId(e.target.value)} placeholder="merchant@upi" /></label>
-          </div>
-          <button className="primary-btn" onClick={saveAdminUpi} disabled={adminUpiBusy}>{adminUpiBusy ? "Saving…" : "Save Admin UPI ID"}</button>
-        </section>
-        <section className="panel settings-panel">
-          <h2>Admin account</h2>
-          <p className="text-xs text-muted-foreground mt-1">Signed in as the RestoPulse platform administrator.</p>
-          <div className="settings-fields">
-            <label>Email<input value={loginEmail} readOnly /></label>
-            <label>Role<input value="Platform Administrator" readOnly /></label>
-          </div>
-        </section>
-        <section className="panel settings-panel md:col-span-2">
-          <h2>Subscription operations</h2>
-          <div className="platform-stats mt-4">
-            <div><span>Active / Trial</span><strong>{restaurants.filter((r:any)=>["Active","Trial"].includes(r.status)).length}</strong></div>
-            <div><span>Expired</span><strong>{restaurants.filter((r:any)=>r.renewal && new Date(r.renewal) < new Date()).length}</strong></div>
-            <div><span>Pending approvals</span><strong>{subscriptionRequests.length + approvals.length}</strong></div>
-            <div><span>Revenue</span><strong>{money(subscriptionHistory.filter((x:any)=>x.status === "Approved").reduce((n:number,x:any)=>n+Number(x.amount||0),0))}</strong></div>
-          </div>
-        </section>
-        <section className="panel settings-panel md:col-span-2">
-          <div className="flex items-start justify-between gap-3">
-            <div>
-              <h2>Support & Help Management</h2>
-              <p className="text-xs text-muted-foreground mt-1">Manage the support information displayed to restaurant users under their profile menu.</p>
-            </div>
-          </div>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mt-4">
-            <label>Title<input value={supportForm.title} onChange={e=>setSupportForm({...supportForm,title:e.target.value})}/></label>
-            <label>Email<input type="email" value={supportForm.email} onChange={e=>setSupportForm({...supportForm,email:e.target.value})}/></label>
-            <label>Call mobile number<input value={supportForm.phone} onChange={e=>setSupportForm({...supportForm,phone:e.target.value})}/></label>
-            <label>WhatsApp mobile number<input value={supportForm.whatsapp} onChange={e=>setSupportForm({...supportForm,whatsapp:e.target.value})}/></label>
-            <label className="md:col-span-2">Description<textarea value={supportForm.description} onChange={e=>setSupportForm({...supportForm,description:e.target.value})} className="w-full min-h-20 border rounded-lg p-2 bg-background text-xs"/></label>
-          </div>
-          <div className="flex gap-2 mt-3">
-            <button className="primary-btn" onClick={saveSupportSection}>{supportEditingId ? "Update support section" : "Add support section"}</button>
-            {supportEditingId && <button className="quiet-btn" onClick={()=>{setSupportEditingId(null);setSupportForm({ title: "Support & Help", description: "Need help with RestoPulse? Contact our support team.", phone: "8122187039", whatsapp: "8122187039", email: "hosurwebservices@gmail.com", active: true });}}>Cancel edit</button>}
-          </div>
-          <div className="mt-5 space-y-2">
-            {supportSections.map((section:any)=><div key={section.id} className="flex flex-col md:flex-row md:items-center md:justify-between gap-3 border rounded-xl p-3">
-              <div><b>{section.title}</b><p className="text-xs text-muted-foreground">{section.phone} · {section.email}</p></div>
-              <div className="flex gap-2"><button className="quiet-btn text-xs" onClick={()=>{setSupportEditingId(section.id);setSupportForm({...section,phone:section.phone||"",whatsapp:section.whatsapp||"",email:section.email||"",description:section.description||""});}}>Edit</button><button className="quiet-btn text-xs text-red-600" onClick={()=>deleteSupportSection(section.id)}>Delete</button></div>
-            </div>)}
-            {!supportSections.length && <div className="text-xs text-muted-foreground py-2">No support sections configured.</div>}
-          </div>
-        </section>
-      </div>
-    </div>
-  );
+    );
   };
 
   useEffect(() => {
-  if (!db) {
+    if (!db) {
       setAuthLoading(false);
       return;
     }
@@ -758,9 +750,6 @@ export default function Home() {
     };
   }, [db]);
 
-  // Reset workspace state whenever the authenticated user changes. This prevents
-  // a previous user's tenant/localStorage value from being rendered while the
-  // new user's membership is still being resolved.
   useEffect(() => {
     if (!authUser) {
       setTenantId(null);
@@ -786,9 +775,6 @@ export default function Home() {
         const platform = !!a?.data;
         setIsAdmin(platform);
         setAccountRole(platform ? "admin" : "restaurant");
-        // Restaurant users must resolve their workspaces from authenticated
-        // memberships before the workspace becomes interactive. The saved
-        // tenant is used only if it is present in that verified membership list.
         if (!platform) {
           const wsRes = await authedFetch("/api/workspaces");
           const wsJson = await wsRes.json().catch(() => ({}));
@@ -811,7 +797,6 @@ export default function Home() {
           }
           setTenantHydrating(false);
         } else {
-          // Admins do not have a restaurant workspace to hydrate.
           setTenantHydrating(false);
         }
       } catch (e) {
@@ -841,7 +826,6 @@ export default function Home() {
     loadUpi();
   }, [authUser, tenantId, isAdmin, authedFetch]);
 
-  // Keep the dashboard date/time synchronized with the device clock.
   useEffect(() => {
     const syncClock = () => setLiveDate(new Date());
     syncClock();
@@ -849,14 +833,9 @@ export default function Home() {
     return () => window.clearInterval(timer);
   }, []);
 
-  // Initial hydration + Supabase Realtime. Polling is intentionally avoided so
-  // multiple tabs/devices do not generate duplicate API/database traffic.
   useEffect(() => {
     if (!authUser) return;
     fetchSupportSections();
-    // Platform data is loaded only for Admin. Restaurant users must not load
-    // the platform restaurant list during startup because it can overwrite the
-    // authenticated membership workspace before hydration finishes.
     if (isAdmin) {
       fetchSubscriptionRequests();
       fetchRealApprovals();
@@ -871,9 +850,6 @@ export default function Home() {
 
   const loadRestaurantData = useCallback(async (id: string) => {
     if (!id || isAdmin) return;
-    // Never leave the previous restaurant's records visible while the new
-    // tenant is loading. Every collection below is replaced from the selected
-    // restaurant only.
     setOrders([]); setDishes([]); setExpenses([]); setSuppliers([]); setSupplierPayments([]);
     setStaff([]); setWages([]); setInventoryList([]); setInventoryTransactions([]);
     setIsDataLoading(true);
@@ -1006,7 +982,6 @@ export default function Home() {
   };
 
   const openStockReduction = (item: InventoryItem) => openStockAdjustment(item, "reduce");
-
   const openStockAddition = (item: InventoryItem) => openStockAdjustment(item, "add");
 
   const submitStockAdjustment = async () => {
@@ -1033,7 +1008,6 @@ export default function Home() {
       setStockAdjustNote("");
     }
   };
-
 
   const openInventoryModal = (item?: InventoryItem) => {
     if (item) {
@@ -1078,7 +1052,6 @@ export default function Home() {
       }
 
       if (!uploadedUrl) {
-        // Fallback to base64 encoding if storage bucket is not configured
         uploadedUrl = await new Promise((resolve) => {
           const reader = new FileReader();
           reader.onload = () => resolve(reader.result as string);
@@ -1220,7 +1193,6 @@ export default function Home() {
     } else setForm({});
   };
 
-  // Dish deletion handler
   const handleDeleteDish = async (dishId: number | string) => {
     if (!tenantId || !confirm("Are you sure you want to delete this dish from the menu?")) return;
     const { error } = await db.from("menu_items").delete().eq("restaurant_id", tenantId).eq("id", dishId);
@@ -1229,7 +1201,6 @@ export default function Home() {
     toast.success("Dish deleted successfully!");
   };
 
-  // ADMIN PLAN EDITING & CREATION (SAVES DIRECTLY TO DATABASE)
   const save = async () => {
     if (modal === "admin") {
       if (!adminForm.name.trim() || !adminForm.email.trim()) { toast.error("Admin name and email are required"); return; }
@@ -1438,7 +1409,6 @@ export default function Home() {
     setModal(null);
   };
 
-  // ADMIN PLAN DELETION HANDLER
   const handleDeletePlan = async (planId: number) => {
     const target = plans.find(p=>p.id===planId);
     if (target && restaurants.some((r:any)=>String(r.plan).toLowerCase()===target.name.toLowerCase())) {
@@ -1510,7 +1480,6 @@ export default function Home() {
     setAdminUpiBusy(false);
   };
 
-  // RESTAURANT SUBMITS PAYMENT PROOF
   const handleInlineSubmitReference = async () => {
     if (!activeInlinePlan) return;
     if (!inlineRefId.trim()) {
@@ -1581,7 +1550,6 @@ export default function Home() {
     }
   };
 
-  // ADMIN ACTION: APPROVE OR REJECT
   const handleReviewSubscriptionAction = async (
     requestId: string,
     reqRest: any,
@@ -1653,12 +1621,8 @@ export default function Home() {
     }
   };
 
-  // PERSIST RESTAURANT SETTINGS SAFELY TO DATABASE
   const handleSaveRestaurantSettings = async () => {
     try {
-      // Always resolve the active restaurant from the authenticated workspace first.
-      // This prevents the settings request from reaching the API without a restaurant id
-      // during the initial tenant hydration/render cycle.
       const restaurantId = tenantIdRef.current || tenantId || tenantInfo.id || localStorage.getItem("rp-active-tenant-id") || "";
       if (!restaurantId) {
         toast.error("Restaurant could not be identified. Please refresh and try again.");
@@ -1824,7 +1788,6 @@ export default function Home() {
   const inlineUpiPayUri = `upi://pay?pa=${encodeURIComponent(subscriptionUpiId)}&pn=${encodeURIComponent("RestoPulse")}&am=${encodeURIComponent(activePlanPrice.toFixed(2))}&cu=INR&tn=${encodeURIComponent(`${activeRestaurantName} ${activeInlinePlan?.name || 'Subscription'}`)}`;
   const inlineQrImageUrl = `https://api.qrserver.com/v1/create-qr-code/?size=240x240&data=${encodeURIComponent(inlineUpiPayUri)}`;
 
-  // Navigation Filter: Restaurant login NEVER sees the admin Pricing plans link
   const nowForMetrics = liveDate;
   const activeRenewalTime = activeRenewalDate && activeRenewalDate !== "—" ? new Date(`${activeRenewalDate}T23:59:59`).getTime() : NaN;
   const subscriptionExpired = !isAdmin && Number.isFinite(activeRenewalTime) && activeRenewalTime < nowForMetrics.getTime();
@@ -1920,7 +1883,7 @@ export default function Home() {
     <div className="app-shell">
       <Toaster richColors position="top-right" />
 
-      {/* PRINT LAYOUT: adapts to 58mm, 85mm thermal and A4 */}
+      {/* PRINT LAYOUT */}
       <style jsx global>{`
         @media print {
           @page {
@@ -2031,7 +1994,7 @@ export default function Home() {
           <div><b className="block">Platform Admin</b><small>RestoPulse console</small></div>
         </div>}
 
-        {/* RESTAURANT NAVIGATION — hidden for platform admins */}
+        {/* RESTAURANT NAVIGATION */}
         {!isAdmin && <><div className="nav-heading">RESTAURANT</div>
         <nav aria-label="Restaurant navigation">
           {visibleNavTenant.map((item) => (
@@ -2047,7 +2010,7 @@ export default function Home() {
           ))}
         </nav></>}
 
-        {/* PLATFORM ADMIN NAVIGATION (SHOWN ONLY IF LOGGED IN AS ADMIN) */}
+        {/* PLATFORM ADMIN NAVIGATION */}
         {isAdmin && (
           <>
             <div className="nav-heading admin-heading">PLATFORM ADMIN</div>
@@ -2069,7 +2032,7 @@ export default function Home() {
           </>
         )}
 
-        {/* DYNAMIC ACTIVE PLAN CARD — restaurant accounts only */}
+        {/* DYNAMIC ACTIVE PLAN CARD */}
         <div className="sidebar-bottom">
           {!isAdmin && <div className="trial-note">
             <span className="trial-icon">✦</span>
@@ -2206,7 +2169,282 @@ export default function Home() {
             </div>
           )}
         </header>
+
         <main className="content">
+          {/* 1. OVERVIEW DASHBOARD VIEW (BOTH RESTAURANT & ADMIN CONSOLES) */}
+          {view === "dashboard" && (
+            <>
+              {isAdmin ? (
+                /* PLATFORM ADMIN OVERVIEW */
+                <div className="space-y-6">
+                  <div className="page-head flex flex-col sm:flex-row sm:justify-between sm:items-center gap-3">
+                    <div>
+                      <div className="eyebrow">PLATFORM OVERVIEW</div>
+                      <h1>Good afternoon, Platform Admin</h1>
+                      <p>Platform-wide operations, subscription volume, and revenue metrics.</p>
+                    </div>
+                    <div className="flex gap-2">
+                      <button className="quiet-btn text-xs" onClick={() => nav("approvals")}>
+                        <BadgeCheck size={14} /> Approvals ({approvals.length + subscriptionRequests.length})
+                      </button>
+                      <button className="primary-btn text-xs font-bold" onClick={() => nav("restaurants")}>
+                        <Building2 size={14} /> Manage Restaurants
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* 4 Admin Platform KPIs */}
+                  <div className="kpi-grid">
+                    <div className="kpi-card">
+                      <div className="kpi-top">
+                        <span>Subscription revenue</span>
+                        <span className="kpi-icon teal"><Wallet size={19} /></span>
+                      </div>
+                      <strong>{money(subscriptionRevenue)}</strong>
+                      <div className="kpi-foot"><span>Approved subscription payments</span></div>
+                    </div>
+                    <div className="kpi-card">
+                      <div className="kpi-top">
+                        <span>Active workspaces</span>
+                        <span className="kpi-icon green"><Building2 size={19} /></span>
+                      </div>
+                      <strong>{activeSubscriptionCount}</strong>
+                      <div className="kpi-foot"><span>Restaurants on active/trial plans</span></div>
+                    </div>
+                    <div className="kpi-card">
+                      <div className="kpi-top">
+                        <span>Pending approvals</span>
+                        <span className="kpi-icon amber"><BadgeCheck size={19} /></span>
+                      </div>
+                      <strong>{subscriptionRequests.length + approvals.length}</strong>
+                      <div className="kpi-foot"><span>Onboarding & payment verifications</span></div>
+                    </div>
+                    <div className="kpi-card">
+                      <div className="kpi-top">
+                        <span>Expired subscriptions</span>
+                        <span className="kpi-icon violet"><Clock size={19} /></span>
+                      </div>
+                      <strong>{expiredSubscriptionCount}</strong>
+                      <div className="kpi-foot"><span>Require renewal outreach</span></div>
+                    </div>
+                  </div>
+
+                  {/* Admin Analytics: Subscription Trend + Registered Restaurants */}
+                  <div className="analytics-grid">
+                    <section className="panel chart-panel">
+                      <div className="panel-header">
+                        <div>
+                          <h2>Platform subscription revenue</h2>
+                          <p>7-day approved billing trend</p>
+                        </div>
+                      </div>
+                      <div className="chart">
+                        <ResponsiveContainer width="100%" height="100%">
+                          <AreaChart data={adminChart} margin={{ top: 15, right: 8, left: -17, bottom: 0 }}>
+                            <CartesianGrid strokeDasharray="3 5" vertical={false} stroke="var(--chart-grid)" />
+                            <XAxis dataKey="day" tickLine={false} axisLine={false} tick={{ fill: "var(--text-muted)", fontSize: 12 }} dy={12} />
+                            <YAxis tickLine={false} axisLine={false} tick={{ fill: "var(--text-muted)", fontSize: 12 }} tickFormatter={(v) => `${v / 1000}k`} />
+                            <Tooltip formatter={(v) => money(Number(v))} contentStyle={{ background: "var(--panel)", border: "1px solid var(--border)", borderRadius: 12 }} />
+                            <Area type="monotone" dataKey="revenue" stroke="#f59e0b" strokeWidth={3} fillOpacity={0.25} fill="#f59e0b" />
+                          </AreaChart>
+                        </ResponsiveContainer>
+                      </div>
+                    </section>
+
+                    <section className="panel top-dishes">
+                      <div className="panel-header">
+                        <div>
+                          <h2>Registered restaurants</h2>
+                          <p>Latest active workspaces</p>
+                        </div>
+                        <button className="quiet-btn text-xs" onClick={() => nav("restaurants")}>View all</button>
+                      </div>
+                      <div className="space-y-2 mt-2">
+                        {restaurants.slice(0, 5).map((r: any, i: number) => (
+                          <div className="leader-row" key={r.id}>
+                            <span className="leader-rank">0{i + 1}</span>
+                            <span className="dish-thumb flex items-center justify-center font-bold text-xs bg-muted">
+                              {r.initial || (r.name ? r.name.slice(0, 2).toUpperCase() : "RS")}
+                            </span>
+                            <div className="leader-info">
+                              <b>{r.name}</b>
+                              <small>{r.owner} · {r.city || "India"}</small>
+                            </div>
+                            <span className={"status " + (r.status === "Active" ? "paid" : "trial")}>
+                              {r.plan || "Free trial"}
+                            </span>
+                          </div>
+                        ))}
+                        {!restaurants.length && (
+                          <div className="text-center py-8 text-xs text-muted-foreground">No restaurants registered yet.</div>
+                        )}
+                      </div>
+                    </section>
+                  </div>
+                </div>
+              ) : (
+                /* RESTAURANT OWNER OVERVIEW */
+                <div className="space-y-6">
+                  <div className="page-head flex flex-col sm:flex-row sm:justify-between sm:items-center gap-3">
+                    <div>
+                      <div className="eyebrow">OVERVIEW</div>
+                      <h1>Good afternoon, {activeRestaurantName || "Owner"}</h1>
+                      <p>Operational snapshot and financial health for {activeRestaurantName || "your workspace"}.</p>
+                    </div>
+                    <div className="head-actions flex flex-wrap items-center gap-2">
+                      <select aria-label="Date range" value={dateRange} onChange={(e) => setDateRange(e.target.value)} className="bg-background border rounded-lg text-xs p-2">
+                        <option>Today</option>
+                        <option>Yesterday</option>
+                        <option>This week</option>
+                        <option>This month</option>
+                        <option>Custom</option>
+                      </select>
+                      {dateRange === "Custom" && (
+                        <div className="flex items-center gap-1">
+                          <input type="date" value={customStartDate} onChange={(e) => setCustomStartDate(e.target.value)} className="bg-background border rounded-lg text-xs p-1.5" />
+                          <span className="text-xs text-muted-foreground">to</span>
+                          <input type="date" value={customEndDate} onChange={(e) => setCustomEndDate(e.target.value)} className="bg-background border rounded-lg text-xs p-1.5" />
+                        </div>
+                      )}
+                      <button className="primary-btn flex items-center gap-1.5 font-bold" onClick={() => nav("pos")}>
+                        <Plus size={16} /> New order
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* Expired Subscription Banner if active */}
+                  {subscriptionExpired && (
+                    <div className="p-4 rounded-xl border border-red-500/30 bg-red-500/10 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                      <div className="flex items-center gap-3">
+                        <AlertTriangle className="text-red-500 shrink-0" size={20} />
+                        <div>
+                          <b className="text-red-600 block text-sm">Subscription Expired ({activeRenewalDate})</b>
+                          <p className="text-xs text-muted-foreground">Renew your plan to maintain full access to POS and management terminals.</p>
+                        </div>
+                      </div>
+                      <button className="primary-btn text-xs font-bold shrink-0" onClick={() => nav("subscription")}>
+                        Renew Plan
+                      </button>
+                    </div>
+                  )}
+
+                  {/* 4 Core Financial KPIs */}
+                  <div className="kpi-grid">
+                    <div className="kpi-card">
+                      <div className="kpi-top">
+                        <span>Gross sales</span>
+                        <span className="kpi-icon amber"><Wallet size={19} /></span>
+                      </div>
+                      <strong>{money(selectedOrders.reduce((n, o) => n + Number(o.bill?.subtotal || 0), 0))}</strong>
+                      <div className="kpi-foot"><span>{dateRange} registered sales</span></div>
+                    </div>
+                    <div className="kpi-card">
+                      <div className="kpi-top">
+                        <span>Net revenue</span>
+                        <span className="kpi-icon teal"><ArrowUpRight size={19} /></span>
+                      </div>
+                      <strong>{money(netSales)}</strong>
+                      <div className="kpi-foot"><span>Paid sales, excluding tax</span></div>
+                    </div>
+                    <div className="kpi-card">
+                      <div className="kpi-top">
+                        <span>Operating expenses</span>
+                        <span className="kpi-icon violet"><ReceiptText size={19} /></span>
+                      </div>
+                      <strong>{money(totalExpenses + paidWages)}</strong>
+                      <div className="kpi-foot"><span>Expenses + paid wages</span></div>
+                    </div>
+                    <div className="kpi-card">
+                      <div className="kpi-top">
+                        <span>Real net profit</span>
+                        <span className="kpi-icon green"><ArrowUpRight size={19} /></span>
+                      </div>
+                      <strong>{money(netSales - totalExpenses - paidWages)}</strong>
+                      <div className="kpi-foot"><span>Net sales − operating costs</span></div>
+                    </div>
+                  </div>
+
+                  {/* Operational Summary Strip */}
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                    <div className="p-3 border rounded-xl bg-card">
+                      <small className="text-muted-foreground block text-[11px]">Today Sales</small>
+                      <b className="text-sm">{money(todaySales)}</b>
+                    </div>
+                    <div className="p-3 border rounded-xl bg-card">
+                      <small className="text-muted-foreground block text-[11px]">Weekly Sales</small>
+                      <b className="text-sm">{money(weeklySales)}</b>
+                    </div>
+                    <div className="p-3 border rounded-xl bg-card">
+                      <small className="text-muted-foreground block text-[11px]">Monthly Sales</small>
+                      <b className="text-sm">{money(monthlySales)}</b>
+                    </div>
+                    <div className="p-3 border rounded-xl bg-card">
+                      <small className="text-muted-foreground block text-[11px]">Stock Status</small>
+                      <b className={`text-sm ${outOfStockCount > 0 ? "text-red-600" : lowStockCount > 0 ? "text-amber-600" : "text-emerald-600"}`}>
+                        {outOfStockCount > 0 ? `${outOfStockCount} Out of stock` : lowStockCount > 0 ? `${lowStockCount} Low stock` : "In stock"}
+                      </b>
+                    </div>
+                  </div>
+
+                  {/* Restaurant Analytics: Trend Chart + Top Dishes */}
+                  <div className="analytics-grid">
+                    <section className="panel chart-panel">
+                      <div className="panel-header">
+                        <div>
+                          <h2>Revenue & expenses</h2>
+                          <p>{dateRange} financial trend</p>
+                        </div>
+                      </div>
+                      <div className="chart">
+                        <ResponsiveContainer width="100%" height="100%">
+                          <AreaChart data={dynamicChart} margin={{ top: 15, right: 8, left: -17, bottom: 0 }}>
+                            <CartesianGrid strokeDasharray="3 5" vertical={false} stroke="var(--chart-grid)" />
+                            <XAxis dataKey="day" tickLine={false} axisLine={false} tick={{ fill: "var(--text-muted)", fontSize: 12 }} dy={12} />
+                            <YAxis tickLine={false} axisLine={false} tick={{ fill: "var(--text-muted)", fontSize: 12 }} tickFormatter={(v) => `${v / 1000}k`} />
+                            <Tooltip formatter={(v) => money(Number(v))} contentStyle={{ background: "var(--panel)", border: "1px solid var(--border)", borderRadius: 12 }} />
+                            <Area type="monotone" dataKey="revenue" stroke="#f59e0b" strokeWidth={3} fillOpacity={0.25} fill="#f59e0b" />
+                            <Area type="monotone" dataKey="expense" stroke="#10b981" strokeWidth={2} fillOpacity={0} />
+                          </AreaChart>
+                        </ResponsiveContainer>
+                      </div>
+                    </section>
+
+                    <section className="panel top-dishes">
+                      <div className="panel-header">
+                        <div>
+                          <h2>Top performing dishes</h2>
+                          <p>Popular catalog items</p>
+                        </div>
+                        <button className="quiet-btn text-xs" onClick={() => nav("menu")}>View menu</button>
+                      </div>
+                      <div className="space-y-2 mt-2">
+                        {dishes.slice(0, 4).map((d, i) => (
+                          <div className="leader-row" key={d.id}>
+                            <span className="leader-rank">0{i + 1}</span>
+                            <span className="dish-thumb overflow-hidden flex items-center justify-center">
+                              {d.imageUrl ? (
+                                <img src={d.imageUrl} alt={d.name} className="w-full h-full object-cover rounded-lg" />
+                              ) : (
+                                d.emoji
+                              )}
+                            </span>
+                            <div className="leader-info">
+                              <b>{d.name}</b>
+                              <small>{d.category} · {d.diet || "Standard"}</small>
+                            </div>
+                            <strong>{money(d.price)}</strong>
+                          </div>
+                        ))}
+                        {!dishes.length && (
+                          <div className="text-center py-8 text-xs text-muted-foreground">No dishes added yet.</div>
+                        )}
+                      </div>
+                    </section>
+                  </div>
+                </div>
+              )}
+            </>
+          )}
 
           {/* 2. POS TERMINAL */}
           {view === "pos" && (
@@ -2746,7 +2984,7 @@ export default function Home() {
             </>
           )}
 
-          {/* 8. RESTAURANT SUBSCRIPTION (READ-ONLY FOR RESTAURANT: CANNOT EDIT/DELETE PLANS) */}
+          {/* 8. RESTAURANT SUBSCRIPTION */}
           {view === "subscription" && (
             <>
               <div className="page-head">
@@ -2773,7 +3011,7 @@ export default function Home() {
                 </div>
               </div>
 
-              {/* Grid of Plans Synced Live from Admin Configuration */}
+              {/* Grid of Plans */}
               <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
                 {plans.map((p) => {
                   const normalizedCurrent = (activePlanName || "").toLowerCase().trim();
@@ -3219,7 +3457,7 @@ export default function Home() {
             </>
           )}
 
-          {/* 12. ADMIN: PRICING PLANS (WITH VISIBLE ADD, EDIT, DELETE CONTROLS) */}
+          {/* 12. ADMIN: PRICING PLANS */}
           {view === "pricing" && (
             <>
               <div className="page-head flex justify-between items-center">
@@ -3330,7 +3568,6 @@ export default function Home() {
         </DialogContent>
       </Dialog>
 
-      {/* DEDICATED MODAL FOR ADDING / EDITING PRICING PLANS */}
       <Dialog open={modal === "restaurant"} onOpenChange={(v)=>!v&&setModal(null)}>
         <DialogContent className="modal-content">
           <DialogHeader><DialogTitle>{editing ? "Edit Restaurant" : "Add Restaurant"}</DialogTitle><DialogDescription>Manage the platform restaurant account without changing the existing console style.</DialogDescription></DialogHeader>

@@ -187,6 +187,25 @@ export async function requireAdminPermission(
   };
 }
 
+export async function requireRestaurantOwner(request: Request, restaurantId: string) {
+  const { supabase, user, membership } = await requireRestaurantMember(request, restaurantId, false);
+  if (String(membership.role).toUpperCase() !== "OWNER") {
+    throw Object.assign(new Error("Restaurant owner access required"), { status: 403 });
+  }
+  return { supabase, user, membership };
+}
+
+export async function requireRestaurantPermission(request: Request, restaurantId: string, permission: string) {
+  const { supabase, user, membership } = await requireRestaurantMember(request, restaurantId, false);
+  const role = String(membership.role || "").toUpperCase();
+  if (role === "OWNER") return { supabase, user, membership };
+  const permissions = membership.permissions && typeof membership.permissions === "object" ? membership.permissions as Record<string, unknown> : {};
+  if (permissions[permission] !== true) {
+    throw Object.assign(new Error(`Restaurant permission required: ${permission}`), { status: 403 });
+  }
+  return { supabase, user, membership };
+}
+
 export async function requireRestaurantMember(
   request: Request,
   restaurantId: string,

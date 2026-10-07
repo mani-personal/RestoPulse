@@ -52,19 +52,37 @@ export async function PATCH(request:Request){
     if(reqError||!req)throw reqError||new Error("Subscription request not found");
     if(action==="extend") {
       const restaurantId=String(body.restaurant_id||"");
+      const requestedDate=String(body.renewal_on||"").trim();
       const days=Number(body.days_to_add)||0;
       if(!restaurantId)return NextResponse.json({error:"Restaurant ID is required"},{status:400});
-      if(!Number.isFinite(days)||days<=0||days>3650)return NextResponse.json({error:"Extension must be between 1 and 3650 days"},{status:400});
       const {data:rest,error:restError}=await supabase.from("restaurants").select("id,renewal_on,status").eq("id",restaurantId).single();
       if(restError||!rest)throw restError||new Error("Restaurant not found");
-      const now=new Date();
-      let base=now;
-      if(rest.renewal_on){const d=new Date(rest.renewal_on);if(!isNaN(d.getTime())&&d>base)base=d;}
-      base.setDate(base.getDate()+days);
-      const renewal=base.toISOString().slice(0,10);
+
+      let renewal:string;
+      if(requestedDate){
+        if(!/^\d{4}-\d{2}-\d{2}$/.test(requestedDate))return NextResponse.json({error:"Enter a valid renewal date"},{status:400});
+        const target=new Date(`${requestedDate}T00:00:00`);
+        if(Number.isNaN(target.getTime()))return NextResponse.json({error:"Enter a valid renewal date"},{status:400});
+        const today=new Date(); today.setHours(0,0,0,0);
+        if(target < today)return NextResponse.json({error:"Renewal date cannot be in the past"},{status:400});
+        if(rest.renewal_on){
+          const current=new Date(`${String(rest.renewal_on).slice(0,10)}T00:00:00`);
+          if(!Number.isNaN(current.getTime()) && target < current){
+            return NextResponse.json({error:`Choose a date on or after the current renewal date (${String(rest.renewal_on).slice(0,10)})`},{status:400});
+          }
+        }
+        renewal=requestedDate;
+      } else {
+        if(!Number.isFinite(days)||days<=0||days>3650)return NextResponse.json({error:"Extension must be between 1 and 3650 days"},{status:400});
+        const now=new Date();
+        let base=now;
+        if(rest.renewal_on){const d=new Date(rest.renewal_on);if(!isNaN(d.getTime())&&d>base)base=d;}
+        base.setDate(base.getDate()+days);
+        renewal=base.toISOString().slice(0,10);
+      }
       const {error:updateError}=await supabase.from("restaurants").update({status:"Active",renewal_on:renewal}).eq("id",restaurantId);
       if(updateError)throw updateError;
-      return NextResponse.json({success:true,status:"Active",restaurant_id:restaurantId,renewal_on:renewal,days_added:days});
+      return NextResponse.json({success:true,status:"Active",restaurant_id:restaurantId,renewal_on:renewal,days_added:days||null});
     }
     if(action==="reject"){
       // Persist only the status so this endpoint remains compatible with databases

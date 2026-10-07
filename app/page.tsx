@@ -1199,19 +1199,19 @@ export default function Home() {
     }
     if (modal === "extend") {
       if (!editing) { toast.error("Select a restaurant first"); return; }
-      const days = Number(form.days || 30);
-      if (!Number.isFinite(days) || days <= 0) { toast.error("Enter a valid extension period"); return; }
+      const renewalDate = String(form.renewalDate || "").trim();
+      if (!/^\d{4}-\d{2}-\d{2}$/.test(renewalDate)) { toast.error("Select a valid renewal date"); return; }
       try {
         const res = await authedFetch("/api/admin/subscriptions", {
           method: "PATCH",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ action: "extend", restaurant_id: String(editing), days_to_add: days })
+          body: JSON.stringify({ action: "extend", restaurant_id: String(editing), renewal_on: renewalDate })
         });
         const json = await res.json();
         if (!res.ok) throw new Error(json.error || "Could not extend subscription");
         setModal(null); setEditing(null);
         await fetchAllRestaurants();
-        toast.success(`Subscription extended until ${json.renewal_on || "the new renewal date"}.`);
+        toast.success(`Subscription extended until ${json.renewal_on || renewalDate}.`);
       } catch (e:any) { toast.error(e.message || "Could not extend subscription"); }
       return;
     }
@@ -1836,51 +1836,39 @@ export default function Home() {
     <div className="app-shell">
       <Toaster richColors position="top-right" />
 
-      {/* PRINT LAYOUT: adapts to 58mm, 85mm thermal and A4 */}
+      {/* PRINT LAYOUT: one source of truth for 58mm, 85mm and A4 */}
       <style jsx global>{`
         @media print {
           @page {
-            size: ${printPaperSize === "A4" ? "A4" : printPaperSize === "58mm" ? "58mm auto" : "85mm auto"};
+            size: ${printPaperSize === "A4" ? "A4 portrait" : printPaperSize === "58mm" ? "58mm auto" : "85mm auto"};
             margin: ${printPaperSize === "A4" ? "10mm" : "0"};
           }
-          html, body {
-            width: 100% !important;
-            margin: 0 !important;
-            padding: 0 !important;
-            background: #fff !important;
-          }
-          body * { visibility: hidden !important; }
-          #printable-receipt-card, #printable-receipt-card * {
-            visibility: visible !important;
-          }
+          html, body { width:100% !important; min-width:0 !important; margin:0 !important; padding:0 !important; background:#fff !important; }
+          body * { visibility:hidden !important; }
+          #printable-receipt-card, #printable-receipt-card * { visibility:visible !important; }
           #printable-receipt-card {
-            position: static !important;
-            display: block !important;
-            left: auto !important;
-            top: auto !important;
-            margin: 0 !important;
-            transform: none !important;
-            float: none !important;
-            box-sizing: border-box !important;
-            height: auto !important;
-            max-height: none !important;
-            overflow: visible !important;
-            border: 0 !important;
-            border-radius: 0 !important;
-            box-shadow: none !important;
-            background: #fff !important;
-            color: #000 !important;
-            font-family: ui-monospace, SFMono-Regular, Consolas, "Courier New", monospace !important;
+            position:absolute !important; left:0 !important; top:0 !important; margin:0 auto !important; transform:none !important;
+            box-sizing:border-box !important; height:auto !important; min-height:0 !important; max-height:none !important; overflow:visible !important;
+            border:0 !important; border-radius:0 !important; box-shadow:none !important; background:#fff !important; color:#000 !important;
+            font-family:ui-monospace,SFMono-Regular,Consolas,"Courier New",monospace !important;
           }
-          #printable-receipt-card.format-58mm { width: 58mm !important; max-width: 58mm !important; padding: 2mm !important; font-size: 9px !important; }
-          #printable-receipt-card.format-85mm { width: 85mm !important; max-width: 85mm !important; padding: 3mm !important; font-size: 10px !important; }
-          #printable-receipt-card.format-A4 { width: 190mm !important; max-width: 190mm !important; padding: 8mm !important; font-size: 12px !important; }
-          #printable-receipt-card table { width: 100% !important; table-layout: fixed !important; border-collapse: collapse !important; }
-          #printable-receipt-card th, #printable-receipt-card td { overflow-wrap: anywhere !important; word-break: break-word !important; }
-          #printable-receipt-card.format-58mm .receipt-line { grid-template-columns: minmax(0,1fr) 20px 48px !important; }
-          #printable-receipt-card.format-85mm .receipt-line { grid-template-columns: minmax(0,1fr) 28px 62px !important; }
-          #printable-receipt-card.format-A4 .receipt-line { grid-template-columns: minmax(0,1fr) 50px 100px !important; }
-          .no-print { display: none !important; }
+          #printable-receipt-card.format-58mm { width:58mm !important; max-width:58mm !important; padding:2.5mm !important; font-size:8.5px !important; }
+          #printable-receipt-card.format-85mm { width:85mm !important; max-width:85mm !important; padding:3.5mm !important; font-size:9.5px !important; }
+          #printable-receipt-card.format-A4 { width:190mm !important; max-width:190mm !important; padding:8mm !important; font-size:11px !important; }
+          #printable-receipt-card table { width:100% !important; table-layout:fixed !important; border-collapse:collapse !important; }
+          #printable-receipt-card th, #printable-receipt-card td { overflow-wrap:anywhere !important; word-break:break-word !important; min-width:0 !important; }
+          #printable-receipt-card th:nth-child(1), #printable-receipt-card td:nth-child(1) { width:46% !important; }
+          #printable-receipt-card th:nth-child(2), #printable-receipt-card td:nth-child(2) { width:14% !important; }
+          #printable-receipt-card th:nth-child(3), #printable-receipt-card td:nth-child(3) { width:20% !important; }
+          #printable-receipt-card th:nth-child(4), #printable-receipt-card td:nth-child(4) { width:20% !important; }
+          #printable-receipt-card.format-58mm th:nth-child(1), #printable-receipt-card.format-58mm td:nth-child(1) { width:42% !important; }
+          #printable-receipt-card.format-58mm th:nth-child(2), #printable-receipt-card.format-58mm td:nth-child(2) { width:13% !important; }
+          #printable-receipt-card.format-58mm th:nth-child(3), #printable-receipt-card.format-58mm td:nth-child(3) { width:22% !important; }
+          #printable-receipt-card.format-58mm th:nth-child(4), #printable-receipt-card.format-58mm td:nth-child(4) { width:23% !important; }
+          #printable-receipt-card .receipt-meta { grid-template-columns:1fr 1fr !important; }
+          #printable-receipt-card.format-58mm .receipt-meta { grid-template-columns:1fr !important; }
+          .no-print { display:none !important; }
+          .receipt-preview-shell { display:block !important; width:auto !important; }
         }
       `}</style>
 
@@ -3100,7 +3088,7 @@ export default function Home() {
                           <td className="font-mono text-sm">{r.renewal}</td>
                           <td><div className="flex gap-1.5">
                             <button className="quiet-btn text-xs" title="Edit restaurant" onClick={() => { setEditing(r.id); setForm({name:r.name,owner:r.owner,email:r.email,phone:r.phone,city:r.city||"",plan:r.plan||"Free Trial",status:r.status||"Active",renewal:r.renewal||""}); setModal("restaurant"); }}><Pencil size={13}/></button>
-                            <button className="quiet-btn text-xs" title="Extend subscription" onClick={() => { setEditing(r.id); setForm({days:"30"}); setModal("extend"); }}><Clock size={13}/></button>
+                            <button className="quiet-btn text-xs" title="Extend subscription" onClick={() => { setEditing(r.id); setForm({renewalDate: (r.renewal && /^\d{4}-\d{2}-\d{2}$/.test(String(r.renewal))) ? String(r.renewal) : new Date().toLocaleDateString("en-CA")}); setModal("extend"); }}><Clock size={13}/></button>
                             <button className="quiet-btn text-xs text-red-600" title="Deactivate restaurant" onClick={async()=>{if(!confirm("Deactivate this restaurant?"))return;const res=await authedFetch("/api/admin/restaurants",{method:"DELETE",body:JSON.stringify({id:r.id})});const j=await res.json();if(!res.ok){toast.error(j.error||"Failed");return;}fetchAllRestaurants();toast.success("Restaurant deactivated");}}><Trash2 size={13}/></button>
                           </div></td>
                         </tr>
@@ -3309,11 +3297,12 @@ export default function Home() {
 
       <Dialog open={modal === "extend"} onOpenChange={(v)=>!v&&setModal(null)}>
         <DialogContent className="max-w-md">
-          <DialogHeader><DialogTitle>Extend Subscription</DialogTitle><DialogDescription>Extend the selected restaurant's current subscription without changing its plan.</DialogDescription></DialogHeader>
+          <DialogHeader><DialogTitle>Extend Subscription</DialogTitle><DialogDescription>Choose the exact date until which this restaurant should remain active. The existing plan is unchanged.</DialogDescription></DialogHeader>
           <div className="modal-fields">
-            <label>Extension period<select value={form.days||"30"} onChange={e=>setForm({...form,days:e.target.value})}>
-              <option value="7">7 days</option><option value="30">30 days</option><option value="90">90 days</option><option value="180">180 days</option><option value="365">365 days</option>
-            </select></label>
+            <label>Extend subscription until
+              <input type="date" value={form.renewalDate||""} onChange={e=>setForm({...form,renewalDate:e.target.value})} />
+            </label>
+            <p className="text-xs text-muted-foreground">The selected date must be today or later and cannot be earlier than the restaurant's current renewal date.</p>
           </div>
           <DialogFooter><button className="quiet-btn" onClick={()=>setModal(null)}>Cancel</button><button className="primary-btn" onClick={save}>Extend subscription</button></DialogFooter>
         </DialogContent>
@@ -3326,6 +3315,10 @@ export default function Home() {
             {(supportSections.filter((x:any)=>x.active !== false)).map((section:any)=><div key={section.id} className="border rounded-xl p-4 space-y-2">
               <h3 className="font-bold">{section.title}</h3>
               <p className="text-xs text-muted-foreground">{section.description}</p>
+              <div className="support-contact-list">
+                {section.phone && <div className="support-contact-row"><span>Mobile</span><a href={`tel:${String(section.phone).replace(/\s+/g,"")}`}>{section.phone}</a></div>}
+                {section.email && <div className="support-contact-row"><span>Email</span><a href={`mailto:${section.email}`}>{section.email}</a></div>}
+              </div>
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 pt-2">
                 {section.phone && <a className="primary-btn text-center" href={`tel:${String(section.phone).replace(/\s+/g,"")}`}>Call</a>}
                 {section.whatsapp && <a className="primary-btn text-center" href={`https://wa.me/${String(section.whatsapp).replace(/\D/g,"")}`} target="_blank" rel="noreferrer">WhatsApp</a>}
@@ -4010,9 +4003,10 @@ export default function Home() {
           </div>
 
           {receipt && (
+            <div className="receipt-preview-shell">
             <div
               id="printable-receipt-card"
-              className={`receipt-paper format-${printPaperSize} p-5 bg-white text-black rounded-xl font-mono text-[11px] leading-relaxed border shadow-lg overflow-hidden`}
+              className={`receipt-paper format-${printPaperSize} bg-white text-black rounded-xl font-mono text-[11px] leading-relaxed border shadow-lg overflow-hidden`}
             >
               {/* Receipt Header */}
               <div className="text-center space-y-0.5">
@@ -4057,7 +4051,7 @@ export default function Home() {
                 <tbody>
                   {receipt.items.map((item, idx) => (
                     <tr key={idx} className="border-b border-dotted border-gray-200">
-                      <td className="py-1 pr-1 truncate text-left">{item.name}</td>
+                      <td className="py-1 pr-1 text-left break-words">{item.name}</td>
                       <td className="py-1 text-center">{item.qty}</td>
                       <td className="py-1 text-right">{money(item.unitPrice)}</td>
                       <td className="py-1 text-right font-semibold">
@@ -4105,6 +4099,7 @@ export default function Home() {
               <div className="text-center text-[9px] text-gray-500 pt-2 border-t border-dashed border-gray-300">
                 {receipt.business?.receipt_footer || "Thank you for dining with us! Visit again."}
               </div>
+            </div>
             </div>
           )}
 

@@ -28,65 +28,67 @@ export async function POST(request: NextRequest) {
     const email = String(body.email || '').trim().toLowerCase();
     const phone = String(body.phone || '').trim();
     const requestedPassword = String(body.password || '').trim();
-    const password = requestedPassword || `${crypto.randomUUID().replace(/-/g, '').slice(0, 10)}A9!x7Q2`;
     const city = String(body.city || '').trim();
 
     if (name.length < 2) return NextResponse.json({ error: 'Restaurant name is required' }, { status: 400 });
     if (owner.length < 2) return NextResponse.json({ error: 'Owner name is required' }, { status: 400 });
     if (!/^\S+@\S+\.\S+$/.test(email)) return NextResponse.json({ error: 'Enter a valid owner email' }, { status: 400 });
     if (!/^\+?[0-9 ()-]{7,20}$/.test(phone)) return NextResponse.json({ error: 'Enter a valid owner phone number' }, { status: 400 });
-    if (requestedPassword && (password.length < 12 || password.length > 128)) return NextResponse.json({ error: 'Temporary password must be 12–128 characters' }, { status: 400 });
+    if (requestedPassword && (requestedPassword.length < 12 || requestedPassword.length > 128)) return NextResponse.json({ error: 'Temporary password must be 12–128 characters' }, { status: 400 });
 
-    // requireAdmin already validates the current admin. The server client it returns
-    // uses the configured server key, so user creation and tenant setup are not blocked
-    // by browser RLS policies.
-    const { data: created, error: createError } = await admin.auth.admin.createUser({
-      email,
-      password,
-      email_confirm: true,
-      user_metadata: { full_name: owner },
-    });
-    if (createError || !created.user) {
-      const msg = createError?.message || 'Could not create owner account';
-      return NextResponse.json({ error: msg.includes('already registered') ? 'An account with this owner email already exists.' : msg }, { status: 400 });
+    // A restaurant owner may already have a login. Reuse that auth identity so
+    // one sign-in can be linked to multiple restaurants through memberships.
+    const { data: usersData, error: usersError } = await admin.auth.admin.listUsers({ page: 1, perPage: 1000 });
+    if (usersError) throw usersError;
+    let ownerUser = (usersData?.users || []).find((u:any) => String(u.email || '').toLowerCase() === email) || null;
+    let createdNewUser = false;
+    let temporaryPassword: string | undefined;
+
+    if (!ownerUser) {
+      temporaryPassword = requestedPassword || `${crypto.randomUUID().replace(/-/g, '').slice(0, 10)}A9!x7Q2`;
+      const { data: created, error: createError } = await admin.auth.admin.createUser({
+        email, password: temporaryPassword, email_confirm: true, user_metadata: { full_name: owner },
+      });
+      if (createError || !created.user) {
+        const msg = createError?.message || 'Could not create owner account';
+        return NextResponse.json({ error: msg.includes('already registered') ? 'An account with this owner email already exists.' : msg }, { status: 400 });
+      }
+      ownerUser = created.user;
+      createdNewUser = true;
+    } else if (requestedPassword) {
+      // For an existing owner, do not silently change their password from the
+      // Add Restaurant screen. The existing sign-in must remain stable.
+      return NextResponse.json({ error: 'This owner already has a login. Leave Temporary password blank to add another restaurant to the same sign-in.' }, { status: 400 });
     }
 
-    const ownerId = created.user.id;
     const renewal = new Date();
     renewal.setDate(renewal.getDate() + 7);
-
     const { data: restaurant, error: restaurantError } = await admin.from('restaurants').insert({
-      name,
-      owner_name: owner,
-      owner_email: email,
-      owner_phone: phone,
-      city,
-      plan: 'Free Trial',
-      status: 'Trial',
-      renewal_on: renewal.toISOString().slice(0, 10),
+      name, owner_name: owner, owner_email: email, owner_phone: phone, city,
+      plan: 'Free Trial', status: 'Trial', renewal_on: renewal.toISOString().slice(0, 10),
     }).select().single();
 
     if (restaurantError || !restaurant) {
-      await admin.auth.admin.deleteUser(ownerId);
+      if (createdNewUser && ownerUser) await admin.auth.admin.deleteUser(ownerUser.id);
       return NextResponse.json({ error: restaurantError?.message || 'Could not create restaurant' }, { status: 400 });
     }
 
     const { error: memberError } = await admin.from('memberships').insert({
-      user_id: ownerId,
-      restaurant_id: restaurant.id,
-      role: 'OWNER',
+      user_id: ownerUser.id, restaurant_id: restaurant.id, role: 'OWNER',
     });
-
     if (memberError) {
       await admin.from('restaurants').delete().eq('id', restaurant.id);
-      await admin.auth.admin.deleteUser(ownerId);
+      if (createdNewUser && ownerUser) await admin.auth.admin.deleteUser(ownerUser.id);
       return NextResponse.json({ error: memberError.message }, { status: 400 });
     }
 
-    return NextResponse.json({ restaurant, owner_user_id: ownerId, temporary_password: requestedPassword ? undefined : password }, { status: 201 });
-  } catch (e: any) {
-    return errorResponse(e, 'Could not create restaurant');
-  }
+    return NextResponse.json({
+      restaurant,
+      owner_user_id: ownerUser.id,
+      reused_existing_login: !createdNewUser,
+      temporary_password: createdNewUser ? temporaryPassword : undefined,
+    }, { status: 201 });
+  } catch (e: any) { return errorResponse(e, 'Could not create restaurant'); }
 }
 
 export async function PATCH(request: NextRequest) {

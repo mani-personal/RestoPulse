@@ -91,9 +91,7 @@ type View =
   | "restaurants"
   | "approvals"
   | "pricing"
-  | "admins"
-  | "support"
-  | "billing";
+  | "admins";
 
 type Dish = {
   id: number | string;
@@ -162,8 +160,6 @@ type Staff = {
   email: string;
   phone: string;
   active?: boolean;
-  permissions?: Record<string, boolean>;
-  user_id?: string | null;
 };
 
 type Wage = {
@@ -282,7 +278,6 @@ const navTenant: { id: View; label: string; icon: typeof LayoutDashboard; allowe
   { id: "suppliers", label: "Suppliers", icon: Building2, allowedRoles: ["owner", "accountant", "storekeeper"] },
   { id: "subscription", label: "Subscription", icon: CreditCard, allowedRoles: ["owner"] },
   { id: "settings", label: "Settings", icon: Settings, allowedRoles: ["owner"] },
-  { id: "support", label: "Support & Help", icon: LifeBuoy },
 ];
 
 // Standalone "Support & Help Management" removed from sidebar; consolidated inside Settings
@@ -291,7 +286,6 @@ const navPlatform: { id: View; label: string; icon: typeof Building2 }[] = [
   { id: "restaurants", label: "Restaurants", icon: Building2 },
   { id: "approvals", label: "Approvals", icon: BadgeCheck },
   { id: "pricing", label: "Pricing plans", icon: CreditCard },
-  { id: "billing", label: "Billing & revenue", icon: Wallet },
   { id: "settings", label: "Settings", icon: Settings },
 ];
 
@@ -420,7 +414,7 @@ export default function Home() {
   const [subscriptionUpiId, setSubscriptionUpiId] = useState<string>("admin-restopulse@upi");
 
   const [supportSections, setSupportSections] = useState<any[]>([]);
-  const [adminForm, setAdminForm] = useState({ name: "", email: "", password: "", permissions: { restaurants: true, approvals: true, pricing: true, settings: true, support: true, admins: false } });
+  const [adminForm, setAdminForm] = useState({ name: "", email: "", password: "", permissions: { restaurants: true, approvals: true, pricing: true, settings: true, admins: false } });
   const [editingAdminId, setEditingAdminId] = useState<string | null>(null);
   const [supportEditingId, setSupportEditingId] = useState<string | null>(null);
   const [supportForm, setSupportForm] = useState({
@@ -454,7 +448,6 @@ export default function Home() {
 
   // Sync Live Pricing Plans from Backend
   const fetchLivePlans = useCallback(async () => {
-    if (!isAdmin) return;
     try {
       const res = await authedFetch("/api/admin/pricing");
       const data = await res.json();
@@ -466,7 +459,7 @@ export default function Home() {
         }
       }
     } catch {}
-  }, [activeInlinePlan, authedFetch, isAdmin]);
+  }, [activeInlinePlan, authedFetch]);
 
   const getPlanDurationDays = (planName: string) => {
     const found = plans.find((p) => p.name.toLowerCase() === planName.toLowerCase());
@@ -553,10 +546,6 @@ export default function Home() {
             address: data.restaurant.address || prev.address,
             business_phone: data.restaurant.owner_phone || prev.business_phone,
             gstin: data.restaurant.gstin || prev.gstin,
-            gst_percent: Number(data.restaurant.gst_percent ?? prev.gst_percent ?? 5),
-            cgst_percent: Number(data.restaurant.cgst_percent ?? prev.cgst_percent ?? 2.5),
-            sgst_percent: Number(data.restaurant.sgst_percent ?? prev.sgst_percent ?? 2.5),
-            receipt_footer: data.restaurant.receipt_footer || prev.receipt_footer,
           }));
           setStoreForm((prev) => ({
             ...prev,
@@ -564,10 +553,6 @@ export default function Home() {
             address: data.restaurant.address || prev.address,
             phone: data.restaurant.owner_phone || prev.phone,
             gstin: data.restaurant.gstin || prev.gstin,
-            gst_percent: String(data.restaurant.gst_percent ?? prev.gst_percent ?? 5),
-            cgst_percent: String(data.restaurant.cgst_percent ?? prev.cgst_percent ?? 2.5),
-            sgst_percent: String(data.restaurant.sgst_percent ?? prev.sgst_percent ?? 2.5),
-            footer: data.restaurant.receipt_footer || prev.footer,
           }));
         }
       }
@@ -591,8 +576,6 @@ export default function Home() {
           email: x.owner_email,
           phone: x.owner_phone,
           city: x.city,
-          address: x.address || "",
-          gstin: x.gstin || "",
           plan: x.plan,
           status: x.status,
           renewal: x.renewal_on || "—",
@@ -630,7 +613,6 @@ export default function Home() {
   }, [authedFetch, isAdmin]);
 
   const fetchRealApprovals = useCallback(async () => {
-    if (!isAdmin) return;
     try {
       const res = await authedFetch("/api/admin/approvals");
       const json = await res.json();
@@ -641,7 +623,6 @@ export default function Home() {
   }, [authedFetch]);
 
   const fetchSubscriptionRequests = useCallback(async () => {
-    if (!isAdmin) return;
     try {
       const res = await authedFetch("/api/admin/subscriptions");
       const json = await res.json();
@@ -812,7 +793,7 @@ export default function Home() {
               </span>
               <div>
                 <h2 className="text-base font-bold text-foreground">Support & Help Desk Management</h2>
-                <p className="text-xs text-muted-foreground">Configure the contact methods (Phone, WhatsApp, Email) shown on the Restaurant Console Support & Help page.</p>
+                <p className="text-xs text-muted-foreground">Configure the contact methods (Phone, WhatsApp, Email) shown to all restaurant owners under their Support modal.</p>
               </div>
             </div>
             <span className="px-3 py-1 rounded-full text-xs font-bold bg-secondary text-secondary-foreground self-start sm:self-auto">
@@ -1161,14 +1142,14 @@ export default function Home() {
     setStaff([]); setWages([]); setInventoryList([]); setInventoryTransactions([]);
     setIsDataLoading(true);
     try {
-      const [salesRes, inventoryRes, menuRes, expensesRes, supplierRes, paymentRes, staffRes, wagesRes, employeesAccessRes] = await Promise.all([
+      const [salesRes, inventoryRes, menuRes, expensesRes, supplierRes, paymentRes, staffRes, wagesRes] = await Promise.all([
         authedFetch(`/api/sales?restaurant_id=${encodeURIComponent(id)}`),
         authedFetch(`/api/inventory?restaurant_id=${encodeURIComponent(id)}`),
         db.from("menu_items").select("*").eq("restaurant_id", id).order("created_at", { ascending: false }),
         db.from("expenses").select("*").eq("restaurant_id", id).order("incurred_on", { ascending: false }),
         db.from("suppliers").select("*").eq("restaurant_id", id).order("name"),
         db.from("supplier_payments").select("*").eq("restaurant_id", id).order("paid_on", { ascending: false }),
-        authedFetch(`/api/employees?restaurant_id=${encodeURIComponent(id)}`),
+        db.from("employees").select("*").eq("restaurant_id", id).order("name"),
         db.from("daily_wages").select("*").eq("restaurant_id", id).order("wage_date", { ascending: false }),
       ]);
       const salesJson = await salesRes.json().catch(() => ({ sales: [] }));
@@ -1185,8 +1166,7 @@ export default function Home() {
       if (!expensesRes.error) setExpenses((expensesRes.data || []).map((x: any) => ({ id: x.id, name: x.name, category: x.category, vendor: x.vendor, amount: Number(x.amount), date: x.incurred_on, supplierId: x.supplier_id })));
       if (!supplierRes.error) setSuppliers((supplierRes.data || []).map((x: any) => ({ id: x.id, name: x.name, contact: x.contact_name, phone: x.phone, email: x.email })));
       if (!paymentRes.error) setSupplierPayments((paymentRes.data || []).map((x: any) => ({ id: x.id, supplierId: x.supplier_id, amount: Number(x.amount), date: x.paid_on, method: x.method, note: x.note })));
-      const employeesJson = await employeesAccessRes.json().catch(() => ({ employees: [] }));
-      if (employeesAccessRes.ok) setStaff((employeesJson.employees || []).map((x: any) => ({ id: x.id, name: x.name, role: x.role, initial: x.name.slice(0, 2).toUpperCase(), shift: x.shift, payType: x.pay_type || "Daily", monthlySalary: Number(x.monthly_salary || 0), weeklySalary: Number(x.weekly_salary || 0), dailyRate: Number(x.daily_rate || 0), email: x.email, phone: x.phone, active: x.active, permissions: x.permissions || {}, user_id: x.user_id || null })));
+      if (!staffRes.error) setStaff((staffRes.data || []).map((x: any) => ({ id: x.id, name: x.name, role: x.role, initial: x.name.slice(0, 2).toUpperCase(), shift: x.shift, payType: x.pay_type || "Daily", monthlySalary: Number(x.monthly_salary || 0), weeklySalary: Number(x.weekly_salary || 0), dailyRate: Number(x.daily_rate || 0), email: x.email, phone: x.phone, active: x.active })));
       if (!wagesRes.error) setWages((wagesRes.data || []).map((x: any) => ({ id: x.id, staffId: x.employee_id, date: x.wage_date, amount: Number(x.amount), status: x.status, note: x.note })));
     } catch (e) {
       console.error("Restaurant data load failed", e);
@@ -1201,14 +1181,7 @@ export default function Home() {
   useEffect(() => {
     if (!authUser || !db) return;
     const channels: any[] = [];
-    let refreshTimer: number | undefined;
-    const refreshRestaurant = () => {
-      if (refreshTimer) window.clearTimeout(refreshTimer);
-      refreshTimer = window.setTimeout(() => {
-        if (tenantIdRef.current && !isAdmin) loadRestaurantData(tenantIdRef.current);
-        syncLiveSubscriptionStatus();
-      }, 450);
-    };
+    const refreshRestaurant = () => { if (tenantIdRef.current && !isAdmin) loadRestaurantData(tenantIdRef.current); syncLiveSubscriptionStatus(); };
     if (tenantId && !isAdmin) {
       const filter = `restaurant_id=eq.${tenantId}`;
       ["sales", "inventory_items", "inventory_transactions", "expenses", "employees", "daily_wages", "suppliers", "supplier_payments"].forEach((table) => {
@@ -1217,10 +1190,6 @@ export default function Home() {
       });
       channels.push(db.channel(`rp-sub-${tenantId}-${Math.random()}`)
         .on("postgres_changes", { event: "*", schema: "public", table: "subscription_requests", filter }, refreshRestaurant).subscribe());
-      channels.push(db.channel(`rp-restaurant-${tenantId}-${Math.random()}`)
-        .on("postgres_changes", { event: "*", schema: "public", table: "restaurants", filter }, () => { syncLiveSubscriptionStatus(); }).subscribe());
-      channels.push(db.channel(`rp-support-${tenantId}-${Math.random()}`)
-        .on("postgres_changes", { event: "*", schema: "public", table: "settings" }, () => { fetchSupportSections(); }).subscribe());
     }
     if (isAdmin) {
       channels.push(db.channel(`rp-admin-restaurants-${Math.random()}`)
@@ -1230,8 +1199,8 @@ export default function Home() {
       channels.push(db.channel(`rp-admin-settings-${Math.random()}`)
         .on("postgres_changes", { event: "*", schema: "public", table: "settings" }, () => { fetchLivePlans(); }).subscribe());
     }
-    return () => { if (refreshTimer) window.clearTimeout(refreshTimer); channels.forEach((ch) => db.removeChannel(ch)); };
-  }, [authUser, tenantId, isAdmin, db, loadRestaurantData, syncLiveSubscriptionStatus, fetchAllRestaurants, fetchAdmins, fetchRealApprovals, fetchSubscriptionRequests, fetchLivePlans, fetchSupportSections]);
+    return () => { channels.forEach((ch) => db.removeChannel(ch)); };
+  }, [authUser, tenantId, isAdmin, db, loadRestaurantData, syncLiveSubscriptionStatus, fetchAllRestaurants, fetchAdmins, fetchRealApprovals, fetchSubscriptionRequests, fetchLivePlans]);
 
   const saveInventoryToStorage = (updated: InventoryItem[]) => setInventoryList(updated);
   const saveDishesToStorage = (updated: Dish[]) => setDishes(updated);
@@ -1426,11 +1395,10 @@ export default function Home() {
   const lineDiscount = cart.reduce((sum, l) => sum + l.discount * l.qty, 0);
   const totalDiscount = Math.min(subtotal, lineDiscount + orderDiscount);
   
-  const configuredCgst = Number(tenantInfo.cgst_percent ?? 2.5);
-  const configuredSgst = Number(tenantInfo.sgst_percent ?? 2.5);
-  const cgstAmount = Math.round((subtotal - totalDiscount) * (configuredCgst / 100));
-  const sgstAmount = Math.round((subtotal - totalDiscount) * (configuredSgst / 100));
-  const tax = cgstAmount + sgstAmount;
+  const effectiveGst = tenantInfo.gst_percent || 5;
+  const tax = Math.round((subtotal - totalDiscount) * (effectiveGst / 100));
+  const cgstAmount = Math.round(tax / 2);
+  const sgstAmount = tax - cgstAmount;
   const total = subtotal - totalDiscount + tax;
 
   const addCart = (id: number | string) => {
@@ -1493,7 +1461,6 @@ export default function Home() {
         email: member.email,
         phone: member.phone,
         active: member.active !== false ? "true" : "false",
-        permissions: JSON.stringify(member.permissions || {}),
       });
     } else if (which === "dish") {
       if (id) {
@@ -1520,8 +1487,6 @@ export default function Home() {
           time: "15",
         });
       }
-    } else if (which === "employee") {
-      setForm({ name: "", role: "Staff", shift: "09:00 – 18:00", payType: "Monthly", monthlySalary: "0", weeklySalary: "0", dailyRate: "0", email: "", password: "", permissions: JSON.stringify({ overview: true, pos: true }), active: "true" });
     } else setForm({});
   };
 
@@ -1544,7 +1509,7 @@ export default function Home() {
         const res = await authedFetch("/api/admin/admins", { method, headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) });
         const json = await res.json();
         if (!res.ok) throw new Error(json.error || "Could not save admin");
-        setModal(null); setEditingAdminId(null); setAdminForm({ name: "", email: "", password: "", permissions: { restaurants: true, approvals: true, pricing: true, settings: true, support: true, admins: false } });
+        setModal(null); setEditingAdminId(null); setAdminForm({ name: "", email: "", password: "", permissions: { restaurants: true, approvals: true, pricing: true, settings: true, admins: false } });
         await fetchAdmins();
         toast.success(editingAdminId ? "Admin updated" : (json.temporary_password ? `Admin added. Temporary password: ${json.temporary_password}` : "Admin added to the existing login"));
       } catch (e: any) { toast.error(e.message || "Could not save admin"); }
@@ -1706,14 +1671,6 @@ export default function Home() {
         toast.error("Enter employee name");
         return;
       }
-      if (!form.email?.trim() || !/^\S+@\S+\.\S+$/.test(form.email.trim())) {
-        toast.error("Enter a valid employee login email");
-        return;
-      }
-      if (editing === null && (!form.password || form.password.length < 12)) {
-        toast.error("Employee login password must be at least 12 characters");
-        return;
-      }
       const payType = (form.payType as "Monthly" | "Weekly" | "Daily") || "Monthly";
       const monthlySalary = Number(form.monthlySalary) || 0;
       const weeklySalary = Number(form.weeklySalary) || 0;
@@ -1732,7 +1689,6 @@ export default function Home() {
         email: form.email || "staff@restopulse.demo",
         phone: form.phone || "",
         active: form.active !== "false",
-        permissions: (() => { try { return JSON.parse(form.permissions || "{}"); } catch { return {}; } })(),
       };
       if (!tenantId) return;
       const payload = { restaurant_id: tenantId, name: person.name, role: person.role, shift: person.shift, daily_rate: person.dailyRate, pay_type: person.payType, monthly_salary: person.monthlySalary, weekly_salary: person.weeklySalary, email: person.email, phone: person.phone, active: person.active !== false };
@@ -1740,8 +1696,8 @@ export default function Home() {
         : await db.from("employees").insert(payload).select().single();
       if (result.error) { toast.error(result.error.message); return; }
       const mapped = { ...person, id: result.data.id }; setStaff(old => editing !== null ? old.map(x => x.id === editing ? mapped : x) : [mapped, ...old]);
-      if (form.email?.trim()) {
-        const loginRes = await authedFetch("/api/employees", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ restaurant_id: tenantId, name: person.name, email: person.email, password: form.password || "", role: person.role, permissions: person.permissions }) });
+      if (form.email?.trim() && form.password?.trim()) {
+        const loginRes = await authedFetch("/api/employees", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ restaurant_id: tenantId, name: person.name, email: person.email, password: form.password, role: person.role }) });
         const loginJson = await loginRes.json();
         if (!loginRes.ok) { toast.error(loginJson.error || "Employee saved, but login could not be created"); return; }
       }
@@ -1992,21 +1948,18 @@ export default function Home() {
         return;
       }
 
-      const saved = resData.restaurant || payload;
-      setActiveRestaurantName(saved.name || payload.name);
+      setActiveRestaurantName(payload.name);
       setTenantInfo((prev) => ({
         ...prev,
-        id: saved.id || restaurantId,
-        name: saved.name || payload.name,
-        address: saved.address ?? payload.address,
-        business_phone: saved.owner_phone ?? payload.phone,
-        gstin: saved.gstin ?? payload.gstin,
-        gst_percent: Number(saved.gst_percent ?? payload.gst_percent),
-        cgst_percent: Number(saved.cgst_percent ?? payload.cgst_percent),
-        sgst_percent: Number(saved.sgst_percent ?? payload.sgst_percent),
-        receipt_footer: saved.receipt_footer || prev.receipt_footer,
+        name: payload.name,
+        address: payload.address,
+        business_phone: payload.phone,
+        gstin: payload.gstin,
+        gst_percent: payload.gst_percent,
+        cgst_percent: payload.cgst_percent,
+        sgst_percent: payload.sgst_percent,
       }));
-      setStoreForm((prev) => ({ ...prev, name: saved.name || payload.name, address: saved.address ?? payload.address, phone: saved.owner_phone ?? payload.phone, gstin: saved.gstin ?? payload.gstin, gst_percent: String(saved.gst_percent ?? payload.gst_percent), cgst_percent: String(saved.cgst_percent ?? payload.cgst_percent), sgst_percent: String(saved.sgst_percent ?? payload.sgst_percent) }));
+
       toast.success("Restaurant details saved successfully!");
       syncLiveSubscriptionStatus();
     } catch (err: any) {
@@ -2212,20 +2165,15 @@ export default function Home() {
   const currentAdminPermissions: any = currentAdminRecord?.permissions || {};
   const visibleNavPlatform = isAdmin ? navPlatform.filter((item: any) => {
     if (item.id === "dashboard") return true;
-    if (item.id === "billing") return currentAdminPermissions.approvals === true || currentAdminPermissions.pricing === true;
     if (currentAdminRecord && admins[0]?.id === authUser) return true;
     return currentAdminPermissions[item.id] === true;
   }) : [];
 
-  const activeWorkspace = restaurants.find((r: any) => r.id === tenantId);
-  const employeePermissions: any = activeWorkspace?.permissions || {};
   const visibleNavTenant = isAdmin
     ? []
     : navTenant.filter((item) => {
         if (isOwnerOrAdmin) return true;
-        if (item.id === "dashboard") return employeePermissions.overview !== false;
-        if (item.id === "support") return true;
-        return employeePermissions[item.id] === true;
+        return !item.allowedRoles || item.allowedRoles.includes(normalizedRole);
       });
 
   return (
@@ -2233,7 +2181,7 @@ export default function Home() {
       <Toaster richColors position="top-right" />
 
       {/* PRINT LAYOUT */}
-      <style>{`
+      <style jsx global>{`
         @media print {
           @page {
             size: ${printPaperSize === "A4" ? "A4" : printPaperSize === "58mm" ? "58mm auto" : "85mm auto"};
@@ -2479,7 +2427,7 @@ export default function Home() {
                   <button onClick={() => nav("staff")}>
                     <Users size={17} /> Manage employees
                   </button>
-                  <button onClick={() => { setProfileMenu(false); nav("support"); }}>
+                  <button onClick={() => { setProfileMenu(false); setModal("support"); }}>
                     <Send size={17} /> Support & Help
                   </button>
                 </>
@@ -2544,7 +2492,7 @@ export default function Home() {
 
                   {/* 4 Admin Platform KPIs */}
                   <div className="kpi-grid">
-                    <div className="kpi-card cursor-pointer" role="button" tabIndex={0} onClick={() => nav("billing")} onKeyDown={(e) => e.key === "Enter" && nav("billing")}>
+                    <div className="kpi-card">
                       <div className="kpi-top">
                         <span>Subscription revenue</span>
                         <span className="kpi-icon teal"><Wallet size={19} /></span>
@@ -2552,7 +2500,7 @@ export default function Home() {
                       <strong>{money(subscriptionRevenue)}</strong>
                       <div className="kpi-foot"><span>Approved subscription payments</span></div>
                     </div>
-                    <div className="kpi-card cursor-pointer" role="button" tabIndex={0} onClick={() => { setForm({ directoryFilter: "active" }); nav("restaurants"); }} onKeyDown={(e) => e.key === "Enter" && (setForm({ directoryFilter: "active" }), nav("restaurants"))}>
+                    <div className="kpi-card">
                       <div className="kpi-top">
                         <span>Active workspaces</span>
                         <span className="kpi-icon green"><Building2 size={19} /></span>
@@ -2560,7 +2508,7 @@ export default function Home() {
                       <strong>{activeSubscriptionCount}</strong>
                       <div className="kpi-foot"><span>Restaurants on active/trial plans</span></div>
                     </div>
-                    <div className="kpi-card cursor-pointer" role="button" tabIndex={0} onClick={() => nav("approvals")} onKeyDown={(e) => e.key === "Enter" && nav("approvals")}>
+                    <div className="kpi-card">
                       <div className="kpi-top">
                         <span>Pending approvals</span>
                         <span className="kpi-icon amber"><BadgeCheck size={19} /></span>
@@ -2568,18 +2516,13 @@ export default function Home() {
                       <strong>{subscriptionRequests.length + approvals.length}</strong>
                       <div className="kpi-foot"><span>Onboarding & payment verifications</span></div>
                     </div>
-                    <div className="kpi-card cursor-pointer" role="button" tabIndex={0} onClick={() => { setForm({ directoryFilter: "expired" }); nav("restaurants"); }} onKeyDown={(e) => e.key === "Enter" && (setForm({ directoryFilter: "expired" }), nav("restaurants"))}>
+                    <div className="kpi-card">
                       <div className="kpi-top">
                         <span>Expired subscriptions</span>
                         <span className="kpi-icon violet"><Clock size={19} /></span>
                       </div>
                       <strong>{expiredSubscriptionCount}</strong>
                       <div className="kpi-foot"><span>Require renewal outreach</span></div>
-                    </div>
-                    <div className="kpi-card cursor-pointer" role="button" tabIndex={0} onClick={() => { setForm({ directoryFilter: "upcoming" }); nav("restaurants"); }} onKeyDown={(e) => e.key === "Enter" && (setForm({ directoryFilter: "upcoming" }), nav("restaurants"))}>
-                      <div className="kpi-top"><span>Upcoming renewals</span><span className="kpi-icon amber"><CalendarDays size={19}/></span></div>
-                      <strong>{restaurants.filter((r: any) => { const d = new Date(r.renewal); return Number.isFinite(d.getTime()) && d >= nowForMetrics && d <= new Date(nowForMetrics.getTime() + 30*86400000); }).length}</strong>
-                      <div className="kpi-foot"><span>Renewing within 30 days</span></div>
                     </div>
                   </div>
 
@@ -3339,29 +3282,6 @@ export default function Home() {
           )}
 
           {/* 8. RESTAURANT SUBSCRIPTION */}
-          {view === "support" && !isAdmin && (
-            <>
-              <div className="page-head flex flex-col sm:flex-row sm:justify-between sm:items-center gap-3">
-                <div><div className="eyebrow">HELP & ASSISTANCE</div><h1>Support & Help</h1><p>Contact the RestoPulse support team using the available channels below.</p></div>
-                <button className="quiet-btn text-xs" onClick={fetchSupportSections}><RefreshCw size={14} /> Refresh</button>
-              </div>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-5 mt-6">
-                {supportSections.filter((x: any) => x.active !== false).map((section: any) => (
-                  <section key={section.id} className="panel p-6 border rounded-2xl bg-card space-y-4">
-                    <div className="flex items-start gap-3"><span className="w-11 h-11 rounded-xl bg-emerald-500/10 text-emerald-600 flex items-center justify-center"><LifeBuoy size={22}/></span><div><h2 className="text-lg font-bold">{section.title}</h2><p className="text-sm text-muted-foreground mt-1">{section.description}</p></div></div>
-                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 pt-2">
-                      {section.phone && <a className="primary-btn text-center" href={`tel:${String(section.phone).replace(/\s+/g, "")}`}><Phone size={14}/> Call</a>}
-                      {section.whatsapp && <a className="primary-btn text-center" href={`https://wa.me/${String(section.whatsapp).replace(/\D/g, "")}`} target="_blank" rel="noreferrer"><MessageCircle size={14}/> WhatsApp</a>}
-                      {section.email && <a className="quiet-btn text-center" href={`mailto:${section.email}`}><Mail size={14}/> Email</a>}
-                    </div>
-                    <div className="text-[11px] text-muted-foreground border-t pt-3">Keep your restaurant name, registered email, and issue details ready when contacting support.</div>
-                  </section>
-                ))}
-                {!supportSections.length && <div className="panel p-8 text-center text-sm text-muted-foreground md:col-span-2">Support contact information is not configured yet.</div>}
-              </div>
-            </>
-          )}
-
           {view === "subscription" && (
             <>
               <div className="page-head">
@@ -3505,7 +3425,7 @@ export default function Home() {
           {view === "settings" && (
             <>
               {isAdmin ? (
-                {AdminSettingsPanel()}
+                <AdminSettingsPanel />
               ) : <>
               <div className="page-head">
                 <div className="eyebrow">PREFERENCES</div>
@@ -3633,24 +3553,6 @@ export default function Home() {
             </>
           )}
 
-          {view === "billing" && isAdmin && (
-            <>
-              <div className="page-head flex flex-col sm:flex-row sm:justify-between sm:items-center gap-3">
-                <div><div className="eyebrow">PLATFORM BILLING</div><h1>Subscription Revenue</h1><p>Approved subscription payments and the restaurant accounts associated with them.</p></div>
-                <button className="quiet-btn text-xs" onClick={fetchSubscriptionRequests}><RefreshCw size={14}/> Refresh</button>
-              </div>
-              <div className="kpi-grid mt-6">
-                <div className="kpi-card"><span className="text-xs text-muted-foreground">Approved revenue</span><strong>{money(subscriptionRevenue)}</strong></div>
-                <div className="kpi-card"><span className="text-xs text-muted-foreground">Approved payments</span><strong>{subscriptionHistory.filter((x:any) => x.status === "Approved").length}</strong></div>
-                <div className="kpi-card"><span className="text-xs text-muted-foreground">Pending payments</span><strong>{subscriptionRequests.length}</strong></div>
-              </div>
-              <section className="panel management-panel mt-6">
-                <div className="table-scroll"><table><thead><tr><th>RESTAURANT</th><th>OWNER</th><th>PLAN</th><th>AMOUNT</th><th>STATUS</th><th>REQUESTED</th><th>REVIEWED</th></tr></thead>
-                <tbody>{subscriptionHistory.map((x:any) => <tr key={x.id}><td><b>{x.restaurant_name || "Restaurant"}</b></td><td><div className="owner-cell"><b>{x.owner_name || "—"}</b><small>{x.owner_email || "—"}</small></div></td><td>{x.plan || "—"}</td><td>{money(Number(x.amount || 0))}</td><td><span className={`status ${x.status === "Approved" ? "paid" : x.status === "Rejected" ? "trial" : "pending"}`}>{x.status}</span></td><td className="text-xs">{x.requested_at ? new Date(x.requested_at).toLocaleString("en-IN") : "—"}</td><td className="text-xs">{x.reviewed_at ? new Date(x.reviewed_at).toLocaleString("en-IN") : "—"}</td></tr>)}{!subscriptionHistory.length && <tr><td colSpan={7} className="text-center py-8 text-sm text-muted-foreground">No subscription payment history found.</td></tr>}</tbody></table></div>
-              </section>
-            </>
-          )}
-
           {/* 10. ADMIN: RESTAURANT DIRECTORY */}
           {view === "restaurants" && (
             <>
@@ -3659,7 +3561,6 @@ export default function Home() {
                   <div className="eyebrow">PLATFORM CONTROL</div>
                   <h1>Restaurant Directory</h1>
                   <p>Registered restaurants on RestoPulse and their active plans.</p>
-                  {form.directoryFilter && <button className="quiet-btn text-xs mt-2" onClick={() => setForm({})}>Clear filter: {form.directoryFilter}</button>}
                 </div>
                 <button className="primary-btn flex items-center gap-1.5" onClick={() => { setEditing(null); setForm({ name: "", owner: "", email: "", phone: "", city: "", password: "" }); setModal("restaurant"); }}>
                   <Plus size={16}/> Add restaurant
@@ -3672,10 +3573,7 @@ export default function Home() {
                     <thead>
                       <tr>
                         <th>RESTAURANT</th>
-                        <th>OWNER / EMAIL</th>
-                        <th>PHONE</th>
-                        <th>CITY / ADDRESS</th>
-                        <th>GSTIN</th>
+                        <th>OWNER</th>
                         <th>PLAN</th>
                         <th>STATUS</th>
                         <th>RENEWAL</th>
@@ -3683,13 +3581,10 @@ export default function Home() {
                       </tr>
                     </thead>
                     <tbody>
-                      {restaurants.filter((r: any) => { const f = form.directoryFilter; if (!f) return true; const d = new Date(r.renewal); if (f === "expired") return Number.isFinite(d.getTime()) && d < nowForMetrics; if (f === "upcoming") return Number.isFinite(d.getTime()) && d >= nowForMetrics && d <= new Date(nowForMetrics.getTime() + 30*86400000); return true; }).map((r: any) => (
+                      {restaurants.map((r: any) => (
                         <tr key={r.id}>
                           <td><b>{r.name}</b></td>
-                          <td><div className="owner-cell"><b>{r.owner}</b><small>{r.email}</small></div></td>
-                          <td className="text-xs">{r.phone || "—"}</td>
-                          <td className="text-xs"><b>{r.city || "—"}</b><small className="block max-w-[220px] truncate">{r.address || "—"}</small></td>
-                          <td className="font-mono text-xs">{r.gstin || "—"}</td>
+                          <td>{r.owner}</td>
                           <td><span className="font-semibold text-indigo-500 capitalize">{r.plan}</span></td>
                           <td>
                             <span className={"status " + (r.status === "Active" ? "paid" : "trial")}>
@@ -3698,7 +3593,7 @@ export default function Home() {
                           </td>
                           <td className="font-mono text-sm">{r.renewal}</td>
                           <td><div className="flex gap-1.5">
-                            <button className="quiet-btn text-xs" title="Edit restaurant" onClick={() => { setEditing(r.id); setForm({ name: r.name, owner: r.owner, email: r.email, phone: r.phone, city: r.city || "", address: r.address || "", gstin: r.gstin || "", plan: r.plan || "Free Trial", status: r.status || "Active", renewal: r.renewal || "" }); setModal("restaurant"); }}><Pencil size={13}/></button>
+                            <button className="quiet-btn text-xs" title="Edit restaurant" onClick={() => { setEditing(r.id); setForm({ name: r.name, owner: r.owner, email: r.email, phone: r.phone, city: r.city || "", plan: r.plan || "Free Trial", status: r.status || "Active", renewal: r.renewal || "" }); setModal("restaurant"); }}><Pencil size={13}/></button>
                             <button className="quiet-btn text-xs" title="Extend subscription" onClick={() => { setEditing(r.id); setForm({ days: "30" }); setModal("extend"); }}><Clock size={13}/></button>
                             <button className="quiet-btn text-xs text-red-600" title="Deactivate restaurant" onClick={async () => { if (!confirm("Deactivate this restaurant?")) return; const res = await authedFetch("/api/admin/restaurants", { method: "DELETE", body: JSON.stringify({ id: r.id }) }); const j = await res.json(); if (!res.ok) { toast.error(j.error || "Failed"); return; } fetchAllRestaurants(); toast.success("Restaurant deactivated"); }}><Trash2 size={13}/></button>
                           </div></td>
@@ -3716,12 +3611,12 @@ export default function Home() {
             <>
               <div className="page-head flex flex-col sm:flex-row sm:justify-between sm:items-center gap-3">
                 <div><div className="eyebrow">PLATFORM ADMINISTRATION</div><h1>Manage Admins</h1><p>Add, edit, or remove platform administrators.</p></div>
-                <button className="primary-btn flex items-center gap-1.5" onClick={() => { setEditingAdminId(null); setAdminForm({ name: "", email: "", password: "", permissions: { restaurants: true, approvals: true, pricing: true, settings: true, support: true, admins: false } }); setModal("admin"); }}><Plus size={16}/> Add new admin</button>
+                <button className="primary-btn flex items-center gap-1.5" onClick={() => { setEditingAdminId(null); setAdminForm({ name: "", email: "", password: "", permissions: { restaurants: true, approvals: true, pricing: true, settings: true, admins: false } }); setModal("admin"); }}><Plus size={16}/> Add new admin</button>
               </div>
               <div className="panel management-panel mt-6">
                 <div className="table-scroll"><table><thead><tr><th>ADMIN</th><th>EMAIL</th><th>CREATED</th><th>ACTIONS</th></tr></thead>
                 <tbody>{admins.map((a: any) => <tr key={a.id}><td><b>{a.name}</b></td><td>{a.email}</td><td>{a.created_at ? new Date(a.created_at).toLocaleDateString("en-IN") : "—"}</td><td><div className="flex gap-1.5">
-                  <button className="quiet-btn text-xs" title="Edit admin" onClick={() => { setEditingAdminId(a.id); setAdminForm({ name: a.name || "", email: a.email || "", password: "", permissions: { restaurants: true, approvals: true, pricing: true, settings: true, support: true, admins: false, ...(a.permissions || {}) } }); setModal("admin"); }}><Pencil size={13}/></button>
+                  <button className="quiet-btn text-xs" title="Edit admin" onClick={() => { setEditingAdminId(a.id); setAdminForm({ name: a.name || "", email: a.email || "", password: "", permissions: { restaurants: true, approvals: true, pricing: true, settings: true, admins: false, ...(a.permissions || {}) } }); setModal("admin"); }}><Pencil size={13}/></button>
                   <button className="quiet-btn text-xs text-red-600" title="Remove admin" onClick={async () => { if (!confirm(`Remove ${a.name || a.email} from platform admins?`)) return; const res = await authedFetch("/api/admin/admins", { method: "DELETE", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ id: a.id }) }); const j = await res.json(); if (!res.ok) { toast.error(j.error || "Could not remove admin"); return; } await fetchAdmins(); toast.success("Admin access removed"); }}><Trash2 size={13}/></button>
                 </div></td></tr>)}
                 {!admins.length && <tr><td colSpan={4} className="text-center py-8 text-muted-foreground">No platform admins found.</td></tr>}</tbody></table></div>
@@ -3943,7 +3838,7 @@ export default function Home() {
             <label>Admin name<input value={adminForm.name} onChange={e => setAdminForm({ ...adminForm, name: e.target.value })} /></label>
             <label>Admin email<input type="email" value={adminForm.email} onChange={e => setAdminForm({ ...adminForm, email: e.target.value })} /></label>
             <label>Password {editingAdminId ? "(leave blank to keep current)" : "(optional)"}<input type="password" minLength={12} placeholder="Minimum 12 characters" value={adminForm.password} onChange={e => setAdminForm({ ...adminForm, password: e.target.value })} /></label>
-            <div className="border rounded-xl p-3 space-y-2"><b className="text-xs">Section access</b>{([['restaurants', 'Restaurants'], ['approvals', 'Approvals'], ['pricing', 'Pricing plans'], ['settings', 'Settings'], ['support', 'Support & Help'], ['admins', 'Manage admins']] as const).map(([key, label]) => <label key={key} className="flex items-center gap-2 text-xs"><input type="checkbox" checked={!!(adminForm.permissions as any)[key]} onChange={e => setAdminForm({ ...adminForm, permissions: { ...adminForm.permissions, [key]: e.target.checked } })} />{label}</label>)}</div>
+            <div className="border rounded-xl p-3 space-y-2"><b className="text-xs">Section access</b>{([['restaurants', 'Restaurants'], ['approvals', 'Approvals'], ['pricing', 'Pricing plans'], ['settings', 'Settings'], ['admins', 'Manage admins']] as const).map(([key, label]) => <label key={key} className="flex items-center gap-2 text-xs"><input type="checkbox" checked={!!(adminForm.permissions as any)[key]} onChange={e => setAdminForm({ ...adminForm, permissions: { ...adminForm.permissions, [key]: e.target.checked } })} />{label}</label>)}</div>
           </div>
           <DialogFooter><button className="quiet-btn" onClick={() => setModal(null)}>Cancel</button><button className="primary-btn" onClick={save}>{editingAdminId ? "Save changes" : "Add admin"}</button></DialogFooter>
         </DialogContent>
@@ -3977,7 +3872,6 @@ export default function Home() {
             <label>Owner email<input type="email" disabled={editing !== null} value={form.email || ""} onChange={e => setForm({ ...form, email: e.target.value })} /></label>
             <label>Owner phone<input value={form.phone || ""} onChange={e => setForm({ ...form, phone: e.target.value })} /></label>
             <label>City<input value={form.city || ""} onChange={e => setForm({ ...form, city: e.target.value })} /></label>
-            {editing && <><label>Address<input value={form.address || ""} onChange={e => setForm({ ...form, address: e.target.value })} /></label><label>GSTIN<input value={form.gstin || ""} onChange={e => setForm({ ...form, gstin: e.target.value })} /></label></>}
             {!editing && <label>Temporary password<input type="password" minLength={12} placeholder="Minimum 12 characters" value={form.password || ""} onChange={e => setForm({ ...form, password: e.target.value })} /></label>}
             {editing && <><label>Plan<select value={form.plan || "Free Trial"} onChange={e => setForm({ ...form, plan: e.target.value })}>{plans.map(x => <option key={x.id}>{x.name}</option>)}</select></label><label>Status<select value={form.status || "Active"} onChange={e => setForm({ ...form, status: e.target.value })}><option>Trial</option><option>Active</option><option>Paused</option></select></label><label>Renewal date<input type="date" value={form.renewal === "—" ? "" : form.renewal || ""} onChange={e => setForm({ ...form, renewal: e.target.value })} /></label></>}
           </div>
@@ -4334,19 +4228,6 @@ export default function Home() {
                 <option value="Staff">Staff (POS cashier terminal access only)</option>
               </select>
             </label>
-
-            <label className="block space-y-1">
-              <span className="font-semibold text-muted-foreground">Login email</span>
-              <input type="email" value={form.email || ""} onChange={(e) => setForm({ ...form, email: e.target.value })} placeholder="employee@example.com" className="w-full p-2 border rounded-lg bg-background" />
-            </label>
-
-            <div className="border rounded-xl p-3 space-y-2">
-              <b className="text-xs">Required access</b>
-              <div className="grid grid-cols-2 gap-2">
-                {([["pos","POS Terminal"],["menu","Menu & dishes"],["inventory","Inventory"],["staff","Team & payroll"],["expenses","Expenses"],["suppliers","Suppliers"]] as const).map(([key,label]) => { let perms:any = {}; try { perms = JSON.parse(form.permissions || "{}"); } catch {} return <label key={key} className="flex items-center gap-2 text-xs"><input type="checkbox" checked={perms[key] === true} onChange={(e) => setForm({ ...form, permissions: JSON.stringify({ ...perms, overview: true, [key]: e.target.checked }) })} />{label}</label>; })}
-              </div>
-              <span className="text-[11px] text-muted-foreground">The employee can only see the sections selected here. Owner access is not granted to employees.</span>
-            </div>
 
             <div className="grid grid-cols-2 gap-3">
               <label className="block space-y-1">

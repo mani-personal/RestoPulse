@@ -293,6 +293,7 @@ export default function Home() {
 
   // Persistent Selected Workspace Locking
   const [tenantId, setTenantId] = useState<string | null>(null);
+  const [tenantHydrating, setTenantHydrating] = useState(true);
   const tenantIdRef = useRef<string | null>(null);
   tenantIdRef.current = tenantId;
 
@@ -522,6 +523,11 @@ export default function Home() {
   }, [authUser, loginEmail]);
 
   const fetchAllRestaurants = useCallback(async () => {
+    // Restaurant users must never hydrate their workspace from the platform
+    // restaurant list. That list can contain every restaurant and can race
+    // with membership hydration during the first render, causing a brief
+    // switch to another restaurant. Only the platform Admin needs this list.
+    if (!isAdmin) return;
     try {
       const res = await authedFetch("/api/admin/restaurants");
       const json = await res.json();
@@ -559,7 +565,7 @@ export default function Home() {
           }
         }
     } catch {}
-  }, [authedFetch]);
+  }, [authedFetch, isAdmin]);
 
   const fetchRealApprovals = useCallback(async () => {
     try {
@@ -648,6 +654,24 @@ export default function Home() {
     };
   }, [db]);
 
+  // Reset workspace state whenever the authenticated user changes. This prevents
+  // a previous user's tenant/localStorage value from being rendered while the
+  // new user's membership is still being resolved.
+  useEffect(() => {
+    if (!authUser) {
+      setTenantId(null);
+      setTenantHydrating(false);
+      setActiveRestaurantName("Loading workspace…");
+      return;
+    }
+    setTenantHydrating(true);
+    setTenantId(null);
+    setActiveRestaurantName("Loading workspace…");
+    setActivePlanName("Free trial");
+    setActiveRenewalDate("—");
+    setTenantInfo((prev) => ({ ...prev, id: undefined, name: "" }));
+  }, [authUser]);
+
   useEffect(() => {
     if (!db || !authUser) return;
     let live = true;
@@ -664,9 +688,25 @@ export default function Home() {
         if (m?.data?.role) {
           setCurrentUserRole(m.data.role.toLowerCase());
         }
-        if (m?.data?.restaurant_id && !tenantIdRef.current) {
-          setTenantId(m.data.restaurant_id);
-          localStorage.setItem("rp-active-tenant-id", m.data.restaurant_id);
+        // Restaurant users must always derive the active workspace from their
+        // authenticated membership. Do not trust a previously saved workspace
+        // id here: localStorage may belong to a different restaurant/user and
+        // can race with this hydration on first load.
+        if (!platform) {
+          const membershipRestaurantId = m?.data?.restaurant_id || null;
+          // The authenticated membership is the source of truth for a
+          // restaurant user's workspace. A stale localStorage id must never
+          // override it during startup.
+          setTenantId(membershipRestaurantId);
+          if (membershipRestaurantId) {
+            localStorage.setItem("rp-active-tenant-id", membershipRestaurantId);
+          } else {
+            localStorage.removeItem("rp-active-tenant-id");
+          }
+          setTenantHydrating(false);
+        } else {
+          // Admins do not have a restaurant workspace to hydrate.
+          setTenantHydrating(false);
         }
       } catch (e) {
         console.error("Auth hydration error", e);
@@ -707,12 +747,19 @@ export default function Home() {
   // multiple tabs/devices do not generate duplicate API/database traffic.
   useEffect(() => {
     if (!authUser) return;
-    fetchSubscriptionRequests();
-    fetchRealApprovals();
-    fetchAllRestaurants();
-    syncLiveSubscriptionStatus();
-    fetchLivePlans();
-  }, [authUser, fetchSubscriptionRequests, fetchRealApprovals, fetchAllRestaurants, syncLiveSubscriptionStatus, fetchLivePlans]);
+    // Platform data is loaded only for Admin. Restaurant users must not load
+    // the platform restaurant list during startup because it can overwrite the
+    // authenticated membership workspace before hydration finishes.
+    if (isAdmin) {
+      fetchSubscriptionRequests();
+      fetchRealApprovals();
+      fetchAllRestaurants();
+      fetchLivePlans();
+    }
+    if (!isAdmin && tenantId) {
+      syncLiveSubscriptionStatus();
+    }
+  }, [authUser, isAdmin, tenantId, fetchSubscriptionRequests, fetchRealApprovals, fetchAllRestaurants, syncLiveSubscriptionStatus, fetchLivePlans]);
 
   const loadRestaurantData = useCallback(async (id: string) => {
     if (!id || isAdmin) return;
@@ -1589,6 +1636,9 @@ export default function Home() {
         <Toaster richColors />
       </div>
     );
+
+  if (tenantHydrating)
+    return <div className="auth-page">Loading workspace…</div>;
 
   const openUpiApp = (provider: "gpay" | "phonepe" | "upi") => {
     const params = `pa=${encodeURIComponent(subscriptionUpiId)}&pn=${encodeURIComponent("RestoPulse")}&am=${encodeURIComponent(activePlanPrice.toFixed(2))}&cu=INR&tn=${encodeURIComponent(`${activeRestaurantName} ${activeInlinePlan?.name || "Subscription"}`)}`;

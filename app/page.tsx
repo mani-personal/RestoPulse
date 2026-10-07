@@ -943,7 +943,7 @@ export default function Home() {
                           <h3 className="font-bold text-sm text-slate-900 mb-3">Revenue Trends</h3>
                           <div className="h-72">
                             <ResponsiveContainer width="100%" height="100%">
-                              <AreaChart data={chart} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
+                              <AreaChart data={dynamicChart} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
                                 <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
                                 <XAxis dataKey="day" tick={{ fontSize: 11, fill: "#94a3b8" }} axisLine={false} tickLine={false} />
                                 <YAxis tick={{ fontSize: 11, fill: "#94a3b8" }} axisLine={false} tickLine={false} tickFormatter={(v) => `₹${v / 1000}k`} />

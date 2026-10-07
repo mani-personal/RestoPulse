@@ -2233,7 +2233,7 @@ export default function Home() {
       <Toaster richColors position="top-right" />
 
       {/* PRINT LAYOUT */}
-      <style jsx global>{`
+      <style>{`
         @media print {
           @page {
             size: ${printPaperSize === "A4" ? "A4" : printPaperSize === "58mm" ? "58mm auto" : "85mm auto"};

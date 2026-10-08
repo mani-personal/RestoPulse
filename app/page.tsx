@@ -88,6 +88,7 @@ type View =
   | "suppliers"
   | "settings"
   | "subscription"
+  | "support"
   | "restaurants"
   | "approvals"
   | "pricing"
@@ -160,6 +161,7 @@ type Staff = {
   email: string;
   phone: string;
   active?: boolean;
+  permissions?: Record<string, boolean>;
 };
 
 type Wage = {
@@ -278,15 +280,17 @@ const navTenant: { id: View; label: string; icon: typeof LayoutDashboard; allowe
   { id: "suppliers", label: "Suppliers", icon: Building2, allowedRoles: ["owner", "accountant", "storekeeper"] },
   { id: "subscription", label: "Subscription", icon: CreditCard, allowedRoles: ["owner"] },
   { id: "settings", label: "Settings", icon: Settings, allowedRoles: ["owner"] },
+  { id: "support", label: "Support & Help", icon: Send, allowedRoles: ["owner", "manager", "staff", "accountant", "storekeeper"] },
 ];
 
-// Standalone "Support & Help Management" removed from sidebar; consolidated inside Settings
+// Support & Help is a dedicated restaurant page.
 const navPlatform: { id: View; label: string; icon: typeof Building2 }[] = [
   { id: "dashboard", label: "Overview", icon: LayoutDashboard },
   { id: "restaurants", label: "Restaurants", icon: Building2 },
   { id: "approvals", label: "Approvals", icon: BadgeCheck },
   { id: "pricing", label: "Pricing plans", icon: CreditCard },
   { id: "settings", label: "Settings", icon: Settings },
+  { id: "support", label: "Support & Help", icon: Send },
 ];
 
 export default function Home() {
@@ -359,6 +363,7 @@ export default function Home() {
   const [view, setView] = useState<View>("dashboard");
   const [profileMenu, setProfileMenu] = useState(false);
   const [accountRole, setAccountRole] = useState<"admin" | "restaurant">("restaurant");
+  const [currentUserPermissions, setCurrentUserPermissions] = useState<Record<string, boolean>>({});
   const [mobileNav, setMobileNav] = useState(false);
   const [notifications, setNotifications] = useState(false);
   const [readNotificationKeys, setReadNotificationKeys] = useState<string[]>([]);
@@ -415,7 +420,8 @@ export default function Home() {
   const [subscriptionUpiId, setSubscriptionUpiId] = useState<string>("admin-restopulse@upi");
 
   const [supportSections, setSupportSections] = useState<any[]>([]);
-  const [adminForm, setAdminForm] = useState({ name: "", email: "", password: "", permissions: { restaurants: true, approvals: true, pricing: true, settings: true, admins: false } });
+  const defaultAdminPermissions = { restaurants: true, approvals: true, pricing: true, settings: true, support: true, admins: false };
+  const [adminForm, setAdminForm] = useState({ name: "", email: "", password: "", permissions: defaultAdminPermissions });
   const [editingAdminId, setEditingAdminId] = useState<string | null>(null);
   const [supportEditingId, setSupportEditingId] = useState<string | null>(null);
   const [supportForm, setSupportForm] = useState({
@@ -504,6 +510,7 @@ export default function Home() {
     setActivePlanName(rest.plan || "Free trial");
     setActiveRenewalDate(rest.renewal || rest.renewal_on || "—");
     setCurrentUserRole(String(rest.role || "OWNER").toLowerCase());
+    setCurrentUserPermissions((rest.permissions && typeof rest.permissions === "object") ? rest.permissions : {});
     setTenantInfo((prev) => ({
       ...prev,
       id: rest.id,
@@ -802,7 +809,7 @@ export default function Home() {
               </span>
               <div>
                 <h2 className="text-base font-bold text-foreground">Support & Help Desk Management</h2>
-                <p className="text-xs text-muted-foreground">Configure the contact methods (Phone, WhatsApp, Email) shown to all restaurant owners under their Support modal.</p>
+                <p className="text-xs text-muted-foreground">Configure the contact methods (Phone, WhatsApp, Email) shown to all restaurant owners on their Support & Help page.</p>
               </div>
             </div>
             <span className="px-3 py-1 rounded-full text-xs font-bold bg-secondary text-secondary-foreground self-start sm:self-auto">
@@ -1055,6 +1062,11 @@ export default function Home() {
       return;
     }
     setTenantHydrating(true);
+    // Reset the previous session's role immediately so an owner logging in
+    // after an admin session cannot trigger platform-admin API calls.
+    setIsAdmin(false);
+    setAccountRole("restaurant");
+    setCurrentUserPermissions({});
     setTenantId(null);
     setActiveRestaurantName("Loading workspace…");
     setActivePlanName("Free trial");
@@ -1072,6 +1084,7 @@ export default function Home() {
         const platform = !!a?.data;
         setIsAdmin(platform);
         setAccountRole(platform ? "admin" : "restaurant");
+        setCurrentUserPermissions(platform ? { restaurants: true, approvals: true, pricing: true, settings: true, support: true, admins: true } : {});
         if (!platform) {
           const wsRes = await authedFetch("/api/workspaces");
           const wsJson = await wsRes.json().catch(() => ({}));
@@ -1087,6 +1100,7 @@ export default function Home() {
             setActivePlanName(target.plan || "Free trial");
             setActiveRenewalDate(target.renewal || "—");
             setCurrentUserRole(String(target.role || "OWNER").toLowerCase());
+            setCurrentUserPermissions((target.permissions && typeof target.permissions === "object") ? target.permissions : {});
           } else {
             setTenantId(null);
             tenantIdRef.current = null;
@@ -1151,7 +1165,7 @@ export default function Home() {
     setStaff([]); setWages([]); setInventoryList([]); setInventoryTransactions([]);
     setIsDataLoading(true);
     try {
-      const [salesRes, inventoryRes, menuRes, expensesRes, supplierRes, paymentRes, staffRes, wagesRes] = await Promise.all([
+      const [salesRes, inventoryRes, menuRes, expensesRes, supplierRes, paymentRes, staffRes, wagesRes, membershipsRes] = await Promise.all([
         authedFetch(`/api/sales?restaurant_id=${encodeURIComponent(id)}`),
         authedFetch(`/api/inventory?restaurant_id=${encodeURIComponent(id)}`),
         db.from("menu_items").select("id,name,category,price,cost,available,emoji,diet,prep_minutes,image_url").eq("restaurant_id", id).order("created_at", { ascending: false }),
@@ -1160,6 +1174,7 @@ export default function Home() {
         db.from("supplier_payments").select("id,supplier_id,amount,paid_on,method,note").eq("restaurant_id", id).order("paid_on", { ascending: false }),
         db.from("employees").select("id,name,role,shift,pay_type,monthly_salary,weekly_salary,daily_rate,email,phone,active").eq("restaurant_id", id).order("name"),
         db.from("daily_wages").select("id,employee_id,wage_date,amount,status,note").eq("restaurant_id", id).order("wage_date", { ascending: false }),
+        db.from("memberships").select("user_id,role,permissions").eq("restaurant_id", id),
       ]);
       const salesJson = await salesRes.json().catch(() => ({ sales: [] }));
       const inventoryJson = await inventoryRes.json().catch(() => ({ items: [], transactions: [] }));
@@ -1175,7 +1190,10 @@ export default function Home() {
       if (!expensesRes.error) setExpenses((expensesRes.data || []).map((x: any) => ({ id: x.id, name: x.name, category: x.category, vendor: x.vendor, amount: Number(x.amount), date: x.incurred_on, supplierId: x.supplier_id })));
       if (!supplierRes.error) setSuppliers((supplierRes.data || []).map((x: any) => ({ id: x.id, name: x.name, contact: x.contact_name, phone: x.phone, email: x.email })));
       if (!paymentRes.error) setSupplierPayments((paymentRes.data || []).map((x: any) => ({ id: x.id, supplierId: x.supplier_id, amount: Number(x.amount), date: x.paid_on, method: x.method, note: x.note })));
-      if (!staffRes.error) setStaff((staffRes.data || []).map((x: any) => ({ id: x.id, name: x.name, role: x.role, initial: x.name.slice(0, 2).toUpperCase(), shift: x.shift, payType: x.pay_type || "Daily", monthlySalary: Number(x.monthly_salary || 0), weeklySalary: Number(x.weekly_salary || 0), dailyRate: Number(x.daily_rate || 0), email: x.email, phone: x.phone, active: x.active })));
+      if (!staffRes.error) {
+        const membershipMap = new Map((membershipsRes.data || []).map((m: any) => [String(m.user_id), m.permissions || {}]));
+        setStaff((staffRes.data || []).map((x: any) => ({ id: x.id, name: x.name, role: x.role, initial: x.name.slice(0, 2).toUpperCase(), shift: x.shift, payType: x.pay_type || "Daily", monthlySalary: Number(x.monthly_salary || 0), weeklySalary: Number(x.weekly_salary || 0), dailyRate: Number(x.daily_rate || 0), email: x.email, phone: x.phone, active: x.active, permissions: x.user_id ? (membershipMap.get(String(x.user_id)) || {}) : {} })));
+      }
       if (!wagesRes.error) setWages((wagesRes.data || []).map((x: any) => ({ id: x.id, staffId: x.employee_id, date: x.wage_date, amount: Number(x.amount), status: x.status, note: x.note })));
     } catch (e) {
       console.error("Restaurant data load failed", e);
@@ -1510,6 +1528,7 @@ export default function Home() {
         email: member.email,
         phone: member.phone,
         active: member.active !== false ? "true" : "false",
+        permissions: JSON.stringify(member.permissions || {}),
       });
     } else if (which === "dish") {
       if (id) {
@@ -1536,6 +1555,8 @@ export default function Home() {
           time: "15",
         });
       }
+    } else if (which === "employee") {
+      setForm({ name: "", role: "Staff", shift: "09:00 – 18:00", payType: "Monthly", monthlySalary: "", weeklySalary: "", dailyRate: "", email: "", phone: "", active: "true", permissions: JSON.stringify({ overview: true, pos: true }) });
     } else setForm({});
   };
 
@@ -1558,7 +1579,7 @@ export default function Home() {
         const res = await authedFetch("/api/admin/admins", { method, headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) });
         const json = await res.json();
         if (!res.ok) throw new Error(json.error || "Could not save admin");
-        setModal(null); setEditingAdminId(null); setAdminForm({ name: "", email: "", password: "", permissions: { restaurants: true, approvals: true, pricing: true, settings: true, admins: false } });
+        setModal(null); setEditingAdminId(null); setAdminForm({ name: "", email: "", password: "", permissions: defaultAdminPermissions });
         await fetchAdmins();
         toast.success(editingAdminId ? "Admin updated" : (json.temporary_password ? `Admin added. Temporary password: ${json.temporary_password}` : "Admin added to the existing login"));
       } catch (e: any) { toast.error(e.message || "Could not save admin"); }
@@ -1724,6 +1745,7 @@ export default function Home() {
       const monthlySalary = Number(form.monthlySalary) || 0;
       const weeklySalary = Number(form.weeklySalary) || 0;
       const dailyRate = Number(form.dailyRate) || (payType === "Monthly" ? Math.round(monthlySalary / 30) : payType === "Weekly" ? Math.round(weeklySalary / 7) : 0);
+      const selectedPermissions = (() => { try { const parsed = form.permissions ? JSON.parse(form.permissions) : {}; return parsed && typeof parsed === "object" ? parsed : {}; } catch { return {}; } })();
 
       const person: Staff = {
         id: editing ?? Date.now(),
@@ -1738,6 +1760,7 @@ export default function Home() {
         email: form.email || "staff@restopulse.demo",
         phone: form.phone || "",
         active: form.active !== "false",
+        permissions: selectedPermissions,
       };
       if (!tenantId) return;
       const payload = { restaurant_id: tenantId, name: person.name, role: person.role, shift: person.shift, daily_rate: person.dailyRate, pay_type: person.payType, monthly_salary: person.monthlySalary, weekly_salary: person.weeklySalary, email: person.email, phone: person.phone, active: person.active !== false };
@@ -1745,8 +1768,8 @@ export default function Home() {
         : await db.from("employees").insert(payload).select().single();
       if (result.error) { toast.error(result.error.message); return; }
       const mapped = { ...person, id: result.data.id }; setStaff(old => editing !== null ? old.map(x => x.id === editing ? mapped : x) : [mapped, ...old]);
-      if (form.email?.trim() && form.password?.trim()) {
-        const loginRes = await authedFetch("/api/employees", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ restaurant_id: tenantId, name: person.name, email: person.email, password: form.password, role: person.role }) });
+      if (form.email?.trim() && (form.password?.trim() || editing !== null)) {
+        const loginRes = await authedFetch("/api/employees", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ restaurant_id: tenantId, name: person.name, email: person.email, password: form.password, role: person.role, permissions: selectedPermissions }) });
         const loginJson = await loginRes.json();
         if (!loginRes.ok) { toast.error(loginJson.error || "Employee saved, but login could not be created"); return; }
       }
@@ -2222,7 +2245,9 @@ export default function Home() {
     ? []
     : navTenant.filter((item) => {
         if (isOwnerOrAdmin) return true;
-        return !item.allowedRoles || item.allowedRoles.includes(normalizedRole);
+        if (item.id === "dashboard") return true;
+        if (item.id === "support") return currentUserPermissions.support !== false;
+        return currentUserPermissions[item.id] === true;
       });
 
   return (
@@ -2476,7 +2501,7 @@ export default function Home() {
                   <button onClick={() => nav("staff")}>
                     <Users size={17} /> Manage employees
                   </button>
-                  <button onClick={() => { setProfileMenu(false); setModal("support"); }}>
+                  <button onClick={() => { setProfileMenu(false); nav("support"); }}>
                     <Send size={17} /> Support & Help
                   </button>
                 </>
@@ -3470,11 +3495,32 @@ export default function Home() {
             </>
           )}
 
+          {/* SUPPORT & HELP */}
+          {view === "support" && !isAdmin && (
+            <div className="page-head">
+              <div className="eyebrow">HELP & SUPPORT</div>
+              <h1>Support & Help</h1>
+              <p>Contact the RestoPulse support team for billing, technical, and restaurant operations assistance.</p>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-5 mt-6">
+                {supportSections.filter((x: any) => x.active !== false).map((section: any) => (
+                  <section key={section.id} className="panel p-6 border rounded-2xl bg-card space-y-4">
+                    <h2 className="text-lg font-bold">{section.title || "Support & Help"}</h2>
+                    <p className="text-sm text-muted-foreground">{section.description}</p>
+                    {section.phone && <div className="flex items-center justify-between gap-3 border rounded-xl p-3"><span className="text-sm font-semibold">Support Phone</span><a className="font-bold text-indigo-600" href={`tel:${String(section.phone).replace(/\s+/g, "")}`}>{section.phone}</a></div>}
+                    {section.email && <div className="flex items-center justify-between gap-3 border rounded-xl p-3"><span className="text-sm font-semibold">Support Email</span><a className="font-bold text-indigo-600 break-all" href={`mailto:${section.email}`}>{section.email}</a></div>}
+                    {section.whatsapp && <a className="primary-btn inline-flex" href={`https://wa.me/${String(section.whatsapp).replace(/\D/g, "")}`} target="_blank" rel="noreferrer">WhatsApp Support</a>}
+                  </section>
+                ))}
+                {!supportSections.filter((x: any) => x.active !== false).length && <div className="panel p-6 border rounded-2xl text-sm text-muted-foreground">Support contact information is not configured yet.</div>}
+              </div>
+            </div>
+          )}
+
           {/* 9. SETTINGS WITH SAFE DATABASE PERSISTENCE */}
           {view === "settings" && (
             <>
               {isAdmin ? (
-                <AdminSettingsPanel />
+                AdminSettingsPanel()
               ) : <>
               <div className="page-head">
                 <div className="eyebrow">PREFERENCES</div>
@@ -3660,7 +3706,7 @@ export default function Home() {
             <>
               <div className="page-head flex flex-col sm:flex-row sm:justify-between sm:items-center gap-3">
                 <div><div className="eyebrow">PLATFORM ADMINISTRATION</div><h1>Manage Admins</h1><p>Add, edit, or remove platform administrators.</p></div>
-                <button className="primary-btn flex items-center gap-1.5" onClick={() => { setEditingAdminId(null); setAdminForm({ name: "", email: "", password: "", permissions: { restaurants: true, approvals: true, pricing: true, settings: true, admins: false } }); setModal("admin"); }}><Plus size={16}/> Add new admin</button>
+                <button className="primary-btn flex items-center gap-1.5" onClick={() => { setEditingAdminId(null); setAdminForm({ name: "", email: "", password: "", permissions: defaultAdminPermissions }); setModal("admin"); }}><Plus size={16}/> Add new admin</button>
               </div>
               <div className="panel management-panel mt-6">
                 <div className="table-scroll"><table><thead><tr><th>ADMIN</th><th>EMAIL</th><th>CREATED</th><th>ACTIONS</th></tr></thead>
@@ -3887,28 +3933,9 @@ export default function Home() {
             <label>Admin name<input value={adminForm.name} onChange={e => setAdminForm({ ...adminForm, name: e.target.value })} /></label>
             <label>Admin email<input type="email" value={adminForm.email} onChange={e => setAdminForm({ ...adminForm, email: e.target.value })} /></label>
             <label>Password {editingAdminId ? "(leave blank to keep current)" : "(optional)"}<input type="password" minLength={12} placeholder="Minimum 12 characters" value={adminForm.password} onChange={e => setAdminForm({ ...adminForm, password: e.target.value })} /></label>
-            <div className="border rounded-xl p-3 space-y-2"><b className="text-xs">Section access</b>{([['restaurants', 'Restaurants'], ['approvals', 'Approvals'], ['pricing', 'Pricing plans'], ['settings', 'Settings'], ['admins', 'Manage admins']] as const).map(([key, label]) => <label key={key} className="flex items-center gap-2 text-xs"><input type="checkbox" checked={!!(adminForm.permissions as any)[key]} onChange={e => setAdminForm({ ...adminForm, permissions: { ...adminForm.permissions, [key]: e.target.checked } })} />{label}</label>)}</div>
+            <div className="border rounded-xl p-3 space-y-2"><b className="text-xs">Section access</b>{([['restaurants', 'Restaurants'], ['approvals', 'Approvals'], ['pricing', 'Pricing plans'], ['settings', 'Settings'], ['support', 'Support & Help'], ['admins', 'Manage admins']] as const).map(([key, label]) => <label key={key} className="flex items-center gap-2 text-xs"><input type="checkbox" checked={!!(adminForm.permissions as any)[key]} onChange={e => setAdminForm({ ...adminForm, permissions: { ...adminForm.permissions, [key]: e.target.checked } })} />{label}</label>)}</div>
           </div>
           <DialogFooter><button className="quiet-btn" onClick={() => setModal(null)}>Cancel</button><button className="primary-btn" onClick={save}>{editingAdminId ? "Save changes" : "Add admin"}</button></DialogFooter>
-        </DialogContent>
-      </Dialog>
-
-      <Dialog open={modal === "support"} onOpenChange={(v) => !v && setModal(null)}>
-        <DialogContent className="max-w-md">
-          <DialogHeader><DialogTitle>Support & Help</DialogTitle><DialogDescription>Contact RestoPulse support using the options below.</DialogDescription></DialogHeader>
-          <div className="space-y-3 py-2">
-            {(supportSections.filter((x: any) => x.active !== false)).map((section: any) => <div key={section.id} className="border rounded-xl p-4 space-y-2">
-              <h3 className="font-bold">{section.title}</h3>
-              <p className="text-xs text-muted-foreground">{section.description}</p>
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 pt-2">
-                {section.phone && <a className="primary-btn text-center" href={`tel:${String(section.phone).replace(/\s+/g, "")}`}>Call</a>}
-                {section.whatsapp && <a className="primary-btn text-center" href={`https://wa.me/${String(section.whatsapp).replace(/\D/g, "")}`} target="_blank" rel="noreferrer">WhatsApp</a>}
-                {section.email && <a className="quiet-btn text-center" href={`mailto:${section.email}`}>Email</a>}
-              </div>
-            </div>)}
-            {!supportSections.length && <div className="text-sm text-muted-foreground">Support contact information is not configured yet.</div>}
-          </div>
-          <DialogFooter><button className="quiet-btn" onClick={() => setModal(null)}>Close</button></DialogFooter>
         </DialogContent>
       </Dialog>
 
@@ -4063,6 +4090,17 @@ export default function Home() {
                   className="w-full p-2 border rounded-lg bg-background text-center text-sm"
                 />
               </label>
+            </div>
+
+            <div className="border rounded-xl p-3 space-y-2">
+              <div className="text-xs font-bold">Required access</div>
+              <p className="text-[11px] text-muted-foreground">Select only the modules this employee needs. Owner retains full access.</p>
+              <div className="grid grid-cols-2 gap-2">
+                {([["pos","POS"],["menu","Menu"],["inventory","Inventory"],["staff","Team & payroll"],["expenses","Expenses"],["suppliers","Suppliers"],["subscription","Subscription"],["settings","Settings"]] as const).map(([key,label]) => {
+                  const perms = (() => { try { const p = form.permissions ? JSON.parse(form.permissions) : {}; return p && typeof p === "object" ? p : {}; } catch { return {}; } })();
+                  return <label key={key} className="flex items-center gap-2 text-xs"><input type="checkbox" checked={perms[key] === true} onChange={e => setForm({ ...form, permissions: JSON.stringify({ ...perms, [key]: e.target.checked, overview: true }) })} />{label}</label>;
+                })}
+              </div>
             </div>
 
             <div className="grid grid-cols-2 gap-3">

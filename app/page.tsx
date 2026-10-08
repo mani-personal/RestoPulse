@@ -836,7 +836,7 @@ export default function Home() {
                   <span className="font-semibold text-muted-foreground">Desk / Channel Title</span>
                   <input
                     value={supportForm.title}
-                    onChange={(e) => setSupportForm({ ...supportForm, title: e.target.value })}
+                    onChange={(e) => setSupportForm((prev) => ({ ...prev, title: e.target.value }))}
                     placeholder="e.g. 24/7 Operations & Helpdesk"
                     className="w-full p-2.5 border rounded-xl bg-background font-medium"
                   />
@@ -848,7 +848,7 @@ export default function Home() {
                   </span>
                   <input
                     value={supportForm.phone}
-                    onChange={(e) => setSupportForm({ ...supportForm, phone: e.target.value })}
+                    onChange={(e) => setSupportForm((prev) => ({ ...prev, phone: e.target.value }))}
                     placeholder="e.g. 8122187039"
                     className="w-full p-2.5 border rounded-xl bg-background font-mono"
                   />
@@ -860,7 +860,7 @@ export default function Home() {
                   </span>
                   <input
                     value={supportForm.whatsapp}
-                    onChange={(e) => setSupportForm({ ...supportForm, whatsapp: e.target.value })}
+                    onChange={(e) => setSupportForm((prev) => ({ ...prev, whatsapp: e.target.value }))}
                     placeholder="e.g. 8122187039"
                     className="w-full p-2.5 border rounded-xl bg-background font-mono"
                   />
@@ -873,7 +873,7 @@ export default function Home() {
                   <input
                     type="email"
                     value={supportForm.email}
-                    onChange={(e) => setSupportForm({ ...supportForm, email: e.target.value })}
+                    onChange={(e) => setSupportForm((prev) => ({ ...prev, email: e.target.value }))}
                     placeholder="e.g. support@restopulse.com"
                     className="w-full p-2.5 border rounded-xl bg-background font-mono"
                   />
@@ -883,7 +883,7 @@ export default function Home() {
                   <span className="font-semibold text-muted-foreground">Support Description & Working Hours</span>
                   <textarea
                     value={supportForm.description}
-                    onChange={(e) => setSupportForm({ ...supportForm, description: e.target.value })}
+                    onChange={(e) => setSupportForm((prev) => ({ ...prev, description: e.target.value }))}
                     placeholder="Need assistance with RestoPulse? Our support engineers are available Monday to Saturday..."
                     className="w-full min-h-24 p-2.5 border rounded-xl bg-background resize-none leading-relaxed"
                   />
@@ -931,7 +931,7 @@ export default function Home() {
                     <b className="text-sm font-bold truncate">{supportForm.title || "Support & Help"}</b>
                   </div>
                   <span className="text-[10px] uppercase font-bold text-slate-400 bg-slate-800 px-2 py-0.5 rounded-full">
-                    Modal View
+                    Restaurant Support Page
                   </span>
                 </div>
 
@@ -1068,6 +1068,7 @@ export default function Home() {
     setAccountRole("restaurant");
     setCurrentUserPermissions({});
     setTenantId(null);
+    setView("dashboard");
     setActiveRestaurantName("Loading workspace…");
     setActivePlanName("Free trial");
     setActiveRenewalDate("—");
@@ -3502,7 +3503,7 @@ export default function Home() {
               <h1>Support & Help</h1>
               <p>Contact the RestoPulse support team for billing, technical, and restaurant operations assistance.</p>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-5 mt-6">
-                {supportSections.filter((x: any) => x.active !== false).map((section: any) => (
+                {(supportSections.filter((x: any) => x.active !== false).length ? supportSections.filter((x: any) => x.active !== false) : [{ id: "default-support", title: "RestoPulse Support & Help", description: "Contact us for billing, technical, and restaurant operations assistance.", phone: "8122187039", whatsapp: "8122187039", email: "hosurwebservices@gmail.com", active: true }]).map((section: any) => (
                   <section key={section.id} className="panel p-6 border rounded-2xl bg-card space-y-4">
                     <h2 className="text-lg font-bold">{section.title || "Support & Help"}</h2>
                     <p className="text-sm text-muted-foreground">{section.description}</p>

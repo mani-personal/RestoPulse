@@ -147,22 +147,30 @@ export async function requireAdminPermission(
         permissions = parsed.map((value: unknown) =>
           String(value).trim().toLowerCase()
         );
+      } else if (parsed && typeof parsed === "object") {
+        permissions = Object.entries(parsed)
+          .filter(([, enabled]) => enabled === true)
+          .map(([name]) => name.trim().toLowerCase());
       } else {
         permissions = admin.permissions
           .split(",")
-          .map((value: string) =>
-            value.trim().toLowerCase()
-          )
+          .map((value: string) => value.trim().toLowerCase())
           .filter(Boolean);
       }
     } catch {
       permissions = admin.permissions
         .split(",")
-        .map((value: string) =>
-          value.trim().toLowerCase()
-        )
+        .map((value: string) => value.trim().toLowerCase())
         .filter(Boolean);
     }
+  }
+
+  // Supabase returns a JSONB permissions object as a native object.
+  // Support that format as well as the legacy array/string formats.
+  else if (admin.permissions && typeof admin.permissions === "object") {
+    permissions = Object.entries(admin.permissions)
+      .filter(([, enabled]) => enabled === true)
+      .map(([name]) => name.trim().toLowerCase());
   }
 
   const requestedPermission = String(permission)

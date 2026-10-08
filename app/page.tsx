@@ -254,8 +254,8 @@ const initialDishes: Dish[] = [
 
 const initialPlans: Plan[] = [
   { id: 1, name: "Free trial", price: 0, period: "7 days", features: "Explore core POS, menu items, inventory, and reports.", active: true },
-  { id: 2, name: "Monthly", price: 2999, period: "30 days", features: "Full access, table management, live inventory tracking, POS checkout.", active: true },
-  { id: 3, name: "Yearly", price: 29999, period: "365 days", features: "Full platform access, priority support, unlimited staff accounts.", active: true },
+  { id: 2, name: "Monthly", price: 499, period: "30 days", features: "Full access, table management, live inventory tracking, POS checkout.", active: true },
+  { id: 3, name: "Yearly", price: 4999, period: "365 days", features: "Full platform access, priority support, unlimited staff accounts.", active: true },
 ];
 
 const chart = [
@@ -280,7 +280,6 @@ const navTenant: { id: View; label: string; icon: typeof LayoutDashboard; allowe
   { id: "suppliers", label: "Suppliers", icon: Building2, allowedRoles: ["owner", "accountant", "storekeeper"] },
   { id: "subscription", label: "Subscription", icon: CreditCard, allowedRoles: ["owner"] },
   { id: "settings", label: "Settings", icon: Settings, allowedRoles: ["owner"] },
-  { id: "support", label: "Support & Help", icon: Send, allowedRoles: ["owner", "manager", "staff", "accountant", "storekeeper"] },
 ];
 
 // Support & Help is a dedicated restaurant page.
@@ -290,7 +289,6 @@ const navPlatform: { id: View; label: string; icon: typeof Building2 }[] = [
   { id: "approvals", label: "Approvals", icon: BadgeCheck },
   { id: "pricing", label: "Pricing plans", icon: CreditCard },
   { id: "settings", label: "Settings", icon: Settings },
-  { id: "support", label: "Support & Help", icon: Send },
 ];
 
 export default function Home() {
@@ -453,20 +451,30 @@ export default function Home() {
     return fetch(input, { ...init, headers, cache: "no-store" });
   }, []);
 
-  // Sync Live Pricing Plans from Backend
+  // Sync live pricing from the admin-controlled pricing setting.
+  // Always replace the selected plan with its current server version so an
+  // admin price change is reflected immediately in the restaurant console.
   const fetchLivePlans = useCallback(async () => {
     try {
       const res = await authedFetch("/api/admin/pricing");
       const data = await res.json();
       if (data?.plans && Array.isArray(data.plans) && data.plans.length) {
-        setPlans(data.plans);
-        if (!activeInlinePlan) {
-          const defaultPlan = data.plans.find((p: Plan) => p.price > 0) || data.plans[0];
-          setActiveInlinePlan(defaultPlan);
-        }
+        const livePlans = data.plans.map((p: any) => ({
+          ...p,
+          price: Number(p.price) || 0,
+        }));
+        setPlans(livePlans);
+        setActiveInlinePlan((current) => {
+          if (!current) return livePlans.find((p: Plan) => p.price > 0) || livePlans[0] || null;
+          return livePlans.find((p: Plan) => String(p.id) === String(current.id))
+            || livePlans.find((p: Plan) => p.name.toLowerCase() === current.name.toLowerCase())
+            || livePlans.find((p: Plan) => p.price > 0)
+            || livePlans[0]
+            || null;
+        });
       }
     } catch {}
-  }, [activeInlinePlan, authedFetch]);
+  }, [authedFetch]);
 
   const getPlanDurationDays = (planName: string) => {
     const found = plans.find((p) => p.name.toLowerCase() === planName.toLowerCase());
@@ -2154,7 +2162,7 @@ export default function Home() {
     }
   };
 
-  const activePlanPrice = activeInlinePlan ? activeInlinePlan.price : 29999;
+  const activePlanPrice = activeInlinePlan ? Number(activeInlinePlan.price) || 0 : 0;
   const inlineUpiPayUri = `upi://pay?pa=${encodeURIComponent(subscriptionUpiId)}&pn=${encodeURIComponent("RestoPulse")}&am=${encodeURIComponent(activePlanPrice.toFixed(2))}&cu=INR&tn=${encodeURIComponent(`${activeRestaurantName} ${activeInlinePlan?.name || 'Subscription'}`)}`;
   const inlineQrImageUrl = `https://api.qrserver.com/v1/create-qr-code/?size=240x240&data=${encodeURIComponent(inlineUpiPayUri)}`;
 
@@ -2247,7 +2255,6 @@ export default function Home() {
     : navTenant.filter((item) => {
         if (isOwnerOrAdmin) return true;
         if (item.id === "dashboard") return true;
-        if (item.id === "support") return currentUserPermissions.support !== false;
         return currentUserPermissions[item.id] === true;
       });
 
@@ -3496,23 +3503,65 @@ export default function Home() {
             </>
           )}
 
-          {/* SUPPORT & HELP */}
+          {/* SUPPORT & HELP — opened from the profile menu only */}
           {view === "support" && !isAdmin && (
-            <div className="page-head">
-              <div className="eyebrow">HELP & SUPPORT</div>
-              <h1>Support & Help</h1>
-              <p>Contact the RestoPulse support team for billing, technical, and restaurant operations assistance.</p>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-5 mt-6">
+            <div className="space-y-6">
+              <div className="page-head">
+                <div className="eyebrow">HELP CENTER</div>
+                <h1>Support & Help</h1>
+                <p>Get help with billing, subscriptions, POS, menu, inventory, reports, and day-to-day restaurant operations.</p>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <div className="panel p-5 border rounded-2xl bg-card">
+                  <div className="w-10 h-10 rounded-xl bg-indigo-500/10 text-indigo-600 flex items-center justify-center mb-3"><LifeBuoy size={20}/></div>
+                  <h2 className="font-bold text-sm">RestoPulse Support</h2>
+                  <p className="text-xs text-muted-foreground mt-1">Contact our support team for technical or operational assistance.</p>
+                </div>
+                <div className="panel p-5 border rounded-2xl bg-card">
+                  <div className="w-10 h-10 rounded-xl bg-emerald-500/10 text-emerald-600 flex items-center justify-center mb-3"><CreditCard size={20}/></div>
+                  <h2 className="font-bold text-sm">Billing & Subscription</h2>
+                  <p className="text-xs text-muted-foreground mt-1">For payment, plan, renewal, or subscription extension questions.</p>
+                </div>
+                <div className="panel p-5 border rounded-2xl bg-card">
+                  <div className="w-10 h-10 rounded-xl bg-amber-500/10 text-amber-600 flex items-center justify-center mb-3"><MessageCircle size={20}/></div>
+                  <h2 className="font-bold text-sm">Quick Assistance</h2>
+                  <p className="text-xs text-muted-foreground mt-1">Use phone, WhatsApp, or email below for direct assistance.</p>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
                 {(supportSections.filter((x: any) => x.active !== false).length ? supportSections.filter((x: any) => x.active !== false) : [{ id: "default-support", title: "RestoPulse Support & Help", description: "Contact us for billing, technical, and restaurant operations assistance.", phone: "8122187039", whatsapp: "8122187039", email: "hosurwebservices@gmail.com", active: true }]).map((section: any) => (
-                  <section key={section.id} className="panel p-6 border rounded-2xl bg-card space-y-4">
-                    <h2 className="text-lg font-bold">{section.title || "Support & Help"}</h2>
-                    <p className="text-sm text-muted-foreground">{section.description}</p>
-                    {section.phone && <div className="flex items-center justify-between gap-3 border rounded-xl p-3"><span className="text-sm font-semibold">Support Phone</span><a className="font-bold text-indigo-600" href={`tel:${String(section.phone).replace(/\s+/g, "")}`}>{section.phone}</a></div>}
-                    {section.email && <div className="flex items-center justify-between gap-3 border rounded-xl p-3"><span className="text-sm font-semibold">Support Email</span><a className="font-bold text-indigo-600 break-all" href={`mailto:${section.email}`}>{section.email}</a></div>}
-                    {section.whatsapp && <a className="primary-btn inline-flex" href={`https://wa.me/${String(section.whatsapp).replace(/\D/g, "")}`} target="_blank" rel="noreferrer">WhatsApp Support</a>}
+                  <section key={section.id} className="panel p-6 border rounded-2xl bg-card space-y-5">
+                    <div>
+                      <h2 className="text-lg font-bold">{section.title || "Support & Help"}</h2>
+                      <p className="text-sm text-muted-foreground mt-1">{section.description || "Our support team is available to help you."}</p>
+                    </div>
+                    <div className="space-y-3">
+                      {section.phone && <a className="flex items-center gap-3 border rounded-xl p-4 hover:bg-muted/40 transition-colors" href={`tel:${String(section.phone).replace(/\s+/g, "")}`}>
+                        <span className="w-9 h-9 rounded-lg bg-indigo-500/10 text-indigo-600 flex items-center justify-center">📞</span>
+                        <span><small className="block text-[11px] text-muted-foreground">Support Phone</small><b className="text-sm">{section.phone}</b></span>
+                      </a>}
+                      {section.whatsapp && <a className="flex items-center gap-3 border rounded-xl p-4 hover:bg-muted/40 transition-colors" href={`https://wa.me/${String(section.whatsapp).replace(/\D/g, "")}`} target="_blank" rel="noreferrer">
+                        <span className="w-9 h-9 rounded-lg bg-emerald-500/10 text-emerald-600 flex items-center justify-center">💬</span>
+                        <span><small className="block text-[11px] text-muted-foreground">WhatsApp Support</small><b className="text-sm">Chat with Support</b></span>
+                      </a>}
+                      {section.email && <a className="flex items-center gap-3 border rounded-xl p-4 hover:bg-muted/40 transition-colors" href={`mailto:${section.email}`}>
+                        <span className="w-9 h-9 rounded-lg bg-amber-500/10 text-amber-600 flex items-center justify-center">✉️</span>
+                        <span className="min-w-0"><small className="block text-[11px] text-muted-foreground">Support Email</small><b className="text-sm break-all">{section.email}</b></span>
+                      </a>}
+                    </div>
                   </section>
                 ))}
-                {!supportSections.filter((x: any) => x.active !== false).length && <div className="panel p-6 border rounded-2xl text-sm text-muted-foreground">Support contact information is not configured yet.</div>}
+              </div>
+
+              <div className="panel p-5 border rounded-2xl bg-card">
+                <h2 className="text-sm font-bold mb-3">Before contacting support</h2>
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 text-xs text-muted-foreground">
+                  <div className="border rounded-xl p-3">Keep your restaurant name and registered email ready.</div>
+                  <div className="border rounded-xl p-3">For billing issues, keep the payment reference / UTR available.</div>
+                  <div className="border rounded-xl p-3">For technical issues, describe the page and action where the problem occurred.</div>
+                </div>
               </div>
             </div>
           )}
@@ -4093,17 +4142,6 @@ export default function Home() {
               </label>
             </div>
 
-            <div className="border rounded-xl p-3 space-y-2">
-              <div className="text-xs font-bold">Required access</div>
-              <p className="text-[11px] text-muted-foreground">Select only the modules this employee needs. Owner retains full access.</p>
-              <div className="grid grid-cols-2 gap-2">
-                {([["pos","POS"],["menu","Menu"],["inventory","Inventory"],["staff","Team & payroll"],["expenses","Expenses"],["suppliers","Suppliers"],["subscription","Subscription"],["settings","Settings"]] as const).map(([key,label]) => {
-                  const perms = (() => { try { const p = form.permissions ? JSON.parse(form.permissions) : {}; return p && typeof p === "object" ? p : {}; } catch { return {}; } })();
-                  return <label key={key} className="flex items-center gap-2 text-xs"><input type="checkbox" checked={perms[key] === true} onChange={e => setForm({ ...form, permissions: JSON.stringify({ ...perms, [key]: e.target.checked, overview: true }) })} />{label}</label>;
-                })}
-              </div>
-            </div>
-
             <div className="grid grid-cols-2 gap-3">
               <label className="block space-y-1">
                 <span className="font-semibold text-muted-foreground">Category</span>
@@ -4316,6 +4354,17 @@ export default function Home() {
                 <option value="Staff">Staff (POS cashier terminal access only)</option>
               </select>
             </label>
+
+            <div className="border rounded-xl p-3 space-y-2 bg-muted/20">
+              <div className="text-xs font-bold">Required access</div>
+              <p className="text-[11px] text-muted-foreground">Select only the modules this employee needs. Overview is always available; the owner retains full access.</p>
+              <div className="grid grid-cols-2 gap-2">
+                {([["pos","POS"],["menu","Menu & Dishes"],["inventory","Inventory"],["staff","Team & Payroll"],["expenses","Expenses"],["suppliers","Suppliers"],["subscription","Subscription"],["settings","Settings"]] as const).map(([key,label]) => {
+                  const perms = (() => { try { const p = form.permissions ? JSON.parse(form.permissions) : {}; return p && typeof p === "object" ? p : {}; } catch { return {}; } })();
+                  return <label key={key} className="flex items-center gap-2 text-xs cursor-pointer"><input type="checkbox" checked={perms[key] === true} onChange={e => setForm({ ...form, permissions: JSON.stringify({ ...perms, [key]: e.target.checked, overview: true }) })} />{label}</label>;
+                })}
+              </div>
+            </div>
 
             <div className="grid grid-cols-2 gap-3">
               <label className="block space-y-1">

@@ -254,8 +254,8 @@ const initialDishes: Dish[] = [
 
 const initialPlans: Plan[] = [
   { id: 1, name: "Free trial", price: 0, period: "7 days", features: "Explore core POS, menu items, inventory, and reports.", active: true },
-  { id: 2, name: "Monthly", price: 499, period: "30 days", features: "Full access, table management, live inventory tracking, POS checkout.", active: true },
-  { id: 3, name: "Yearly", price: 4999, period: "365 days", features: "Full platform access, priority support, unlimited staff accounts.", active: true },
+  { id: 2, name: "Monthly", price: 2999, period: "30 days", features: "Full access, table management, live inventory tracking, POS checkout.", active: true },
+  { id: 3, name: "Yearly", price: 29999, period: "365 days", features: "Full platform access, priority support, unlimited staff accounts.", active: true },
 ];
 
 const chart = [
@@ -302,6 +302,8 @@ export default function Home() {
   // Persistent Selected Workspace Locking
   const [tenantId, setTenantId] = useState<string | null>(null);
   const [tenantHydrating, setTenantHydrating] = useState(true);
+  const [roleHydrated, setRoleHydrated] = useState(false);
+  const authGenerationRef = useRef(0);
   const tenantIdRef = useRef<string | null>(null);
   const realtimeRefreshTimerRef = useRef<number | null>(null);
   tenantIdRef.current = tenantId;
@@ -451,30 +453,18 @@ export default function Home() {
     return fetch(input, { ...init, headers, cache: "no-store" });
   }, []);
 
-  // Sync live pricing from the admin-controlled pricing setting.
-  // Always replace the selected plan with its current server version so an
-  // admin price change is reflected immediately in the restaurant console.
+  // Sync Live Pricing Plans from Backend
   const fetchLivePlans = useCallback(async () => {
+    if (!isAdmin || !roleHydrated) return;
     try {
       const res = await authedFetch("/api/admin/pricing");
       const data = await res.json();
       if (data?.plans && Array.isArray(data.plans) && data.plans.length) {
-        const livePlans = data.plans.map((p: any) => ({
-          ...p,
-          price: Number(p.price) || 0,
-        }));
-        setPlans(livePlans);
-        setActiveInlinePlan((current) => {
-          if (!current) return livePlans.find((p: Plan) => p.price > 0) || livePlans[0] || null;
-          return livePlans.find((p: Plan) => String(p.id) === String(current.id))
-            || livePlans.find((p: Plan) => p.name.toLowerCase() === current.name.toLowerCase())
-            || livePlans.find((p: Plan) => p.price > 0)
-            || livePlans[0]
-            || null;
-        });
+        setPlans(data.plans);
+        setActiveInlinePlan((prev) => prev || (data.plans.find((p: Plan) => p.price > 0) || data.plans[0]));
       }
     } catch {}
-  }, [authedFetch]);
+  }, [authedFetch, isAdmin, roleHydrated]);
 
   const getPlanDurationDays = (planName: string) => {
     const found = plans.find((p) => p.name.toLowerCase() === planName.toLowerCase());
@@ -586,7 +576,7 @@ export default function Home() {
   }, [authUser, loginEmail, authedFetch]);
 
   const fetchAllRestaurants = useCallback(async () => {
-    if (!isAdmin) return;
+    if (!isAdmin || !roleHydrated) return;
     try {
       const res = await authedFetch("/api/admin/restaurants");
       const json = await res.json();
@@ -624,19 +614,20 @@ export default function Home() {
         }
       }
     } catch {}
-  }, [authedFetch, isAdmin]);
+  }, [authedFetch, isAdmin, roleHydrated]);
 
   const fetchAdmins = useCallback(async () => {
-    if (!isAdmin) return;
+    if (!isAdmin || !roleHydrated) return;
     try {
       const res = await authedFetch("/api/admin/admins");
       const json = await res.json();
       if (res.ok && Array.isArray(json?.admins)) setAdmins(json.admins);
       else if (!res.ok) throw new Error(json?.error || "Could not load admins");
     } catch (e: any) { toast.error(e.message || "Could not load admins"); }
-  }, [authedFetch, isAdmin]);
+  }, [authedFetch, isAdmin, roleHydrated]);
 
   const fetchRealApprovals = useCallback(async () => {
+    if (!isAdmin || !roleHydrated) return;
     try {
       const res = await authedFetch("/api/admin/approvals");
       const json = await res.json();
@@ -644,9 +635,10 @@ export default function Home() {
         setApprovals(json.approvals);
       }
     } catch {}
-  }, [authedFetch]);
+  }, [authedFetch, isAdmin, roleHydrated]);
 
   const fetchSubscriptionRequests = useCallback(async () => {
+    if (!isAdmin || !roleHydrated) return;
     try {
       const res = await authedFetch("/api/admin/subscriptions");
       const json = await res.json();
@@ -656,7 +648,7 @@ export default function Home() {
       const localReqs = localStorage.getItem("rp-local-sub-requests");
       if (localReqs) setSubscriptionRequests(JSON.parse(localReqs));
     }
-  }, [authedFetch]);
+  }, [authedFetch, isAdmin, roleHydrated]);
 
   const fetchSupportSections = useCallback(async () => {
     try {
@@ -1064,12 +1056,16 @@ export default function Home() {
 
   useEffect(() => {
     if (!authUser) {
+      authGenerationRef.current += 1;
+      setRoleHydrated(false);
       setTenantId(null);
       setTenantHydrating(false);
       setActiveRestaurantName("Loading workspace…");
       return;
     }
+    const generation = ++authGenerationRef.current;
     setTenantHydrating(true);
+    setRoleHydrated(false);
     // Reset the previous session's role immediately so an owner logging in
     // after an admin session cannot trigger platform-admin API calls.
     setIsAdmin(false);
@@ -1086,17 +1082,30 @@ export default function Home() {
   useEffect(() => {
     if (!db || !authUser) return;
     let live = true;
+    const generation = authGenerationRef.current;
     (async () => {
       try {
         const a = await db.from("platform_admins").select("user_id").eq("user_id", authUser).maybeSingle();
-        if (!live) return;
+        if (!live || generation !== authGenerationRef.current) return;
         const platform = !!a?.data;
         setIsAdmin(platform);
         setAccountRole(platform ? "admin" : "restaurant");
+        if (typeof window !== "undefined") {
+          const currentPath = window.location.pathname;
+          const onAdminPath = currentPath === "/admin" || currentPath.startsWith("/admin/");
+          if (platform && !onAdminPath) {
+            window.history.replaceState({ view: "dashboard" }, "", "/admin");
+            setView("dashboard");
+          } else if (!platform && onAdminPath) {
+            window.history.replaceState({ view: "dashboard" }, "", "/dashboard");
+            setView("dashboard");
+          }
+        }
         setCurrentUserPermissions(platform ? { restaurants: true, approvals: true, pricing: true, settings: true, support: true, admins: true } : {});
         if (!platform) {
           const wsRes = await authedFetch("/api/workspaces");
           const wsJson = await wsRes.json().catch(() => ({}));
+          if (!live || generation !== authGenerationRef.current) return;
           const workspaces = wsRes.ok && Array.isArray(wsJson?.workspaces) ? wsJson.workspaces : [];
           setRestaurants(workspaces);
           const savedTenantId = localStorage.getItem("rp-active-tenant-id");
@@ -1116,11 +1125,17 @@ export default function Home() {
             localStorage.removeItem("rp-active-tenant-id");
           }
           setTenantHydrating(false);
+          setRoleHydrated(true);
         } else {
           setTenantHydrating(false);
+          setRoleHydrated(true);
         }
       } catch (e) {
-        console.error("Auth hydration error", e);
+        if (generation === authGenerationRef.current) {
+          console.error("Auth hydration error", e);
+          setRoleHydrated(true);
+          setTenantHydrating(false);
+        }
       }
     })();
     return () => {
@@ -1129,7 +1144,7 @@ export default function Home() {
   }, [db, authUser, authedFetch]);
 
   useEffect(() => {
-    if (!authUser) return;
+    if (!authUser || !roleHydrated) return;
     const loadUpi = async () => {
       try {
         if (isAdmin) {
@@ -1144,7 +1159,7 @@ export default function Home() {
       } catch {}
     };
     loadUpi();
-  }, [authUser, tenantId, isAdmin, authedFetch]);
+  }, [authUser, tenantId, isAdmin, roleHydrated, authedFetch]);
 
   useEffect(() => {
     const syncClock = () => setLiveDate(new Date());
@@ -1154,7 +1169,7 @@ export default function Home() {
   }, []);
 
   useEffect(() => {
-    if (!authUser) return;
+    if (!authUser || !roleHydrated) return;
     fetchSupportSections();
     if (isAdmin) {
       fetchSubscriptionRequests();
@@ -1166,7 +1181,7 @@ export default function Home() {
     if (!isAdmin && tenantId) {
       syncLiveSubscriptionStatus();
     }
-  }, [authUser, isAdmin, tenantId, fetchSubscriptionRequests, fetchRealApprovals, fetchAllRestaurants, fetchAdmins, syncLiveSubscriptionStatus, fetchLivePlans, fetchSupportSections]);
+  }, [authUser, roleHydrated, isAdmin, tenantId, fetchSubscriptionRequests, fetchRealApprovals, fetchAllRestaurants, fetchAdmins, syncLiveSubscriptionStatus, fetchLivePlans, fetchSupportSections]);
 
   const loadRestaurantData = useCallback(async (id: string) => {
     if (!id || isAdmin) return;
@@ -2100,11 +2115,39 @@ export default function Home() {
     setAuthUser(null);
   };
 
-  const nav = (v: View) => {
+  const viewPath = (v: View) => {
+    const adminPaths: Record<string, string> = { dashboard: "/admin", restaurants: "/admin/restaurants", approvals: "/admin/approvals", pricing: "/admin/pricing", settings: "/admin/settings", admins: "/admin/admins", support: "/admin/support" };
+    const restaurantPaths: Record<string, string> = { dashboard: "/dashboard", pos: "/pos", menu: "/menu", inventory: "/inventory", staff: "/staff", expenses: "/expenses", suppliers: "/suppliers", subscription: "/subscription", settings: "/settings", support: "/support" };
+    return (isAdmin ? adminPaths : restaurantPaths)[v] || (isAdmin ? "/admin" : "/dashboard");
+  };
+
+  const nav = (v: View, replace = false) => {
     setView(v);
     setMobileNav(false);
     setProfileMenu(false);
+    if (typeof window !== "undefined") {
+      const path = viewPath(v);
+      if (window.location.pathname !== path) {
+        if (replace) window.history.replaceState({ view: v }, "", path);
+        else window.history.pushState({ view: v }, "", path);
+      }
+    }
   };
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const pathToView = (path: string): View => {
+      const map: Record<string, View> = {
+        "/": "dashboard", "/dashboard": "dashboard", "/pos": "pos", "/menu": "menu", "/inventory": "inventory", "/staff": "staff", "/expenses": "expenses", "/suppliers": "suppliers", "/subscription": "subscription", "/settings": "settings", "/support": "support",
+        "/admin": "dashboard", "/admin/restaurants": "restaurants", "/admin/approvals": "approvals", "/admin/pricing": "pricing", "/admin/settings": "settings", "/admin/admins": "admins", "/admin/support": "support"
+      };
+      return map[path] || "dashboard";
+    };
+    const syncFromUrl = () => setView(pathToView(window.location.pathname));
+    syncFromUrl();
+    window.addEventListener("popstate", syncFromUrl);
+    return () => window.removeEventListener("popstate", syncFromUrl);
+  }, []);
 
   if (!db)
     return (
@@ -2117,6 +2160,8 @@ export default function Home() {
     );
 
   if (authLoading) return <div className="auth-page">Loading RestoPulse…</div>;
+
+  if (authUser && !roleHydrated) return <div className="auth-page">Loading workspace…</div>;
 
   if (!authUser)
     return (
@@ -2162,7 +2207,7 @@ export default function Home() {
     }
   };
 
-  const activePlanPrice = activeInlinePlan ? Number(activeInlinePlan.price) || 0 : 0;
+  const activePlanPrice = activeInlinePlan ? activeInlinePlan.price : 29999;
   const inlineUpiPayUri = `upi://pay?pa=${encodeURIComponent(subscriptionUpiId)}&pn=${encodeURIComponent("RestoPulse")}&am=${encodeURIComponent(activePlanPrice.toFixed(2))}&cu=INR&tn=${encodeURIComponent(`${activeRestaurantName} ${activeInlinePlan?.name || 'Subscription'}`)}`;
   const inlineQrImageUrl = `https://api.qrserver.com/v1/create-qr-code/?size=240x240&data=${encodeURIComponent(inlineUpiPayUri)}`;
 
@@ -2255,6 +2300,7 @@ export default function Home() {
     : navTenant.filter((item) => {
         if (isOwnerOrAdmin) return true;
         if (item.id === "dashboard") return true;
+        if (item.id === "support") return currentUserPermissions.support !== false;
         return currentUserPermissions[item.id] === true;
       });
 
@@ -2501,9 +2547,14 @@ export default function Home() {
                 <Settings size={17} /> Account & settings
               </button>
               {isAdmin ? (
-                <button onClick={() => nav("admins")}>
-                  <Users size={17} /> Admin managements
-                </button>
+                <>
+                  <button onClick={() => nav("admins")}>
+                    <Users size={17} /> Admin managements
+                  </button>
+                  <button onClick={() => nav("support")}>
+                    <Send size={17} /> Support & Help
+                  </button>
+                </>
               ) : (
                 <>
                   <button onClick={() => nav("staff")}>
@@ -3503,65 +3554,23 @@ export default function Home() {
             </>
           )}
 
-          {/* SUPPORT & HELP — opened from the profile menu only */}
+          {/* SUPPORT & HELP */}
           {view === "support" && !isAdmin && (
-            <div className="space-y-6">
-              <div className="page-head">
-                <div className="eyebrow">HELP CENTER</div>
-                <h1>Support & Help</h1>
-                <p>Get help with billing, subscriptions, POS, menu, inventory, reports, and day-to-day restaurant operations.</p>
-              </div>
-
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                <div className="panel p-5 border rounded-2xl bg-card">
-                  <div className="w-10 h-10 rounded-xl bg-indigo-500/10 text-indigo-600 flex items-center justify-center mb-3"><LifeBuoy size={20}/></div>
-                  <h2 className="font-bold text-sm">RestoPulse Support</h2>
-                  <p className="text-xs text-muted-foreground mt-1">Contact our support team for technical or operational assistance.</p>
-                </div>
-                <div className="panel p-5 border rounded-2xl bg-card">
-                  <div className="w-10 h-10 rounded-xl bg-emerald-500/10 text-emerald-600 flex items-center justify-center mb-3"><CreditCard size={20}/></div>
-                  <h2 className="font-bold text-sm">Billing & Subscription</h2>
-                  <p className="text-xs text-muted-foreground mt-1">For payment, plan, renewal, or subscription extension questions.</p>
-                </div>
-                <div className="panel p-5 border rounded-2xl bg-card">
-                  <div className="w-10 h-10 rounded-xl bg-amber-500/10 text-amber-600 flex items-center justify-center mb-3"><MessageCircle size={20}/></div>
-                  <h2 className="font-bold text-sm">Quick Assistance</h2>
-                  <p className="text-xs text-muted-foreground mt-1">Use phone, WhatsApp, or email below for direct assistance.</p>
-                </div>
-              </div>
-
-              <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
+            <div className="page-head">
+              <div className="eyebrow">HELP & SUPPORT</div>
+              <h1>Support & Help</h1>
+              <p>Contact the RestoPulse support team for billing, technical, and restaurant operations assistance.</p>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-5 mt-6">
                 {(supportSections.filter((x: any) => x.active !== false).length ? supportSections.filter((x: any) => x.active !== false) : [{ id: "default-support", title: "RestoPulse Support & Help", description: "Contact us for billing, technical, and restaurant operations assistance.", phone: "8122187039", whatsapp: "8122187039", email: "hosurwebservices@gmail.com", active: true }]).map((section: any) => (
-                  <section key={section.id} className="panel p-6 border rounded-2xl bg-card space-y-5">
-                    <div>
-                      <h2 className="text-lg font-bold">{section.title || "Support & Help"}</h2>
-                      <p className="text-sm text-muted-foreground mt-1">{section.description || "Our support team is available to help you."}</p>
-                    </div>
-                    <div className="space-y-3">
-                      {section.phone && <a className="flex items-center gap-3 border rounded-xl p-4 hover:bg-muted/40 transition-colors" href={`tel:${String(section.phone).replace(/\s+/g, "")}`}>
-                        <span className="w-9 h-9 rounded-lg bg-indigo-500/10 text-indigo-600 flex items-center justify-center">📞</span>
-                        <span><small className="block text-[11px] text-muted-foreground">Support Phone</small><b className="text-sm">{section.phone}</b></span>
-                      </a>}
-                      {section.whatsapp && <a className="flex items-center gap-3 border rounded-xl p-4 hover:bg-muted/40 transition-colors" href={`https://wa.me/${String(section.whatsapp).replace(/\D/g, "")}`} target="_blank" rel="noreferrer">
-                        <span className="w-9 h-9 rounded-lg bg-emerald-500/10 text-emerald-600 flex items-center justify-center">💬</span>
-                        <span><small className="block text-[11px] text-muted-foreground">WhatsApp Support</small><b className="text-sm">Chat with Support</b></span>
-                      </a>}
-                      {section.email && <a className="flex items-center gap-3 border rounded-xl p-4 hover:bg-muted/40 transition-colors" href={`mailto:${section.email}`}>
-                        <span className="w-9 h-9 rounded-lg bg-amber-500/10 text-amber-600 flex items-center justify-center">✉️</span>
-                        <span className="min-w-0"><small className="block text-[11px] text-muted-foreground">Support Email</small><b className="text-sm break-all">{section.email}</b></span>
-                      </a>}
-                    </div>
+                  <section key={section.id} className="panel p-6 border rounded-2xl bg-card space-y-4">
+                    <h2 className="text-lg font-bold">{section.title || "Support & Help"}</h2>
+                    <p className="text-sm text-muted-foreground">{section.description}</p>
+                    {section.phone && <div className="flex items-center justify-between gap-3 border rounded-xl p-3"><span className="text-sm font-semibold">Support Phone</span><a className="font-bold text-indigo-600" href={`tel:${String(section.phone).replace(/\s+/g, "")}`}>{section.phone}</a></div>}
+                    {section.email && <div className="flex items-center justify-between gap-3 border rounded-xl p-3"><span className="text-sm font-semibold">Support Email</span><a className="font-bold text-indigo-600 break-all" href={`mailto:${section.email}`}>{section.email}</a></div>}
+                    {section.whatsapp && <a className="primary-btn inline-flex" href={`https://wa.me/${String(section.whatsapp).replace(/\D/g, "")}`} target="_blank" rel="noreferrer">WhatsApp Support</a>}
                   </section>
                 ))}
-              </div>
-
-              <div className="panel p-5 border rounded-2xl bg-card">
-                <h2 className="text-sm font-bold mb-3">Before contacting support</h2>
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 text-xs text-muted-foreground">
-                  <div className="border rounded-xl p-3">Keep your restaurant name and registered email ready.</div>
-                  <div className="border rounded-xl p-3">For billing issues, keep the payment reference / UTR available.</div>
-                  <div className="border rounded-xl p-3">For technical issues, describe the page and action where the problem occurred.</div>
-                </div>
+                {!supportSections.filter((x: any) => x.active !== false).length && <div className="panel p-6 border rounded-2xl text-sm text-muted-foreground">Support contact information is not configured yet.</div>}
               </div>
             </div>
           )}
@@ -4142,6 +4151,17 @@ export default function Home() {
               </label>
             </div>
 
+            <div className="border rounded-xl p-3 space-y-2">
+              <div className="text-xs font-bold">Required access</div>
+              <p className="text-[11px] text-muted-foreground">Select only the modules this employee needs. Owner retains full access.</p>
+              <div className="grid grid-cols-2 gap-2">
+                {([["pos","POS"],["menu","Menu"],["inventory","Inventory"],["staff","Team & payroll"],["expenses","Expenses"],["suppliers","Suppliers"],["subscription","Subscription"],["settings","Settings"]] as const).map(([key,label]) => {
+                  const perms = (() => { try { const p = form.permissions ? JSON.parse(form.permissions) : {}; return p && typeof p === "object" ? p : {}; } catch { return {}; } })();
+                  return <label key={key} className="flex items-center gap-2 text-xs"><input type="checkbox" checked={perms[key] === true} onChange={e => setForm({ ...form, permissions: JSON.stringify({ ...perms, [key]: e.target.checked, overview: true }) })} />{label}</label>;
+                })}
+              </div>
+            </div>
+
             <div className="grid grid-cols-2 gap-3">
               <label className="block space-y-1">
                 <span className="font-semibold text-muted-foreground">Category</span>
@@ -4354,17 +4374,6 @@ export default function Home() {
                 <option value="Staff">Staff (POS cashier terminal access only)</option>
               </select>
             </label>
-
-            <div className="border rounded-xl p-3 space-y-2 bg-muted/20">
-              <div className="text-xs font-bold">Required access</div>
-              <p className="text-[11px] text-muted-foreground">Select only the modules this employee needs. Overview is always available; the owner retains full access.</p>
-              <div className="grid grid-cols-2 gap-2">
-                {([["pos","POS"],["menu","Menu & Dishes"],["inventory","Inventory"],["staff","Team & Payroll"],["expenses","Expenses"],["suppliers","Suppliers"],["subscription","Subscription"],["settings","Settings"]] as const).map(([key,label]) => {
-                  const perms = (() => { try { const p = form.permissions ? JSON.parse(form.permissions) : {}; return p && typeof p === "object" ? p : {}; } catch { return {}; } })();
-                  return <label key={key} className="flex items-center gap-2 text-xs cursor-pointer"><input type="checkbox" checked={perms[key] === true} onChange={e => setForm({ ...form, permissions: JSON.stringify({ ...perms, [key]: e.target.checked, overview: true }) })} />{label}</label>;
-                })}
-              </div>
-            </div>
 
             <div className="grid grid-cols-2 gap-3">
               <label className="block space-y-1">

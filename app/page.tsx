@@ -301,6 +301,7 @@ export default function Home() {
   const [tenantId, setTenantId] = useState<string | null>(null);
   const [tenantHydrating, setTenantHydrating] = useState(true);
   const tenantIdRef = useRef<string | null>(null);
+  const realtimeRefreshTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   tenantIdRef.current = tenantId;
 
   const [currentUserRole, setCurrentUserRole] = useState<string>("owner");
@@ -443,7 +444,7 @@ export default function Home() {
 
   const authedFetch = useCallback(async (input: RequestInfo | URL, init: RequestInit = {}) => {
     const headers = await authHeaders((init.headers || {}) as Record<string, string>);
-    return fetch(input, { ...init, headers });
+    return fetch(input, { ...init, headers, cache: "no-store" });
   }, []);
 
   // Sync Live Pricing Plans from Backend
@@ -520,7 +521,7 @@ export default function Home() {
     try {
       const currentId = tenantIdRef.current;
       const url = `/api/subscription?restaurant_id=${encodeURIComponent(currentId || "")}&user_id=${encodeURIComponent(authUser || "")}&email=${encodeURIComponent(loginEmail || "")}`;
-      const res = await fetch(url);
+      const res = await authedFetch(url);
       const data = await res.json();
       if (data?.restaurant) {
         if (!tenantIdRef.current) {
@@ -546,6 +547,10 @@ export default function Home() {
             address: data.restaurant.address || prev.address,
             business_phone: data.restaurant.owner_phone || prev.business_phone,
             gstin: data.restaurant.gstin || prev.gstin,
+            gst_percent: Number(data.restaurant.gst_percent ?? prev.gst_percent),
+            cgst_percent: Number(data.restaurant.cgst_percent ?? prev.cgst_percent),
+            sgst_percent: Number(data.restaurant.sgst_percent ?? prev.sgst_percent),
+            receipt_footer: data.restaurant.receipt_footer || prev.receipt_footer,
           }));
           setStoreForm((prev) => ({
             ...prev,
@@ -553,13 +558,17 @@ export default function Home() {
             address: data.restaurant.address || prev.address,
             phone: data.restaurant.owner_phone || prev.phone,
             gstin: data.restaurant.gstin || prev.gstin,
+            gst_percent: String(data.restaurant.gst_percent ?? prev.gst_percent),
+            cgst_percent: String(data.restaurant.cgst_percent ?? prev.cgst_percent),
+            sgst_percent: String(data.restaurant.sgst_percent ?? prev.sgst_percent),
+            footer: data.restaurant.receipt_footer || prev.footer,
           }));
         }
       }
       if (data?.upi_id) setSubscriptionUpiId(data.upi_id);
       if (Array.isArray(data?.history)) setSubscriptionHistory(data.history);
     } catch {}
-  }, [authUser, loginEmail]);
+  }, [authUser, loginEmail, authedFetch]);
 
   const fetchAllRestaurants = useCallback(async () => {
     if (!isAdmin) return;
@@ -1145,12 +1154,12 @@ export default function Home() {
       const [salesRes, inventoryRes, menuRes, expensesRes, supplierRes, paymentRes, staffRes, wagesRes] = await Promise.all([
         authedFetch(`/api/sales?restaurant_id=${encodeURIComponent(id)}`),
         authedFetch(`/api/inventory?restaurant_id=${encodeURIComponent(id)}`),
-        db.from("menu_items").select("*").eq("restaurant_id", id).order("created_at", { ascending: false }),
-        db.from("expenses").select("*").eq("restaurant_id", id).order("incurred_on", { ascending: false }),
-        db.from("suppliers").select("*").eq("restaurant_id", id).order("name"),
-        db.from("supplier_payments").select("*").eq("restaurant_id", id).order("paid_on", { ascending: false }),
-        db.from("employees").select("*").eq("restaurant_id", id).order("name"),
-        db.from("daily_wages").select("*").eq("restaurant_id", id).order("wage_date", { ascending: false }),
+        db.from("menu_items").select("id,name,category,price,cost,available,emoji,diet,prep_minutes,image_url").eq("restaurant_id", id).order("created_at", { ascending: false }),
+        db.from("expenses").select("id,name,category,vendor,amount,incurred_on,supplier_id").eq("restaurant_id", id).order("incurred_on", { ascending: false }),
+        db.from("suppliers").select("id,name,contact_name,phone,email").eq("restaurant_id", id).order("name"),
+        db.from("supplier_payments").select("id,supplier_id,amount,paid_on,method,note").eq("restaurant_id", id).order("paid_on", { ascending: false }),
+        db.from("employees").select("id,name,role,shift,pay_type,monthly_salary,weekly_salary,daily_rate,email,phone,active").eq("restaurant_id", id).order("name"),
+        db.from("daily_wages").select("id,employee_id,wage_date,amount,status,note").eq("restaurant_id", id).order("wage_date", { ascending: false }),
       ]);
       const salesJson = await salesRes.json().catch(() => ({ sales: [] }));
       const inventoryJson = await inventoryRes.json().catch(() => ({ items: [], transactions: [] }));
@@ -1181,26 +1190,66 @@ export default function Home() {
   useEffect(() => {
     if (!authUser || !db) return;
     const channels: any[] = [];
-    const refreshRestaurant = () => { if (tenantIdRef.current && !isAdmin) loadRestaurantData(tenantIdRef.current); syncLiveSubscriptionStatus(); };
+    let disposed = false;
+
+    // Coalesce bursts of database events into one refresh. A sale can update
+    // both sales and inventory, and without debouncing that used to trigger
+    // several full restaurant-data loads at the same time.
+    const scheduleRestaurantRefresh = (syncSubscription = false) => {
+      if (syncSubscription) syncLiveSubscriptionStatus();
+      if (isAdmin || !tenantIdRef.current) return;
+      if (realtimeRefreshTimerRef.current) window.clearTimeout(realtimeRefreshTimerRef.current);
+      realtimeRefreshTimerRef.current = window.setTimeout(() => {
+        if (!disposed && tenantIdRef.current) loadRestaurantData(tenantIdRef.current);
+      }, 350);
+    };
+
     if (tenantId && !isAdmin) {
       const filter = `restaurant_id=eq.${tenantId}`;
-      ["sales", "inventory_items", "inventory_transactions", "expenses", "employees", "daily_wages", "suppliers", "supplier_payments"].forEach((table) => {
-        channels.push(db.channel(`rp-${table}-${tenantId}-${Math.random()}`)
-          .on("postgres_changes", { event: "*", schema: "public", table, filter }, refreshRestaurant).subscribe());
+      // One channel per tenant is faster than opening a separate realtime
+      // channel for every table. All tenant events share one websocket topic.
+      const tenantChannel = db.channel(`rp-tenant-${tenantId}`);
+      tenantChannel
+        .on("postgres_changes", { event: "*", schema: "public", table: "restaurants", filter }, () => {
+          syncLiveSubscriptionStatus();
+        });
+      ["sales", "inventory_items", "inventory_transactions", "menu_items", "expenses", "employees", "daily_wages", "suppliers", "supplier_payments", "subscription_requests"].forEach((table) => {
+        tenantChannel.on("postgres_changes", { event: "*", schema: "public", table, filter }, () => scheduleRestaurantRefresh(table === "subscription_requests"));
       });
-      channels.push(db.channel(`rp-sub-${tenantId}-${Math.random()}`)
-        .on("postgres_changes", { event: "*", schema: "public", table: "subscription_requests", filter }, refreshRestaurant).subscribe());
+      tenantChannel.subscribe();
+      channels.push(tenantChannel);
     }
+
     if (isAdmin) {
-      channels.push(db.channel(`rp-admin-restaurants-${Math.random()}`)
-        .on("postgres_changes", { event: "*", schema: "public", table: "restaurants" }, () => { fetchAllRestaurants(); fetchRealApprovals(); fetchAdmins(); syncLiveSubscriptionStatus(); }).subscribe());
-      channels.push(db.channel(`rp-admin-subscriptions-${Math.random()}`)
-        .on("postgres_changes", { event: "*", schema: "public", table: "subscription_requests" }, () => { fetchSubscriptionRequests(); syncLiveSubscriptionStatus(); }).subscribe());
-      channels.push(db.channel(`rp-admin-settings-${Math.random()}`)
-        .on("postgres_changes", { event: "*", schema: "public", table: "settings" }, () => { fetchLivePlans(); }).subscribe());
+      // Admin console also uses one multiplexed realtime channel. Restaurant
+      // changes immediately refresh the restaurant list/overview, while
+      // subscription request changes refresh approvals/history.
+      const adminChannel = db.channel("rp-admin-live");
+      adminChannel
+        .on("postgres_changes", { event: "*", schema: "public", table: "restaurants" }, () => {
+          fetchAllRestaurants();
+          fetchRealApprovals();
+        })
+        .on("postgres_changes", { event: "*", schema: "public", table: "subscription_requests" }, () => {
+          fetchSubscriptionRequests();
+          fetchRealApprovals();
+        })
+        .on("postgres_changes", { event: "*", schema: "public", table: "settings" }, () => {
+          fetchLivePlans();
+        })
+        .subscribe();
+      channels.push(adminChannel);
     }
-    return () => { channels.forEach((ch) => db.removeChannel(ch)); };
-  }, [authUser, tenantId, isAdmin, db, loadRestaurantData, syncLiveSubscriptionStatus, fetchAllRestaurants, fetchAdmins, fetchRealApprovals, fetchSubscriptionRequests, fetchLivePlans]);
+
+    return () => {
+      disposed = true;
+      if (realtimeRefreshTimerRef.current) {
+        window.clearTimeout(realtimeRefreshTimerRef.current);
+        realtimeRefreshTimerRef.current = null;
+      }
+      channels.forEach((ch) => db.removeChannel(ch));
+    };
+  }, [authUser, tenantId, isAdmin, db, loadRestaurantData, syncLiveSubscriptionStatus, fetchAllRestaurants, fetchRealApprovals, fetchSubscriptionRequests, fetchLivePlans]);
 
   const saveInventoryToStorage = (updated: InventoryItem[]) => setInventoryList(updated);
   const saveDishesToStorage = (updated: Dish[]) => setDishes(updated);

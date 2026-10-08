@@ -301,7 +301,7 @@ export default function Home() {
   const [tenantId, setTenantId] = useState<string | null>(null);
   const [tenantHydrating, setTenantHydrating] = useState(true);
   const tenantIdRef = useRef<string | null>(null);
-  const realtimeRefreshTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const realtimeRefreshTimerRef = useRef<number | null>(null);
   tenantIdRef.current = tenantId;
 
   const [currentUserRole, setCurrentUserRole] = useState<string>("owner");

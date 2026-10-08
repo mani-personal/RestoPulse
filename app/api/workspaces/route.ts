@@ -6,7 +6,7 @@ export async function GET(request: Request) {
     const { supabase, user } = await requireUser(request);
     const { data: memberships, error: membershipError } = await supabase
       .from("memberships")
-      .select("restaurant_id,role")
+      .select("restaurant_id,role,permissions")
       .eq("user_id", user.id)
       .order("restaurant_id");
     if (membershipError) throw membershipError;
@@ -33,6 +33,7 @@ export async function GET(request: Request) {
         city: r.city || "",
         phone: r.owner_phone || "",
         role: m.role,
+        permissions: m.permissions || {},
       };
     }).filter(Boolean);
 

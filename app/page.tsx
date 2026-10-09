@@ -2322,7 +2322,7 @@ export default function Home() {
     : (currentEmployee?.name || (normalizedRole !== "owner" ? (loginEmail || "Employee") : (activeRestaurantName || "Account")));
   const profileDisplayRole = isAdmin ? "Platform Administrator" : currentEmployee?.role || roleFallback[normalizedRole] || (normalizedRole ? normalizedRole.charAt(0).toUpperCase() + normalizedRole.slice(1) : "Restaurant Owner");
   const profileInitials = (profileDisplayName || "Account").trim().split(/\s+/).slice(0, 2).map((part: string) => part[0] || "").join("").toUpperCase() || "AC";
-  const isOwnerOrAdmin = normalizedRole === "owner" || normalizedRole === "admin" || !normalizedRole;
+  const isOwnerOrAdmin = normalizedRole === "owner" || normalizedRole === "admin" || normalizedRole === "restaurant owner" || normalizedRole === "restaurant_owner" || normalizedRole === "restaurant-owner" || !normalizedRole;
   
   const currentAdminRecord = isAdmin ? admins.find((a: any) => a.id === authUser) : null;
   const currentAdminPermissions: any = currentAdminRecord?.permissions || {};
@@ -2335,6 +2335,8 @@ export default function Home() {
   const visibleNavTenant = isAdmin
     ? []
     : navTenant.filter((item) => {
+        // Subscription and Settings must remain visible to restaurant owners.
+        if (isOwnerOrAdmin && (item.id === "subscription" || item.id === "settings")) return true;
         if (isOwnerOrAdmin) return true;
         if (item.id === "dashboard") return true;
         if (item.id === "support") return currentUserPermissions.support !== false;

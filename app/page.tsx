@@ -41,6 +41,8 @@ import {
   Upload,
   AlertTriangle,
   KeyRound,
+  Eye,
+  EyeOff,
   RefreshCw,
   Clock,
   X,
@@ -160,6 +162,7 @@ type Staff = {
   dailyRate: number;
   email: string;
   phone: string;
+  userId?: string;
   active?: boolean;
   permissions?: Record<string, boolean>;
 };
@@ -297,6 +300,12 @@ export default function Home() {
   const [authUser, setAuthUser] = useState<string | null>(null);
   const [loginEmail, setLoginEmail] = useState("");
   const [loginPassword, setLoginPassword] = useState("");
+  const [showLoginPassword, setShowLoginPassword] = useState(false);
+  const [showNewPassword, setShowNewPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
+  const [showAdminPassword, setShowAdminPassword] = useState(false);
+  const [showRestaurantPassword, setShowRestaurantPassword] = useState(false);
+  const [showEmployeePassword, setShowEmployeePassword] = useState(false);
   const [loginBusy, setLoginBusy] = useState(false);
 
   // Persistent Selected Workspace Locking
@@ -1212,7 +1221,7 @@ export default function Home() {
         db.from("expenses").select("id,name,category,vendor,amount,incurred_on,supplier_id").eq("restaurant_id", id).order("incurred_on", { ascending: false }),
         db.from("suppliers").select("id,name,contact_name,phone,email").eq("restaurant_id", id).order("name"),
         db.from("supplier_payments").select("id,supplier_id,amount,paid_on,method,note").eq("restaurant_id", id).order("paid_on", { ascending: false }),
-        db.from("employees").select("id,name,role,shift,pay_type,monthly_salary,weekly_salary,daily_rate,email,phone,active").eq("restaurant_id", id).order("name"),
+        db.from("employees").select("id,user_id,name,role,shift,pay_type,monthly_salary,weekly_salary,daily_rate,email,phone,active").eq("restaurant_id", id).order("name"),
         db.from("daily_wages").select("id,employee_id,wage_date,amount,status,note").eq("restaurant_id", id).order("wage_date", { ascending: false }),
         db.from("memberships").select("user_id,role,permissions").eq("restaurant_id", id),
       ]);
@@ -1232,7 +1241,7 @@ export default function Home() {
       if (!paymentRes.error) setSupplierPayments((paymentRes.data || []).map((x: any) => ({ id: x.id, supplierId: x.supplier_id, amount: Number(x.amount), date: x.paid_on, method: x.method, note: x.note })));
       if (!staffRes.error) {
         const membershipMap = new Map((membershipsRes.data || []).map((m: any) => [String(m.user_id), m.permissions || {}]));
-        setStaff((staffRes.data || []).map((x: any) => ({ id: x.id, name: x.name, role: x.role, initial: x.name.slice(0, 2).toUpperCase(), shift: x.shift, payType: x.pay_type || "Daily", monthlySalary: Number(x.monthly_salary || 0), weeklySalary: Number(x.weekly_salary || 0), dailyRate: Number(x.daily_rate || 0), email: x.email, phone: x.phone, active: x.active, permissions: x.user_id ? (membershipMap.get(String(x.user_id)) || {}) : {} })));
+        setStaff((staffRes.data || []).map((x: any) => ({ id: x.id, name: x.name, role: x.role, initial: x.name.slice(0, 2).toUpperCase(), shift: x.shift, payType: x.pay_type || "Daily", monthlySalary: Number(x.monthly_salary || 0), weeklySalary: Number(x.weekly_salary || 0), dailyRate: Number(x.daily_rate || 0), email: x.email, phone: x.phone, userId: x.user_id, active: x.active, permissions: x.user_id ? (membershipMap.get(String(x.user_id)) || {}) : {} })));
       }
       if (!wagesRes.error) setWages((wagesRes.data || []).map((x: any) => ({ id: x.id, staffId: x.employee_id, date: x.wage_date, amount: Number(x.amount), status: x.status, note: x.note })));
     } catch (e) {
@@ -1781,15 +1790,6 @@ export default function Home() {
         toast.error("Enter employee name");
         return;
       }
-      const employeeEmail = String(form.email || "").trim().toLowerCase();
-      if (!/^\S+@\S+\.\S+$/.test(employeeEmail)) {
-        toast.error("Enter a valid employee email address");
-        return;
-      }
-      if (editing === null && String(form.password || "").length < 12) {
-        toast.error("Set an employee login password of at least 12 characters");
-        return;
-      }
       const payType = (form.payType as "Monthly" | "Weekly" | "Daily") || "Monthly";
       const monthlySalary = Number(form.monthlySalary) || 0;
       const weeklySalary = Number(form.weeklySalary) || 0;
@@ -1806,7 +1806,7 @@ export default function Home() {
         monthlySalary,
         weeklySalary,
         dailyRate,
-        email: employeeEmail,
+        email: form.email || "staff@restopulse.demo",
         phone: form.phone || "",
         active: form.active !== "false",
         permissions: selectedPermissions,
@@ -1817,8 +1817,8 @@ export default function Home() {
         : await db.from("employees").insert(payload).select().single();
       if (result.error) { toast.error(result.error.message); return; }
       const mapped = { ...person, id: result.data.id }; setStaff(old => editing !== null ? old.map(x => x.id === editing ? mapped : x) : [mapped, ...old]);
-      if (person.email) {
-        const loginRes = await authedFetch("/api/employees", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ restaurant_id: tenantId, employee_id: result.data.id, name: person.name, email: person.email, password: form.password, role: person.role, permissions: selectedPermissions }) });
+      if (form.email?.trim() && (form.password?.trim() || editing !== null)) {
+        const loginRes = await authedFetch("/api/employees", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ restaurant_id: tenantId, name: person.name, email: person.email, password: form.password, role: person.role, permissions: selectedPermissions }) });
         const loginJson = await loginRes.json();
         if (!loginRes.ok) { toast.error(loginJson.error || "Employee saved, but login could not be created"); return; }
       }
@@ -2201,7 +2201,10 @@ export default function Home() {
           </label>
           <label>
             Password
-            <input type="password" autoComplete="current-password" required value={loginPassword} onChange={(e) => setLoginPassword(e.target.value)} />
+            <div className="relative">
+              <input type={showLoginPassword ? "text" : "password"} autoComplete="current-password" required value={loginPassword} onChange={(e) => setLoginPassword(e.target.value)} className="pr-10" />
+              <button type="button" className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground" aria-label={showLoginPassword ? "Hide password" : "Show password"} onClick={() => setShowLoginPassword(v => !v)}>{showLoginPassword ? <EyeOff size={16}/> : <Eye size={16}/>}</button>
+            </div>
           </label>
           <button className="primary-btn" disabled={loginBusy}>
             {loginBusy ? "Signing in…" : "Sign in"}
@@ -2310,6 +2313,15 @@ export default function Home() {
   const expiredSubscriptionCount = restaurants.filter((r: any) => r.renewal && new Date(r.renewal) < nowForMetrics).length;
 
   const normalizedRole = (currentUserRole || "").toLowerCase();
+  const currentEmployee = !isAdmin && normalizedRole !== "owner"
+    ? (staff.find((person) => person.userId === authUser) || staff.find((person) => (person.email || "").toLowerCase() === (loginEmail || "").toLowerCase()))
+    : undefined;
+  const roleFallback: Record<string, string> = { cashier: "Staff", kitchen: "Storekeeper", manager: "Manager", owner: "Restaurant Owner", admin: "Platform Administrator" };
+  const profileDisplayName = isAdmin
+    ? (admins.find((a: any) => a.id === authUser)?.name || "Platform Admin")
+    : (currentEmployee?.name || (normalizedRole !== "owner" ? (loginEmail || "Employee") : (activeRestaurantName || "Account")));
+  const profileDisplayRole = isAdmin ? "Platform Administrator" : currentEmployee?.role || roleFallback[normalizedRole] || (normalizedRole ? normalizedRole.charAt(0).toUpperCase() + normalizedRole.slice(1) : "Restaurant Owner");
+  const profileInitials = (profileDisplayName || "Account").trim().split(/\s+/).slice(0, 2).map((part) => part[0] || "").join("").toUpperCase() || "AC";
   const isOwnerOrAdmin = normalizedRole === "owner" || normalizedRole === "admin" || !normalizedRole;
   
   const currentAdminRecord = isAdmin ? admins.find((a: any) => a.id === authUser) : null;
@@ -2324,6 +2336,7 @@ export default function Home() {
     ? []
     : navTenant.filter((item) => {
         if (isOwnerOrAdmin) return true;
+        if (item.id === "dashboard") return true;
         if (item.id === "support") return currentUserPermissions.support !== false;
         return currentUserPermissions[item.id] === true;
       });
@@ -2408,7 +2421,7 @@ export default function Home() {
           onClick={() => setWorkspaceMenuOpen(!workspaceMenuOpen)}
         >
           <span className="store-avatar">
-            {activeRestaurantName ? activeRestaurantName.slice(0, 2).toUpperCase() : "RS"}
+            {profileInitials}
           </span>
           <div className="truncate">
             <b className="truncate block">{activeRestaurantName || "Select Workspace"}</b>
@@ -2497,10 +2510,10 @@ export default function Home() {
             onClick={() => setProfileMenu(!profileMenu)}
             aria-label="Open profile menu"
           >
-            <span className="profile-avatar">{activeRestaurantName ? activeRestaurantName.slice(0, 2).toUpperCase() : "MR"}</span>
+            <span className="profile-avatar">{profileInitials}</span>
             <div>
-              <b>{authUser?.slice(0, 8) || "Account"}</b>
-              <small>{accountRole === "admin" ? "Platform Administrator" : "Restaurant Owner"}</small>
+              <b>{profileDisplayName}</b>
+              <small>{profileDisplayRole}</small>
             </div>
             <MoreHorizontal size={19} />
           </button>
@@ -2557,15 +2570,15 @@ export default function Home() {
                 setNotifications(false);
               }}
             >
-              {activeRestaurantName ? activeRestaurantName.slice(0, 2).toUpperCase() : "MR"}
+              {profileInitials}
             </button>
           </div>
 
           {profileMenu && (
             <div className="profile-popover">
               <div className="profile-popover-head">
-                <b>{authUser?.slice(0, 8) || "Account"}</b>
-                <small>{accountRole === "admin" ? "Platform Administrator" : "Restaurant Owner"}</small>
+                <b>{profileDisplayName}</b>
+                <small>{profileDisplayRole}</small>
               </div>
               <button onClick={() => nav("settings")}>
                 <Settings size={17} /> Account & settings
@@ -3298,7 +3311,6 @@ export default function Home() {
 
                       <div className="mb-4">
                         <div className="font-bold text-sm text-foreground leading-tight">{s.name}</div>
-                        {s.email && <div className="text-[11px] text-muted-foreground mt-1 break-all">{s.email}</div>}
                         <div className="flex items-center gap-1.5 mt-1">
                           <span className={`designation-badge designation-${s.role.toLowerCase()}`}>
                             {s.role}
@@ -3729,26 +3741,28 @@ export default function Home() {
                     <label className="block space-y-1">
                       <span className="text-xs font-medium text-muted-foreground">New Password</span>
                       <input
-                        type="password"
+                        type={showNewPassword ? "text" : "password"}
                         required
                         minLength={6}
                         value={newPassword}
                         onChange={(e) => setNewPassword(e.target.value)}
                         placeholder="••••••••"
-                        className="w-full p-2 border rounded-lg text-xs bg-background"
+                        className="w-full p-2 pr-10 border rounded-lg text-xs bg-background"
                       />
+                      <button type="button" className="text-muted-foreground" aria-label={showNewPassword ? "Hide password" : "Show password"} onClick={() => setShowNewPassword(v => !v)}>{showNewPassword ? <EyeOff size={15}/> : <Eye size={15}/>}</button>
                     </label>
                     <label className="block space-y-1">
                       <span className="text-xs font-medium text-muted-foreground">Confirm New Password</span>
                       <input
-                        type="password"
+                        type={showConfirmPassword ? "text" : "password"}
                         required
                         minLength={6}
                         value={confirmPassword}
                         onChange={(e) => setConfirmPassword(e.target.value)}
                         placeholder="••••••••"
-                        className="w-full p-2 border rounded-lg text-xs bg-background"
+                        className="w-full p-2 pr-10 border rounded-lg text-xs bg-background"
                       />
+                      <button type="button" className="text-muted-foreground" aria-label={showConfirmPassword ? "Hide password" : "Show password"} onClick={() => setShowConfirmPassword(v => !v)}>{showConfirmPassword ? <EyeOff size={15}/> : <Eye size={15}/>}</button>
                     </label>
                     <button type="submit" className="primary-btn w-full flex items-center justify-center gap-2" disabled={pwdBusy}>
                       <KeyRound size={16} /> {pwdBusy ? "Resetting…" : "Reset Password"}
@@ -4044,7 +4058,7 @@ export default function Home() {
           <div className="modal-fields">
             <label>Admin name<input value={adminForm.name} onChange={e => setAdminForm({ ...adminForm, name: e.target.value })} /></label>
             <label>Admin email<input type="email" value={adminForm.email} onChange={e => setAdminForm({ ...adminForm, email: e.target.value })} /></label>
-            <label>Password {editingAdminId ? "(leave blank to keep current)" : "(optional)"}<input type="password" minLength={12} placeholder="Minimum 12 characters" value={adminForm.password} onChange={e => setAdminForm({ ...adminForm, password: e.target.value })} /></label>
+            <label>Password {editingAdminId ? "(leave blank to keep current)" : "(optional)"}<div className="relative"><input type={showAdminPassword ? "text" : "password"} minLength={12} placeholder="Minimum 12 characters" value={adminForm.password} onChange={e => setAdminForm({ ...adminForm, password: e.target.value })} className="pr-10" /><button type="button" className="absolute right-2 top-1/2 -translate-y-1/2" aria-label={showAdminPassword ? "Hide password" : "Show password"} onClick={() => setShowAdminPassword(v => !v)}>{showAdminPassword ? <EyeOff size={15}/> : <Eye size={15}/>}</button></div></label>
             <div className="border rounded-xl p-3 space-y-2"><b className="text-xs">Section access</b>{([['restaurants', 'Restaurants'], ['approvals', 'Approvals'], ['pricing', 'Pricing plans'], ['settings', 'Settings'], ['support', 'Support & Help'], ['admins', 'Manage admins']] as const).map(([key, label]) => <label key={key} className="flex items-center gap-2 text-xs"><input type="checkbox" checked={!!(adminForm.permissions as any)[key]} onChange={e => setAdminForm({ ...adminForm, permissions: { ...adminForm.permissions, [key]: e.target.checked } })} />{label}</label>)}</div>
           </div>
           <DialogFooter><button className="quiet-btn" onClick={() => setModal(null)}>Cancel</button><button className="primary-btn" onClick={save}>{editingAdminId ? "Save changes" : "Add admin"}</button></DialogFooter>
@@ -4060,7 +4074,7 @@ export default function Home() {
             <label>Owner email<input type="email" disabled={editing !== null} value={form.email || ""} onChange={e => setForm({ ...form, email: e.target.value })} /></label>
             <label>Owner phone<input value={form.phone || ""} onChange={e => setForm({ ...form, phone: e.target.value })} /></label>
             <label>City<input value={form.city || ""} onChange={e => setForm({ ...form, city: e.target.value })} /></label>
-            {!editing && <label>Temporary password<input type="password" minLength={12} placeholder="Minimum 12 characters" value={form.password || ""} onChange={e => setForm({ ...form, password: e.target.value })} /></label>}
+            {!editing && <label>Temporary password<div className="relative"><input type={showRestaurantPassword ? "text" : "password"} minLength={12} placeholder="Minimum 12 characters" value={form.password || ""} onChange={e => setForm({ ...form, password: e.target.value })} className="pr-10" /><button type="button" className="absolute right-2 top-1/2 -translate-y-1/2" aria-label={showRestaurantPassword ? "Hide password" : "Show password"} onClick={() => setShowRestaurantPassword(v => !v)}>{showRestaurantPassword ? <EyeOff size={15}/> : <Eye size={15}/>}</button></div></label>}
             {editing && <><label>Plan<select value={form.plan || "Free Trial"} onChange={e => setForm({ ...form, plan: e.target.value })}>{plans.map(x => <option key={x.id}>{x.name}</option>)}</select></label><label>Status<select value={form.status || "Active"} onChange={e => setForm({ ...form, status: e.target.value })}><option>Trial</option><option>Active</option><option>Paused</option></select></label><label>Renewal date<input type="date" value={form.renewal === "—" ? "" : form.renewal || ""} onChange={e => setForm({ ...form, renewal: e.target.value })} /></label></>}
           </div>
           <DialogFooter><button className="quiet-btn" onClick={() => setModal(null)}>Cancel</button><button className="primary-btn" onClick={save}>{editing ? "Save changes" : "Create restaurant"}</button></DialogFooter>
@@ -4405,12 +4419,6 @@ export default function Home() {
             </label>
 
             <label className="block space-y-1">
-              <span className="font-semibold text-muted-foreground">Employee Email (Login ID)</span>
-              <input type="email" autoComplete="email" value={form.email || ""} onChange={(e) => setForm({ ...form, email: e.target.value })} placeholder="employee@example.com" className="w-full p-2 border rounded-lg bg-background" required />
-              <span className="text-[11px] text-muted-foreground">The employee will sign in using this email address and their password.</span>
-            </label>
-
-            <label className="block space-y-1">
               <span className="font-semibold text-muted-foreground">Designation & Access Role</span>
               <select
                 value={form.role || "Staff"}
@@ -4468,9 +4476,9 @@ export default function Home() {
             </div>
 
             <label className="block space-y-1">
-              <span className="font-semibold text-muted-foreground">Login password {editing ? "(leave blank to keep existing)" : "(required)"}</span>
-              <input type="password" autoComplete={editing ? "new-password" : "new-password"} value={form.password || ""} onChange={(e) => setForm({ ...form, password: e.target.value })} placeholder="Minimum 12 characters" className="w-full p-2 border rounded-lg bg-background" />
-              <span className="text-[11px] text-muted-foreground">New employee accounts require a password of at least 12 characters. Existing employees can keep their current password.</span>
+              <span className="font-semibold text-muted-foreground">Login password {editing ? "(leave blank to keep existing)" : ""}</span>
+              <div className="relative"><input type={showEmployeePassword ? "text" : "password"} value={form.password || ""} onChange={(e) => setForm({ ...form, password: e.target.value })} placeholder="Minimum 12 characters" className="w-full p-2 pr-10 border rounded-lg bg-background" /><button type="button" className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground" aria-label={showEmployeePassword ? "Hide password" : "Show password"} onClick={() => setShowEmployeePassword(v => !v)}>{showEmployeePassword ? <EyeOff size={15}/> : <Eye size={15}/>}</button></div>
+              <span className="text-[11px] text-muted-foreground">The employee signs in with the email above and receives only the selected designation's permissions.</span>
             </label>
 
             <div className="grid grid-cols-2 gap-3">

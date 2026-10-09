@@ -1781,6 +1781,15 @@ export default function Home() {
         toast.error("Enter employee name");
         return;
       }
+      const employeeEmail = String(form.email || "").trim().toLowerCase();
+      if (!/^\S+@\S+\.\S+$/.test(employeeEmail)) {
+        toast.error("Enter a valid employee email address");
+        return;
+      }
+      if (editing === null && String(form.password || "").length < 12) {
+        toast.error("Set an employee login password of at least 12 characters");
+        return;
+      }
       const payType = (form.payType as "Monthly" | "Weekly" | "Daily") || "Monthly";
       const monthlySalary = Number(form.monthlySalary) || 0;
       const weeklySalary = Number(form.weeklySalary) || 0;
@@ -1797,7 +1806,7 @@ export default function Home() {
         monthlySalary,
         weeklySalary,
         dailyRate,
-        email: form.email || "staff@restopulse.demo",
+        email: employeeEmail,
         phone: form.phone || "",
         active: form.active !== "false",
         permissions: selectedPermissions,
@@ -1808,8 +1817,8 @@ export default function Home() {
         : await db.from("employees").insert(payload).select().single();
       if (result.error) { toast.error(result.error.message); return; }
       const mapped = { ...person, id: result.data.id }; setStaff(old => editing !== null ? old.map(x => x.id === editing ? mapped : x) : [mapped, ...old]);
-      if (form.email?.trim() && (form.password?.trim() || editing !== null)) {
-        const loginRes = await authedFetch("/api/employees", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ restaurant_id: tenantId, name: person.name, email: person.email, password: form.password, role: person.role, permissions: selectedPermissions }) });
+      if (person.email) {
+        const loginRes = await authedFetch("/api/employees", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ restaurant_id: tenantId, employee_id: result.data.id, name: person.name, email: person.email, password: form.password, role: person.role, permissions: selectedPermissions }) });
         const loginJson = await loginRes.json();
         if (!loginRes.ok) { toast.error(loginJson.error || "Employee saved, but login could not be created"); return; }
       }
@@ -2315,7 +2324,6 @@ export default function Home() {
     ? []
     : navTenant.filter((item) => {
         if (isOwnerOrAdmin) return true;
-        if (item.id === "dashboard") return true;
         if (item.id === "support") return currentUserPermissions.support !== false;
         return currentUserPermissions[item.id] === true;
       });
@@ -3290,6 +3298,7 @@ export default function Home() {
 
                       <div className="mb-4">
                         <div className="font-bold text-sm text-foreground leading-tight">{s.name}</div>
+                        {s.email && <div className="text-[11px] text-muted-foreground mt-1 break-all">{s.email}</div>}
                         <div className="flex items-center gap-1.5 mt-1">
                           <span className={`designation-badge designation-${s.role.toLowerCase()}`}>
                             {s.role}
@@ -4396,6 +4405,12 @@ export default function Home() {
             </label>
 
             <label className="block space-y-1">
+              <span className="font-semibold text-muted-foreground">Employee Email (Login ID)</span>
+              <input type="email" autoComplete="email" value={form.email || ""} onChange={(e) => setForm({ ...form, email: e.target.value })} placeholder="employee@example.com" className="w-full p-2 border rounded-lg bg-background" required />
+              <span className="text-[11px] text-muted-foreground">The employee will sign in using this email address and their password.</span>
+            </label>
+
+            <label className="block space-y-1">
               <span className="font-semibold text-muted-foreground">Designation & Access Role</span>
               <select
                 value={form.role || "Staff"}
@@ -4413,9 +4428,9 @@ export default function Home() {
               <div className="text-xs font-bold">Required access</div>
               <p className="text-[11px] text-muted-foreground">Select only the modules this employee needs. Owner retains full access.</p>
               <div className="grid grid-cols-2 gap-2">
-                {([["pos","POS"],["menu","Menu"],["inventory","Inventory"],["staff","Team & payroll"],["expenses","Expenses"],["suppliers","Suppliers"],["subscription","Subscription"],["settings","Settings"]] as const).map(([key,label]) => {
+                {([["overview","Overview"],["pos","POS"],["menu","Menu"],["inventory","Inventory"],["staff","Team & payroll"],["expenses","Expenses"],["suppliers","Suppliers"],["subscription","Subscription"],["settings","Settings"]] as const).map(([key,label]) => {
                   const perms = (() => { try { const p = form.permissions ? JSON.parse(form.permissions) : {}; return p && typeof p === "object" ? p : {}; } catch { return {}; } })();
-                  return <label key={key} className="flex items-center gap-2 text-xs"><input type="checkbox" checked={perms[key] === true} onChange={e => setForm({ ...form, permissions: JSON.stringify({ ...perms, [key]: e.target.checked, overview: true }) })} />{label}</label>;
+                  return <label key={key} className="flex items-center gap-2 text-xs"><input type="checkbox" checked={perms[key] === true} onChange={e => setForm({ ...form, permissions: JSON.stringify({ ...perms, [key]: e.target.checked }) })} />{label}</label>;
                 })}
               </div>
             </div>
@@ -4453,9 +4468,9 @@ export default function Home() {
             </div>
 
             <label className="block space-y-1">
-              <span className="font-semibold text-muted-foreground">Login password {editing ? "(leave blank to keep existing)" : ""}</span>
-              <input type="password" value={form.password || ""} onChange={(e) => setForm({ ...form, password: e.target.value })} placeholder="Minimum 12 characters" className="w-full p-2 border rounded-lg bg-background" />
-              <span className="text-[11px] text-muted-foreground">The employee signs in with the email above and receives only the selected designation's permissions.</span>
+              <span className="font-semibold text-muted-foreground">Login password {editing ? "(leave blank to keep existing)" : "(required)"}</span>
+              <input type="password" autoComplete={editing ? "new-password" : "new-password"} value={form.password || ""} onChange={(e) => setForm({ ...form, password: e.target.value })} placeholder="Minimum 12 characters" className="w-full p-2 border rounded-lg bg-background" />
+              <span className="text-[11px] text-muted-foreground">New employee accounts require a password of at least 12 characters. Existing employees can keep their current password.</span>
             </label>
 
             <div className="grid grid-cols-2 gap-3">

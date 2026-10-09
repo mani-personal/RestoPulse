@@ -2321,7 +2321,7 @@ export default function Home() {
     ? (admins.find((a: any) => a.id === authUser)?.name || "Platform Admin")
     : (currentEmployee?.name || (normalizedRole !== "owner" ? (loginEmail || "Employee") : (activeRestaurantName || "Account")));
   const profileDisplayRole = isAdmin ? "Platform Administrator" : currentEmployee?.role || roleFallback[normalizedRole] || (normalizedRole ? normalizedRole.charAt(0).toUpperCase() + normalizedRole.slice(1) : "Restaurant Owner");
-  const profileInitials = (profileDisplayName || "Account").trim().split(/\s+/).slice(0, 2).map((part) => part[0] || "").join("").toUpperCase() || "AC";
+  const profileInitials = (profileDisplayName || "Account").trim().split(/\s+/).slice(0, 2).map((part: string) => part[0] || "").join("").toUpperCase() || "AC";
   const isOwnerOrAdmin = normalizedRole === "owner" || normalizedRole === "admin" || !normalizedRole;
   
   const currentAdminRecord = isAdmin ? admins.find((a: any) => a.id === authUser) : null;

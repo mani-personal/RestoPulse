@@ -380,6 +380,12 @@ export default function Home() {
   const [subscriptionRequests, setSubscriptionRequests] = useState<Array<any>>([]);
   const [subscriptionHistory, setSubscriptionHistory] = useState<Array<any>>([]);
   const [expenses, setExpenses] = useState<Expense[]>([]);
+  const [expenseSearch, setExpenseSearch] = useState("");
+  const [expenseCategoryFilter, setExpenseCategoryFilter] = useState("All categories");
+  const [expenseStartDate, setExpenseStartDate] = useState("");
+  const [expenseEndDate, setExpenseEndDate] = useState("");
+  const [supplierSearch, setSupplierSearch] = useState("");
+  const [supplierActivityFilter, setSupplierActivityFilter] = useState("All suppliers");
   const [staff, setStaff] = useState<Staff[]>([]);
   const [wages, setWages] = useState<Wage[]>([]);
   const [wageForm, setWageForm] = useState({ date: new Date().toLocaleDateString("en-CA"), amount: "", note: "" });
@@ -455,16 +461,22 @@ export default function Home() {
 
   // Sync Live Pricing Plans from Backend
   const fetchLivePlans = useCallback(async () => {
-    if (!isAdmin || !roleHydrated) return;
+    if (!roleHydrated) return;
     try {
-      const res = await authedFetch("/api/admin/pricing");
+      // Always bypass browser caches so restaurant accounts see the latest Admin pricing.
+      const res = await authedFetch("/api/admin/pricing", { cache: "no-store" });
       const data = await res.json();
-      if (data?.plans && Array.isArray(data.plans) && data.plans.length) {
+      if (res.ok && data?.plans && Array.isArray(data.plans) && data.plans.length) {
         setPlans(data.plans);
-        setActiveInlinePlan((prev) => prev || (data.plans.find((p: Plan) => p.price > 0) || data.plans[0]));
+        setActiveInlinePlan((prev) => {
+          if (prev && data.plans.some((p: Plan) => String(p.id) === String(prev.id))) {
+            return data.plans.find((p: Plan) => String(p.id) === String(prev.id)) || prev;
+          }
+          return data.plans.find((p: Plan) => Number(p.price) > 0) || data.plans[0];
+        });
       }
     } catch {}
-  }, [authedFetch, isAdmin, roleHydrated]);
+  }, [authedFetch, roleHydrated]);
 
   const getPlanDurationDays = (planName: string) => {
     const found = plans.find((p) => p.name.toLowerCase() === planName.toLowerCase());
@@ -1182,6 +1194,10 @@ export default function Home() {
       syncLiveSubscriptionStatus();
     }
   }, [authUser, roleHydrated, isAdmin, tenantId, fetchSubscriptionRequests, fetchRealApprovals, fetchAllRestaurants, fetchAdmins, syncLiveSubscriptionStatus, fetchLivePlans, fetchSupportSections]);
+
+  useEffect(() => {
+    if (authUser && roleHydrated) fetchLivePlans();
+  }, [authUser, roleHydrated, fetchLivePlans]);
 
   const loadRestaurantData = useCallback(async (id: string) => {
     if (!id || isAdmin) return;
@@ -2207,7 +2223,7 @@ export default function Home() {
     }
   };
 
-  const activePlanPrice = activeInlinePlan ? activeInlinePlan.price : 29999;
+  const activePlanPrice = activeInlinePlan ? Number(activeInlinePlan.price) || 0 : 0;
   const inlineUpiPayUri = `upi://pay?pa=${encodeURIComponent(subscriptionUpiId)}&pn=${encodeURIComponent("RestoPulse")}&am=${encodeURIComponent(activePlanPrice.toFixed(2))}&cu=INR&tn=${encodeURIComponent(`${activeRestaurantName} ${activeInlinePlan?.name || 'Subscription'}`)}`;
   const inlineQrImageUrl = `https://api.qrserver.com/v1/create-qr-code/?size=240x240&data=${encodeURIComponent(inlineUpiPayUri)}`;
 
@@ -3315,13 +3331,29 @@ export default function Home() {
               </div>
 
               <div className="panel management-panel mt-6">
+                <div className="p-4 border-b grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+                  <input value={expenseSearch} onChange={e => setExpenseSearch(e.target.value)} placeholder="Search description or vendor" className="w-full p-2 border rounded-lg bg-background text-xs" />
+                  <select value={expenseCategoryFilter} onChange={e => setExpenseCategoryFilter(e.target.value)} className="w-full p-2 border rounded-lg bg-background text-xs">
+                    <option>All categories</option>
+                    {[...new Set(expenses.map(e => e.category).filter(Boolean))].sort().map(c => <option key={c}>{c}</option>)}
+                  </select>
+                  <label className="text-xs text-muted-foreground">From <input type="date" value={expenseStartDate} onChange={e => setExpenseStartDate(e.target.value)} className="block w-full p-2 border rounded-lg bg-background text-xs" /></label>
+                  <label className="text-xs text-muted-foreground">To <input type="date" value={expenseEndDate} onChange={e => setExpenseEndDate(e.target.value)} className="block w-full p-2 border rounded-lg bg-background text-xs" /></label>
+                </div>
                 <div className="table-scroll">
                   <table className="enhanced-data-table">
                     <thead>
                       <tr><th>DATE</th><th>DESCRIPTION</th><th>CATEGORY</th><th>VENDOR</th><th className="text-right">AMOUNT</th></tr>
                     </thead>
                     <tbody>
-                      {expenses.map((e) => (
+                      {expenses.filter(e => {
+                        const q = expenseSearch.trim().toLowerCase();
+                        const d = String(e.date || "").slice(0, 10);
+                        return (!q || `${e.name} ${e.vendor || ""} ${e.category || ""}`.toLowerCase().includes(q))
+                          && (expenseCategoryFilter === "All categories" || e.category === expenseCategoryFilter)
+                          && (!expenseStartDate || d >= expenseStartDate)
+                          && (!expenseEndDate || d <= expenseEndDate);
+                      }).map((e) => (
                         <tr key={e.id}>
                           <td className="text-xs text-muted-foreground">{new Date(`${e.date}T12:00:00`).toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" })}</td>
                           <td className="strong">{e.name}</td>
@@ -3330,9 +3362,12 @@ export default function Home() {
                           <td className="strong text-right">{money(e.amount)}</td>
                         </tr>
                       ))}
-                      {!expenses.length && (
+                      {!expenses.filter(e => {
+                        const q = expenseSearch.trim().toLowerCase(); const d = String(e.date || "").slice(0, 10);
+                        return (!q || `${e.name} ${e.vendor || ""} ${e.category || ""}`.toLowerCase().includes(q)) && (expenseCategoryFilter === "All categories" || e.category === expenseCategoryFilter) && (!expenseStartDate || d >= expenseStartDate) && (!expenseEndDate || d <= expenseEndDate);
+                      }).length && (
                         <tr>
-                          <td colSpan={4} className="text-center py-6 text-muted-foreground text-xs">
+                          <td colSpan={5} className="text-center py-6 text-muted-foreground text-xs">
                             No expenses logged yet.
                           </td>
                         </tr>
@@ -3365,7 +3400,16 @@ export default function Home() {
               <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mt-6">
                 <div className="panel p-4 border rounded-xl bg-card space-y-2">
                   <h2 className="text-sm font-bold mb-3">Supplier Directory</h2>
-                  {suppliers.map((sp) => (
+                  <input value={supplierSearch} onChange={e => setSupplierSearch(e.target.value)} placeholder="Search supplier or contact" className="w-full p-2 border rounded-lg bg-background text-xs" />
+                  <select value={supplierActivityFilter} onChange={e => setSupplierActivityFilter(e.target.value)} className="w-full p-2 border rounded-lg bg-background text-xs">
+                    <option>All suppliers</option><option>With transactions</option><option>No transactions</option>
+                  </select>
+                  {suppliers.filter(sp => {
+                    const q = supplierSearch.trim().toLowerCase();
+                    const matchesSearch = !q || `${sp.name} ${sp.contact || ""} ${sp.phone || ""} ${sp.email || ""}`.toLowerCase().includes(q);
+                    const hasTransactions = expenses.some(e => e.supplierId === sp.id) || supplierPayments.some(p => p.supplierId === sp.id);
+                    return matchesSearch && (supplierActivityFilter === "All suppliers" || (supplierActivityFilter === "With transactions" ? hasTransactions : !hasTransactions));
+                  }).map((sp) => (
                     <div
                       key={sp.id}
                       onClick={() => setSupplierDetail(sp.id)}
@@ -3380,7 +3424,7 @@ export default function Home() {
                       <ChevronDown size={14} className="text-muted-foreground -rotate-90" />
                     </div>
                   ))}
-                  {!suppliers.length && <div className="text-xs text-muted-foreground py-4">No suppliers added yet.</div>}
+                  {!suppliers.filter(sp => { const q = supplierSearch.trim().toLowerCase(); const matchesSearch = !q || `${sp.name} ${sp.contact || ""} ${sp.phone || ""} ${sp.email || ""}`.toLowerCase().includes(q); const hasTransactions = expenses.some(e => e.supplierId === sp.id) || supplierPayments.some(p => p.supplierId === sp.id); return matchesSearch && (supplierActivityFilter === "All suppliers" || (supplierActivityFilter === "With transactions" ? hasTransactions : !hasTransactions)); }).length && <div className="text-xs text-muted-foreground py-4">No suppliers match these filters.</div>}
                 </div>
 
                 <div className="panel p-4 border rounded-xl bg-card md:col-span-2">
@@ -4151,16 +4195,6 @@ export default function Home() {
               </label>
             </div>
 
-            <div className="border rounded-xl p-3 space-y-2">
-              <div className="text-xs font-bold">Required access</div>
-              <p className="text-[11px] text-muted-foreground">Select only the modules this employee needs. Owner retains full access.</p>
-              <div className="grid grid-cols-2 gap-2">
-                {([["pos","POS"],["menu","Menu"],["inventory","Inventory"],["staff","Team & payroll"],["expenses","Expenses"],["suppliers","Suppliers"],["subscription","Subscription"],["settings","Settings"]] as const).map(([key,label]) => {
-                  const perms = (() => { try { const p = form.permissions ? JSON.parse(form.permissions) : {}; return p && typeof p === "object" ? p : {}; } catch { return {}; } })();
-                  return <label key={key} className="flex items-center gap-2 text-xs"><input type="checkbox" checked={perms[key] === true} onChange={e => setForm({ ...form, permissions: JSON.stringify({ ...perms, [key]: e.target.checked, overview: true }) })} />{label}</label>;
-                })}
-              </div>
-            </div>
 
             <div className="grid grid-cols-2 gap-3">
               <label className="block space-y-1">
@@ -4374,6 +4408,17 @@ export default function Home() {
                 <option value="Staff">Staff (POS cashier terminal access only)</option>
               </select>
             </label>
+
+            <div className="border rounded-xl p-3 space-y-2">
+              <div className="text-xs font-bold">Required access</div>
+              <p className="text-[11px] text-muted-foreground">Select only the modules this employee needs. Owner retains full access.</p>
+              <div className="grid grid-cols-2 gap-2">
+                {([["pos","POS"],["menu","Menu"],["inventory","Inventory"],["staff","Team & payroll"],["expenses","Expenses"],["suppliers","Suppliers"],["subscription","Subscription"],["settings","Settings"]] as const).map(([key,label]) => {
+                  const perms = (() => { try { const p = form.permissions ? JSON.parse(form.permissions) : {}; return p && typeof p === "object" ? p : {}; } catch { return {}; } })();
+                  return <label key={key} className="flex items-center gap-2 text-xs"><input type="checkbox" checked={perms[key] === true} onChange={e => setForm({ ...form, permissions: JSON.stringify({ ...perms, [key]: e.target.checked, overview: true }) })} />{label}</label>;
+                })}
+              </div>
+            </div>
 
             <div className="grid grid-cols-2 gap-3">
               <label className="block space-y-1">

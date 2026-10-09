@@ -370,7 +370,27 @@ export default function Home() {
   const [supplierDetail, setSupplierDetail] = useState<string | null>("sp-1");
 
   const [view, setView] = useState<View>("dashboard");
+  type UiLanguage = "en" | "ta" | "kn";
+  const [uiLanguage, setUiLanguage] = useState<UiLanguage>("en");
+  const languageStorageKey = `rp-language:${tenantId || "platform"}`;
+  const translations: Record<UiLanguage, Record<string, string>> = {
+    en: {},
+    ta: {"Overview":"கண்ணோட்டம்","POS Terminal":"விற்பனை முனையம்","Menu & dishes":"மெனு மற்றும் உணவுகள்","Inventory":"சரக்கு இருப்பு","Team & payroll":"குழு மற்றும் ஊதியம்","Expenses":"செலவுகள்","Suppliers":"சப்ளையர்கள்","Subscription":"சந்தா","Settings":"அமைப்புகள்","Support & Help":"ஆதரவு மற்றும் உதவி","RESTAURANT":"உணவகம்","WORKSPACE":"பணியிடம்","Switch Workspace":"பணியிடத்தை மாற்று","Select Workspace":"பணியிடத்தைத் தேர்ந்தெடுக்கவும்","Restaurant":"உணவகம்","Platform console":"நிர்வாகத் தளம்","Search":"தேடல்","Save":"சேமி","Cancel":"ரத்து செய்","Add Employee":"பணியாளரைச் சேர்","Employees":"பணியாளர்கள்","Suppliers":"சப்ளையர்கள்","Date":"தேதி","Category":"வகை","Language":"மொழி"},
+    kn: {"Overview":"ಕಣ್ಣೋಟ","POS Terminal":"ಮಾರಾಟ ಕೇಂದ್ರ","Menu & dishes":"ಮೆನು ಮತ್ತು ಖಾದ್ಯಗಳು","Inventory":"ದಾಸ್ತಾನು","Team & payroll":"ತಂಡ ಮತ್ತು ವೇತನ","Expenses":"ವೆಚ್ಚಗಳು","Suppliers":"ಪೂರೈಕೆದಾರರು","Subscription":"ಚಂದಾದಾರಿಕೆ","Settings":"ಸೆಟ್ಟಿಂಗ್‌ಗಳು","Support & Help":"ಬೆಂಬಲ ಮತ್ತು ಸಹಾಯ","RESTAURANT":"ರೆಸ್ಟೋರೆಂಟ್","WORKSPACE":"ಕಾರ್ಯಸ್ಥಳ","Switch Workspace":"ಕಾರ್ಯಸ್ಥಳ ಬದಲಿಸಿ","Select Workspace":"ಕಾರ್ಯಸ್ಥಳ ಆಯ್ಕೆಮಾಡಿ","Restaurant":"ರೆಸ್ಟೋರೆಂಟ್","Platform console":"ನಿರ್ವಹಣಾ ಕನ್ಸೋಲ್","Search":"ಹುಡುಕಿ","Save":"ಉಳಿಸಿ","Cancel":"ರದ್ದುಮಾಡಿ","Add Employee":"ಉದ್ಯೋಗಿಯನ್ನು ಸೇರಿಸಿ","Employees":"ಉದ್ಯೋಗಿಗಳು","Date":"ದಿನಾಂಕ","Category":"ವರ್ಗ","Language":"ಭಾಷೆ"}
+  };
+  const tr = (label: string) => translations[uiLanguage][label] || label;
   const [profileMenu, setProfileMenu] = useState(false);
+  useEffect(() => {
+    try {
+      const saved = window.localStorage.getItem(languageStorageKey) as UiLanguage | null;
+      setUiLanguage(saved === "ta" || saved === "kn" ? saved : "en");
+    } catch { setUiLanguage("en"); }
+  }, [languageStorageKey]);
+  const changeUiLanguage = (value: string) => {
+    const next = (value === "ta" || value === "kn" ? value : "en") as UiLanguage;
+    setUiLanguage(next);
+    try { window.localStorage.setItem(languageStorageKey, next); } catch {}
+  };
   const [accountRole, setAccountRole] = useState<"admin" | "restaurant">("restaurant");
   const [currentUserPermissions, setCurrentUserPermissions] = useState<Record<string, boolean>>({});
   const [mobileNav, setMobileNav] = useState(false);
@@ -2416,7 +2436,7 @@ export default function Home() {
 
         {/* WORKSPACE SELECTOR */}
         {!isAdmin && <><div className="workspace-label">
-          WORKSPACE <ChevronDown size={14} />
+          {tr("WORKSPACE")} <ChevronDown size={14} />
         </div>
         <div
           className="store-selector relative cursor-pointer"
@@ -2426,8 +2446,8 @@ export default function Home() {
             {profileInitials}
           </span>
           <div className="truncate">
-            <b className="truncate block">{activeRestaurantName || "Select Workspace"}</b>
-            <small>{accountRole === "admin" ? "Platform console" : "Restaurant"}</small>
+            <b className="truncate block">{activeRestaurantName || tr("Select Workspace")}</b>
+            <small>{accountRole === "admin" ? tr("Platform console") : tr("Restaurant")}</small>
           </div>
           <ChevronDown size={15} />
 
@@ -2436,7 +2456,7 @@ export default function Home() {
               className="absolute left-0 top-full mt-2 w-full bg-slate-900 border border-slate-700 rounded-xl p-2 z-50 shadow-2xl max-h-60 overflow-y-auto"
               onClick={(e) => e.stopPropagation()}
             >
-              <div className="text-[10px] text-gray-400 font-bold px-2 py-1 uppercase">Switch Workspace</div>
+              <div className="text-[10px] text-gray-400 font-bold px-2 py-1 uppercase">{tr("Switch Workspace")}</div>
               {restaurants.map((r: any) => (
                 <button
                   key={r.id}
@@ -2453,13 +2473,20 @@ export default function Home() {
           )}
         </div></>}
 
+        <div className="px-3 py-3">
+          <label htmlFor="rp-language-select" className="block text-xs font-semibold mb-1">{tr("Language")}</label>
+          <select id="rp-language-select" value={uiLanguage} onChange={(e) => changeUiLanguage(e.target.value)} className="w-full rounded-lg border border-slate-600 bg-slate-900 text-white px-3 py-2 text-sm">
+            <option value="en">English</option><option value="ta">தமிழ் (Tamil)</option><option value="kn">ಕನ್ನಡ (Kannada)</option>
+          </select>
+        </div>
+
         {isAdmin && <div className="platform-workspace-label">
           <span className="store-avatar"><Building2 size={16}/></span>
           <div><b className="block">Platform Admin</b><small>RestoPulse console</small></div>
         </div>}
 
         {/* RESTAURANT NAVIGATION */}
-        {!isAdmin && <><div className="nav-heading">RESTAURANT</div>
+        {!isAdmin && <><div className="nav-heading">{tr("RESTAURANT")}</div>
         <nav aria-label="Restaurant navigation">
           {visibleNavTenant.map((item) => (
             <button
@@ -2468,7 +2495,7 @@ export default function Home() {
               onClick={() => nav(item.id)}
             >
               <item.icon size={18} />
-              {item.label}
+              {tr(item.label)}
               {item.id === "pos" && <span className="nav-key">⌘2</span>}
             </button>
           ))}

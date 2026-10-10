@@ -3884,8 +3884,8 @@ export default function Home() {
                           <td className="text-xs text-muted-foreground">{new Date(tx.created_at).toLocaleString("en-IN", { day: "2-digit", month: "short", year: "numeric", hour: "numeric", minute: "2-digit" })}</td>
                           <td className="strong">{inventoryList.find(i => i.id === tx.inventory_item_id)?.name || "Inventory item"}</td>
                           <td><span className={`history-type-badge ${change >= 0 ? "in" : "out"}`}>{tx.transaction_type}</span></td>
-                          <td className={`text-right font-bold ${change >= 0 ? "text-emerald-600" : "text-red-600"}`}>{change >= 0 ? "+" : ""}{tx.change_quantity}</td>
-                          <td className="text-right text-xs font-semibold">{tx.previous_quantity} → {tx.new_quantity}</td>
+                          <td className={`text-right font-bold ${change >= 0 ? "text-emerald-600" : "text-red-600"}`}>{change >= 0 ? "+" : ""}{tx.change_quantity} {inventoryList.find(i => i.id === tx.inventory_item_id)?.unit || ""}</td>
+                          <td className="text-right text-xs font-semibold">{tx.previous_quantity} → {tx.new_quantity} {inventoryList.find(i => i.id === tx.inventory_item_id)?.unit || ""}</td>
                         </tr>
                       })}
                       {!inventoryTransactions.length && <tr><td colSpan={5} className="text-center py-8 text-xs text-muted-foreground">{tr("No inventory movements recorded yet.")}</td></tr>}
@@ -4965,7 +4965,9 @@ export default function Home() {
               </label>
               <label className="block space-y-1">
                 <span className="text-sm font-medium">{tr("Unit")}</span>
-                <input type="text" value={invForm.unit} onChange={(e) => setInvForm({ ...invForm, unit: e.target.value })} className="w-full p-2 border rounded-md text-sm bg-transparent" />
+                <select value={invForm.unit} onChange={(e) => setInvForm({ ...invForm, unit: e.target.value })} className="w-full p-2 border rounded-md text-sm bg-background">
+                  {(isProduceShop ? ["kg", "g", "piece", "box", "crate"] : ["unit", "piece", "kg", "g", "bag", "box", "crate", "litre"]).map((unit) => <option key={unit} value={unit}>{unit}</option>)}
+                </select>
               </label>
             </div>
             <div className="grid grid-cols-2 gap-3">
@@ -5040,7 +5042,7 @@ export default function Home() {
                   className="w-full p-2.5 border rounded-md text-sm bg-transparent"
                 />
               </label>
-              {stockAdjustQty && Number(stockAdjustQty) > 0 && Number(stockAdjustQty) <= stockAdjustItem.onHand && (
+              {stockAdjustQty && Number(stockAdjustQty) > 0 && (stockAdjustMode === "add" || Number(stockAdjustQty) <= stockAdjustItem.onHand) && (
                 <div className="rounded-lg border p-3 text-sm flex items-center justify-between">
                   <span className="text-muted-foreground">{stockAdjustMode === "add" ? "New stock" : "Remaining stock"}</span>
                   <b>{(stockAdjustItem.onHand + (stockAdjustMode === "add" ? Number(stockAdjustQty) : -Number(stockAdjustQty))).toLocaleString(undefined, { maximumFractionDigits: 3 })} {stockAdjustItem.unit}</b>

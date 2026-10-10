@@ -1723,7 +1723,7 @@ export default function Home() {
     setActiveRestaurantName("Loading workspace…");
     setActivePlanName("Free trial");
     setActiveRenewalDate("—");
-    setTenantInfo((prev) => ({ ...prev, id: undefined, name: "" }));
+    setTenantInfo((prev) => ({ ...prev, id: undefined, name: "", business_type: "restaurant" }));
   }, [authUser]);
 
   useEffect(() => {
@@ -1766,6 +1766,16 @@ export default function Home() {
             setActiveRenewalDate(target.renewal || "—");
             setCurrentUserRole(String(target.role || "OWNER").toLowerCase());
             setCurrentUserPermissions((target.permissions && typeof target.permissions === "object") ? target.permissions : {});
+            // The produce POS is selected from the active workspace business type.
+            // Populate it during login, not only when switching workspaces later.
+            setTenantInfo((prev) => ({
+              ...prev,
+              id: target.id,
+              business_type: String(target.business_type || "restaurant").trim().toLowerCase().replace(/[\s-]+/g, "_"),
+              name: target.name || "",
+              address: target.city ? `${target.name}, ${target.city}` : prev.address,
+              business_phone: target.phone || prev.business_phone,
+            }));
           } else {
             setTenantId(null);
             tenantIdRef.current = null;
@@ -2153,8 +2163,8 @@ export default function Home() {
 
   const addCart = (id: number | string) => {
     setCart((old) => {
-      const found = old.find((l) => l.id === id);
-      return found ? old.map((l) => (l.id === id ? { ...l, qty: l.qty + 1 } : l)) : [...old, { id, qty: 1, discount: 0 }];
+      const found = old.find((l) => String(l.id) === String(id));
+      return found ? old.map((l) => (String(l.id) === String(id) ? { ...l, qty: l.qty + 1 } : l)) : [...old, { id, qty: 1, discount: 0 }];
     });
     if (sound) {
       try {
@@ -2171,7 +2181,7 @@ export default function Home() {
   };
 
   const qty = (id: number | string, delta: number) =>
-    setCart((old) => old.map((l) => (l.id === id ? { ...l, qty: Math.max(0, Math.round((l.qty + delta) * 1000) / 1000) } : l)).filter((l) => l.qty > 0));
+    setCart((old) => old.map((l) => (String(l.id) === String(id) ? { ...l, qty: Math.max(0, Math.round((l.qty + delta) * 1000) / 1000) } : l)).filter((l) => l.qty > 0));
 
   const open = (which: typeof modal, id?: number | string) => {
     setModal(which);
@@ -3133,7 +3143,7 @@ export default function Home() {
               onClick={() => nav(item.id)}
             >
               <item.icon size={18} />
-              {tr(item.label)}
+              {item.id === "pos" && isProduceShop ? "Inventory POS" : tr(item.label)}
               {item.id === "pos" && <span className="nav-key">⌘2</span>}
             </button>
           ))}
@@ -3586,7 +3596,8 @@ export default function Home() {
               <div className="page-head pos-head">
                 <div>
                   <div className="eyebrow">{tr("FAST CHECKOUT")}</div>
-                  <h1>{tr("Point of sale")}</h1>
+                  <h1>{isProduceShop ? "Inventory POS" : tr("Point of sale")}</h1>
+                  {isProduceShop && <p className="text-sm text-muted-foreground mt-1">Select produce from inventory; checkout automatically deducts sold quantities.</p>}
                 </div>
                 <div className="head-actions">
                   <button className="quiet-btn" onClick={() => setSound(!sound)}>
@@ -3605,7 +3616,7 @@ export default function Home() {
                       <input
                         value={query}
                         onChange={(e) => setQuery(e.target.value)}
-                        placeholder={tr("Search dishes...")}
+                        placeholder={isProduceShop ? "Search fruits and vegetables..." : tr("Search dishes...")}
                       />
                     </label>
                   </div>

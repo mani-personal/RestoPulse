@@ -11,7 +11,7 @@ function errorResponse(error: any, fallback = 'Server error') {
 export async function GET(request: NextRequest) {
   try {
     const { supabase } = await requireAdmin(request);
-    const { data, error } = await supabase.from("restaurants").select("id,name,owner_name,owner_email,owner_phone,city,address,business_phone,gstin,gst_percent,cgst_percent,sgst_percent,receipt_footer,logo_url,plan,status,renewal_on,created_at").order("created_at", { ascending: false });
+    const { data, error } = await supabase.from("restaurants").select("id,name,owner_name,owner_email,owner_phone,city,address,business_phone,gstin,gst_percent,cgst_percent,sgst_percent,receipt_footer,logo_url,plan,status,renewal_on,business_type,created_at").order("created_at", { ascending: false });
     if (error) throw error;
     return NextResponse.json({ restaurants: data || [] });
   } catch (e: any) { return errorResponse(e, "Could not load restaurants"); }
@@ -65,6 +65,7 @@ export async function POST(request: NextRequest) {
     renewal.setDate(renewal.getDate() + 7);
     const { data: restaurant, error: restaurantError } = await admin.from('restaurants').insert({
       name, owner_name: owner, owner_email: email, owner_phone: phone, city,
+      business_type: ['restaurant','fruit_shop','vegetable_shop','grocery_store','retail'].includes(String(body.business_type || 'restaurant')) ? String(body.business_type || 'restaurant') : 'restaurant',
       plan: 'Free Trial', status: 'Trial', renewal_on: renewal.toISOString().slice(0, 10),
     }).select().single();
 
@@ -98,7 +99,7 @@ export async function PATCH(request: NextRequest) {
     const id = String(body.id || '');
     if (!id) return NextResponse.json({ error: 'Restaurant ID is required' }, { status: 400 });
     const payload: Record<string, unknown> = {};
-    for (const key of ['name','owner_name','owner_email','owner_phone','city','address','business_phone','gstin','gst_percent','cgst_percent','sgst_percent','plan','status','renewal_on']) {
+    for (const key of ['name','owner_name','owner_email','owner_phone','city','address','business_phone','gstin','gst_percent','cgst_percent','sgst_percent','plan','status','renewal_on','business_type']) {
       if (body[key] !== undefined) payload[key] = body[key];
     }
     if (!Object.keys(payload).length) return NextResponse.json({ error: 'No changes supplied' }, { status: 400 });

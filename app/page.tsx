@@ -2134,7 +2134,8 @@ export default function Home() {
     (d) => (category === "All items" || d.category === category) && d.name.toLowerCase().includes(query.toLowerCase())
   );
 
-  const isProduceShop = ["fruit_shop", "vegetable_shop"].includes(String(tenantInfo.business_type || "restaurant"));
+  const normalizedBusinessType = String(tenantInfo.business_type || "restaurant").trim().toLowerCase().replace(/[\s-]+/g, "_");
+  const isProduceShop = ["fruit_shop", "vegetable_shop", "fruit", "vegetable", "fruits", "vegetables"].includes(normalizedBusinessType);
   const posCatalog = isProduceShop ? inventoryList.filter((x) => x.onHand > 0 && Number(x.sellingPrice) > 0) : [];
   const subtotal = cart.reduce((sum, l) => {
     const d = dishes.find((x) => x.id === l.id);
@@ -2484,23 +2485,33 @@ export default function Home() {
   const checkout = async () => {
     if (subscriptionExpired) { toast.error("Your trial/subscription has ended. Please renew to continue using the app."); nav("subscription"); return; }
     if (!cart.length || !tenantId) { toast.error("Add dishes to the order first"); return; }
+    // Match cart IDs against the loaded inventory list instead of relying only on
+    // business_type; older workspace responses may not have the normalized type.
+    const cartUsesInventory = cart.length > 0 && cart.every((line) =>
+      inventoryList.some((item) => String(item.id) === String(line.id))
+    );
+    const checkoutIsProduce = isProduceShop || cartUsesInventory;
+    if (isProduceShop && !cartUsesInventory) {
+      toast.error("The cart contains items that are not linked to Inventory. Clear the cart and add produce from the Inventory POS catalog.");
+      return;
+    }
     const now = new Date();
     const id = "RP-" + now.toISOString().replace(/[-:TZ.]/g, "").slice(0, 14) + "-" + crypto.randomUUID().slice(0, 4).toUpperCase();
     const time = now.toLocaleTimeString("en-IN", { hour: "numeric", minute: "2-digit" });
     const bill: Bill = {
       id, issuedAt: now.toLocaleString("en-IN"), business: tenantInfo,
-      items: cart.map((l) => { const d = dishes.find((d) => d.id === l.id); const item = isProduceShop ? inventoryList.find((x) => x.id === l.id) : undefined; return { name: item?.name || d?.name || "Menu item", qty: l.qty, unit: item?.unit || "each", unitPrice: l.override ?? (item?.sellingPrice ?? d?.price ?? 0), discount: l.discount }; }),
+      items: cart.map((l) => { const d = dishes.find((d) => String(d.id) === String(l.id)); const item = checkoutIsProduce ? inventoryList.find((x) => String(x.id) === String(l.id)) : undefined; return { name: item?.name || d?.name || "Menu item", qty: l.qty, unit: item?.unit || "each", unitPrice: l.override ?? (item?.sellingPrice ?? d?.price ?? 0), discount: l.discount }; }),
       subtotal, discount: totalDiscount, tax, cgst: cgstAmount, sgst: sgstAmount, total,
       type: orderType, table: orderType === "Dine-in" ? table : "", payment, status: "Paid",
     };
     try {
-      const res = await authedFetch("/api/sales", { method: "POST", body: JSON.stringify({ restaurant_id: tenantId, placed_at: now.toISOString(), receipt: bill, retail_lines: isProduceShop ? cart.map((l) => ({ inventory_item_id: String(l.id), quantity: l.qty })) : undefined }) });
+      const res = await authedFetch("/api/sales", { method: "POST", body: JSON.stringify({ restaurant_id: tenantId, placed_at: now.toISOString(), receipt: bill, retail_lines: checkoutIsProduce ? cart.map((l) => ({ inventory_item_id: String(l.id), quantity: l.qty })) : undefined }) });
       const json = await res.json(); if (!res.ok) throw new Error(json.error || "Could not save sale");
       const sale: Sale = { id, time, placedAt: now.toISOString(), amount: total, type: orderType, status: "Paid", bill };
       setReceipt(bill); setOrders(old => [sale, ...old]); setCart([]); setOrderDiscount(0);
       // The database checkout deducts stock atomically. Refresh the local inventory
       // and movement history immediately so the Inventory screen reflects the sale.
-      if (isProduceShop) {
+      if (checkoutIsProduce) {
         try {
           const inventoryRes = await authedFetch(`/api/inventory?restaurant_id=${encodeURIComponent(tenantId)}`);
           const inventoryJson = await inventoryRes.json();

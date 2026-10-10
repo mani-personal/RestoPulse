@@ -22,6 +22,20 @@ export async function POST(request: Request) {
     const { supabase } = await requireRestaurantMember(request, restaurantId);
     const bill = body.receipt;
     if (!bill?.id || !bill?.items?.length) return NextResponse.json({ error: "A complete receipt is required" }, { status: 400 });
+    if (Array.isArray(body.retail_lines) && body.retail_lines.length) {
+      const { data: restaurant, error: restaurantError } = await supabase.from("restaurants").select("business_type").eq("id", restaurantId).single();
+      if (restaurantError) throw restaurantError;
+      if (!["fruit_shop", "vegetable_shop"].includes(String(restaurant?.business_type || ""))) {
+        return NextResponse.json({ error: "Inventory-based POS is enabled only for fruit and vegetable shops" }, { status: 400 });
+      }
+      const { data: sale, error: retailError } = await supabase.rpc("complete_retail_sale", {
+        p_restaurant_id: restaurantId, p_bill_no: String(bill.id), p_placed_at: body.placed_at || new Date().toISOString(),
+        p_order_type: String(bill.type || "Retail"), p_amount: Number(bill.total) || 0, p_status: String(bill.status || "Paid"),
+        p_receipt: bill, p_lines: body.retail_lines
+      });
+      if (retailError) throw retailError;
+      return NextResponse.json({ sale }, { status: 201 });
+    }
     const { data, error } = await supabase.from("sales").insert({
       restaurant_id: restaurantId,
       bill_no: String(bill.id),

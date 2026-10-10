@@ -2498,6 +2498,20 @@ export default function Home() {
       const json = await res.json(); if (!res.ok) throw new Error(json.error || "Could not save sale");
       const sale: Sale = { id, time, placedAt: now.toISOString(), amount: total, type: orderType, status: "Paid", bill };
       setReceipt(bill); setOrders(old => [sale, ...old]); setCart([]); setOrderDiscount(0);
+      // The database checkout deducts stock atomically. Refresh the local inventory
+      // and movement history immediately so the Inventory screen reflects the sale.
+      if (isProduceShop) {
+        try {
+          const inventoryRes = await authedFetch(`/api/inventory?restaurant_id=${encodeURIComponent(tenantId)}`);
+          const inventoryJson = await inventoryRes.json();
+          if (!inventoryRes.ok) throw new Error(inventoryJson.error || "Could not refresh inventory");
+          setInventoryList((inventoryJson.items || []).map((x: any) => ({ id: x.id, name: x.name, category: x.category, onHand: Number(x.on_hand), unit: x.unit, reorderLevel: Number(x.reorder_level), cost: Number(x.cost || 0), sellingPrice: Number(x.selling_price || 0) })));
+          setInventoryTransactions(inventoryJson.transactions || []);
+        } catch (refreshError) {
+          console.error("Inventory refresh after POS sale failed", refreshError);
+          toast.error("Sale completed, but inventory could not refresh. Reopen Inventory to reload stock.");
+        }
+      }
       toast.success("Payment complete · " + id);
     } catch (e: any) { toast.error(e.message || "Sale could not be saved"); }
   };

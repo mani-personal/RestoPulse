@@ -26,7 +26,8 @@ export async function POST(request: Request) {
     // fall through to the restaurant-only sales insert, which does not deduct stock.
     const { data: restaurant, error: restaurantError } = await supabase.from("restaurants").select("business_type").eq("id", restaurantId).single();
     if (restaurantError) throw restaurantError;
-    const isProduceShop = ["fruit_shop", "vegetable_shop"].includes(String(restaurant?.business_type || ""));
+    const businessType = String(restaurant?.business_type || "").trim().toLowerCase().replace(/[\s-]+/g, "_");
+    const isProduceShop = ["fruit_shop", "vegetable_shop", "fruit", "vegetable", "fruits", "vegetables"].includes(businessType);
     if (isProduceShop) {
       if (!Array.isArray(body.retail_lines) || body.retail_lines.length === 0) {
         return NextResponse.json({ error: "No inventory items were sent for this produce sale. Please remove the cart items and add them again from Inventory POS." }, { status: 400 });

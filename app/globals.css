@@ -230,4 +230,9 @@
   .management-panel .table-scroll{max-width:100%;overflow-x:auto!important}
   .receipt-paper .truncate{white-space:normal!important;overflow:visible!important;text-overflow:clip!important}
 }
-.auth-card .auth-password-field{display:block;position:relative;width:100%;min-width:0}.auth-card .auth-password-field input{display:block;width:100%;box-sizing:border-box;padding-right:42px}.auth-card .auth-password-field button{height:28px;width:28px;display:grid;place-items:center;z-index:2}
+
+
+/* Produce-shop POS responsive layout */
+.produce-stock-hint{font-size:11px;color:var(--text-muted);overflow-wrap:anywhere}
+@media (max-width:1024px){.pos-layout{grid-template-columns:minmax(0,1fr)!important;gap:14px}.order-panel{position:static!important;width:100%;min-width:0}.pos-catalog{min-width:0}.dish-grid{grid-template-columns:repeat(3,minmax(0,1fr))}}
+@media (max-width:767px){.dish-grid{grid-template-columns:repeat(2,minmax(0,1fr))!important;gap:8px}.dish-tile{min-width:0}.dish-body{min-width:0}.dish-price{overflow-wrap:anywhere}.cart-controls input{min-width:0}.inventory-actions{flex-wrap:wrap;white-space:normal}.inventory-action{flex-shrink:0}}

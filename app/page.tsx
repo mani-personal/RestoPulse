@@ -1230,9 +1230,10 @@ export default function Home() {
 
   const loadRestaurantData = useCallback(async (id: string) => {
     if (!id || isAdmin) return;
-    setOrders([]); setDishes([]); setExpenses([]); setSuppliers([]); setSupplierPayments([]);
-    setStaff([]); setWages([]); setInventoryList([]); setInventoryTransactions([]);
-    setIsDataLoading(true);
+    // Keep the current workspace visible while refreshing; only show the blocking
+    // loader on the first load so routine operations feel responsive.
+    const hasCachedWorkspaceData = orders.length > 0 || dishes.length > 0 || expenses.length > 0 || suppliers.length > 0 || inventoryList.length > 0 || staff.length > 0;
+    if (!hasCachedWorkspaceData) setIsDataLoading(true);
     try {
       const [salesRes, inventoryRes, menuRes, expensesRes, supplierRes, paymentRes, staffRes, wagesRes, membershipsRes] = await Promise.all([
         authedFetch(`/api/sales?restaurant_id=${encodeURIComponent(id)}`),
@@ -1268,7 +1269,7 @@ export default function Home() {
       console.error("Restaurant data load failed", e);
       toast.error("Some restaurant data could not be loaded.");
     } finally { setIsDataLoading(false); }
-  }, [authedFetch, db, isAdmin]);
+  }, [authedFetch, db, isAdmin, orders.length, dishes.length, expenses.length, suppliers.length, inventoryList.length, staff.length]);
 
   useEffect(() => {
     if (tenantId && !isAdmin) loadRestaurantData(tenantId);
@@ -1362,7 +1363,7 @@ export default function Home() {
       });
       const json = await res.json();
       if (!res.ok) throw new Error(json.error || "Could not save inventory item");
-      await loadRestaurantData(tenantId);
+      void loadRestaurantData(tenantId);
       setModal(null); setEditingInvId(null);
       setInvForm({ name: "", category: "Grains", onHand: "", unit: "bags", reorderLevel: "5" });
       toast.success(editingInvId ? "Inventory item updated successfully!" : "Inventory item added successfully!");
@@ -1375,7 +1376,7 @@ export default function Home() {
       const res = await authedFetch("/api/inventory", { method: "DELETE", body: JSON.stringify({ restaurant_id: tenantId, id }) });
       const json = await res.json();
       if (!res.ok) throw new Error(json.error || "Could not delete inventory item");
-      await loadRestaurantData(tenantId);
+      void loadRestaurantData(tenantId);
       toast.success("Inventory item deleted");
     } catch (e: any) { toast.error(e.message || "Could not delete inventory item"); }
   };
@@ -1398,7 +1399,9 @@ export default function Home() {
         })
       });
       const json = await res.json(); if (!res.ok) throw new Error(json.error || "Could not update stock");
-      await loadRestaurantData(tenantId); toast.success(`${type}: ${item.name}`);
+      // Update the visible stock immediately; refresh history in the background.
+      setInventoryList((items) => items.map((x) => String(x.id) === String(item.id) ? { ...x, onHand: item.onHand + delta } : x));
+      void loadRestaurantData(tenantId); toast.success(`${type}: ${item.name}`);
       return true;
     } catch (e: any) { toast.error(e.message || "Could not update stock"); return false; }
   };
@@ -2302,6 +2305,14 @@ export default function Home() {
     return !Number.isNaN(d.getTime()) && d >= selectedStart && d < selectedEnd;
   };
   const selectedOrders = paidOrders.filter(o => inSelectedRange(o.placedAt));
+  const filteredExpenses = expenses.filter(e => {
+    const q = expenseSearch.trim().toLowerCase(); const d = String(e.date || "").slice(0, 10);
+    return (!q || `${e.name} ${e.vendor || ""} ${e.category || ""}`.toLowerCase().includes(q))
+      && (expenseCategoryFilter === "All categories" || e.category === expenseCategoryFilter)
+      && (!expenseStartDate || d >= expenseStartDate)
+      && (!expenseEndDate || d <= expenseEndDate)
+      && (!expenseStartDate || !expenseEndDate || expenseStartDate <= expenseEndDate);
+  });
   const selectedExpenses = expenses.filter(e => inSelectedRange(`${e.date}T12:00:00`));
   const selectedWages = wages.filter(w => w.status === "Paid" && inSelectedRange(`${w.date}T12:00:00`));
   const netSales = selectedOrders.reduce((n, o) => n + (Number(o.bill?.subtotal) || 0) - (Number(o.bill?.discount) || 0), 0);
@@ -3393,14 +3404,29 @@ export default function Home() {
               </div>
 
               <div className="panel management-panel mt-6">
-                <div className="p-4 border-b grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
-                  <input value={expenseSearch} onChange={e => setExpenseSearch(e.target.value)} placeholder="Search description or vendor" className="w-full p-2 border rounded-lg bg-background text-xs" />
-                  <select value={expenseCategoryFilter} onChange={e => setExpenseCategoryFilter(e.target.value)} className="w-full p-2 border rounded-lg bg-background text-xs">
-                    <option>All categories</option>
-                    {[...new Set(expenses.map(e => e.category).filter(Boolean))].sort().map(c => <option key={c}>{c}</option>)}
-                  </select>
-                  <label className="text-xs text-muted-foreground">From <input type="date" value={expenseStartDate} onChange={e => setExpenseStartDate(e.target.value)} className="block w-full p-2 border rounded-lg bg-background text-xs" /></label>
-                  <label className="text-xs text-muted-foreground">To <input type="date" value={expenseEndDate} onChange={e => setExpenseEndDate(e.target.value)} className="block w-full p-2 border rounded-lg bg-background text-xs" /></label>
+                <div className="p-4 border-b space-y-3">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <span className="text-xs font-semibold text-muted-foreground">Quick range:</span>
+                    {[{label:"Today",days:0},{label:"Last 7 days",days:7},{label:"Last 30 days",days:30},{label:"This month",days:-1},{label:"Last month",days:-2}].map((range) => <button key={range.label} type="button" className="quiet-btn text-xs px-3 py-1.5" onClick={() => {
+                      const now = new Date(); const end = new Date(now); let start = new Date(now);
+                      if (range.days === -1) { start = new Date(now.getFullYear(), now.getMonth(), 1); }
+                      else if (range.days === -2) { start = new Date(now.getFullYear(), now.getMonth() - 1, 1); end.setDate(0); }
+                      else { start.setDate(now.getDate() - range.days); }
+                      const fmt = (d: Date) => `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}-${String(d.getDate()).padStart(2,"0")}`;
+                      setExpenseStartDate(fmt(start)); setExpenseEndDate(fmt(end));
+                    }}>{range.label}</button>)}
+                    <button type="button" className="quiet-btn text-xs px-3 py-1.5" onClick={() => { setExpenseStartDate(""); setExpenseEndDate(""); setExpenseSearch(""); setExpenseCategoryFilter("All categories"); }}>Clear filters</button>
+                  </div>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+                    <input value={expenseSearch} onChange={e => setExpenseSearch(e.target.value)} placeholder="Search description or vendor" className="w-full p-2 border rounded-lg bg-background text-xs" />
+                    <select value={expenseCategoryFilter} onChange={e => setExpenseCategoryFilter(e.target.value)} className="w-full p-2 border rounded-lg bg-background text-xs">
+                      <option>All categories</option>
+                      {[...new Set(expenses.map(e => e.category).filter(Boolean))].sort().map(c => <option key={c}>{c}</option>)}
+                    </select>
+                    <label className="text-xs text-muted-foreground">From date <input type="date" max={expenseEndDate || undefined} value={expenseStartDate} onChange={e => setExpenseStartDate(e.target.value)} className="block w-full p-2 border rounded-lg bg-background text-xs" /></label>
+                    <label className="text-xs text-muted-foreground">To date <input type="date" min={expenseStartDate || undefined} value={expenseEndDate} onChange={e => setExpenseEndDate(e.target.value)} className="block w-full p-2 border rounded-lg bg-background text-xs" /></label>
+                  </div>
+                  {expenseStartDate && expenseEndDate && expenseStartDate > expenseEndDate && <p className="text-xs text-red-600">The start date must be on or before the end date.</p>}
                 </div>
                 <div className="table-scroll">
                   <table className="enhanced-data-table">
@@ -3408,14 +3434,7 @@ export default function Home() {
                       <tr><th>DATE</th><th>DESCRIPTION</th><th>CATEGORY</th><th>VENDOR</th><th className="text-right">AMOUNT</th></tr>
                     </thead>
                     <tbody>
-                      {expenses.filter(e => {
-                        const q = expenseSearch.trim().toLowerCase();
-                        const d = String(e.date || "").slice(0, 10);
-                        return (!q || `${e.name} ${e.vendor || ""} ${e.category || ""}`.toLowerCase().includes(q))
-                          && (expenseCategoryFilter === "All categories" || e.category === expenseCategoryFilter)
-                          && (!expenseStartDate || d >= expenseStartDate)
-                          && (!expenseEndDate || d <= expenseEndDate);
-                      }).map((e) => (
+                      {filteredExpenses.map((e) => (
                         <tr key={e.id}>
                           <td className="text-xs text-muted-foreground">{new Date(`${e.date}T12:00:00`).toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" })}</td>
                           <td className="strong">{e.name}</td>
@@ -3424,10 +3443,7 @@ export default function Home() {
                           <td className="strong text-right">{money(e.amount)}</td>
                         </tr>
                       ))}
-                      {!expenses.filter(e => {
-                        const q = expenseSearch.trim().toLowerCase(); const d = String(e.date || "").slice(0, 10);
-                        return (!q || `${e.name} ${e.vendor || ""} ${e.category || ""}`.toLowerCase().includes(q)) && (expenseCategoryFilter === "All categories" || e.category === expenseCategoryFilter) && (!expenseStartDate || d >= expenseStartDate) && (!expenseEndDate || d <= expenseEndDate);
-                      }).length && (
+                      {!filteredExpenses.length && (
                         <tr>
                           <td colSpan={5} className="text-center py-6 text-muted-foreground text-xs">
                             No expenses logged yet.

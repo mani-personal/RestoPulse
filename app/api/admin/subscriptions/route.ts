@@ -57,11 +57,20 @@ export async function PATCH(request:Request){
       if(!Number.isFinite(days)||days<=0||days>3650)return NextResponse.json({error:"Extension must be between 1 and 3650 days"},{status:400});
       const {data:rest,error:restError}=await supabase.from("restaurants").select("id,renewal_on,status").eq("id",restaurantId).single();
       if(restError||!rest)throw restError||new Error("Restaurant not found");
-      const now=new Date();
-      let base=now;
-      if(rest.renewal_on){const d=new Date(rest.renewal_on);if(!isNaN(d.getTime())&&d>base)base=d;}
-      base.setDate(base.getDate()+days);
-      const renewal=base.toISOString().slice(0,10);
+      let renewal: string;
+      if (body.renewal_on) {
+        const requested = String(body.renewal_on);
+        if (!/^\d{4}-\d{2}-\d{2}$/.test(requested) || Number.isNaN(Date.parse(`${requested}T00:00:00Z`))) {
+          return NextResponse.json({ error:"Enter a valid custom subscription end date" }, { status:400 });
+        }
+        renewal = requested;
+      } else {
+        const now=new Date();
+        let base=now;
+        if(rest.renewal_on){const d=new Date(`${String(rest.renewal_on).slice(0,10)}T00:00:00`);if(!isNaN(d.getTime())&&d>base)base=d;}
+        base.setDate(base.getDate()+days);
+        renewal=base.toISOString().slice(0,10);
+      }
       const {error:updateError}=await supabase.from("restaurants").update({status:"Active",renewal_on:renewal}).eq("id",restaurantId);
       if(updateError)throw updateError;
       return NextResponse.json({success:true,status:"Active",restaurant_id:restaurantId,renewal_on:renewal,days_added:days});

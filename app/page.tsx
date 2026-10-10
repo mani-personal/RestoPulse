@@ -133,6 +133,7 @@ type InventoryItem = {
   unit: string;
   reorderLevel: number;
   cost?: number;
+  sellingPrice?: number;
 };
 
 type RestaurantApproval = {
@@ -206,6 +207,7 @@ type SupplierPayment = {
 type BillItem = {
   name: string;
   qty: number;
+  unit?: string;
   unitPrice: number;
   discount: number;
 };
@@ -327,6 +329,7 @@ export default function Home() {
 
   const [tenantInfo, setTenantInfo] = useState<{
     id?: string;
+    business_type?: string;
     name: string;
     logo_url: string | null;
     address: string;
@@ -1043,10 +1046,10 @@ export default function Home() {
   const [inventoryTransactions, setInventoryTransactions] = useState<any[]>([]);
   const [saleHistoryOpen, setSaleHistoryOpen] = useState(false);
   const [isDataLoading, setIsDataLoading] = useState(false);
-  const [invForm, setInvForm] = useState({ name: "", category: "Grains", onHand: "", unit: "bags", reorderLevel: "5" });
+  const [invForm, setInvForm] = useState({ name: "", category: "Produce", onHand: "", unit: "kg", reorderLevel: "5", cost: "", sellingPrice: "" });
   const [editingInvId, setEditingInvId] = useState<string | number | null>(null);
   const [stockAdjustItem, setStockAdjustItem] = useState<InventoryItem | null>(null);
-  const [stockAdjustMode, setStockAdjustMode] = useState<"add" | "reduce">("reduce");
+  const [stockAdjustMode, setStockAdjustMode] = useState<"add" | "reduce" | "waste">("reduce");
   const [stockAdjustQty, setStockAdjustQty] = useState("");
   const [stockAdjustNote, setStockAdjustNote] = useState("");
 
@@ -1153,6 +1156,7 @@ export default function Home() {
     setTenantInfo((prev) => ({
       ...prev,
       id: rest.id,
+      business_type: rest.business_type || "restaurant",
       name: rest.name || "",
       address: rest.city ? `${rest.name}, ${rest.city}` : "",
       business_phone: rest.phone || "",
@@ -1189,6 +1193,7 @@ export default function Home() {
           setTenantInfo((prev) => ({
             ...prev,
             id: data.restaurant.id,
+            business_type: data.restaurant.business_type || prev.business_type || "restaurant",
             name: data.restaurant.name,
             address: data.restaurant.address || prev.address,
             business_phone: data.restaurant.owner_phone || prev.business_phone,
@@ -1853,7 +1858,7 @@ export default function Home() {
         placedAt: s.placed_at, amount: Number(s.amount) || 0, type: s.order_type, status: s.status, bill: s.receipt
       })));
       if (inventoryRes.ok) {
-        setInventoryList((inventoryJson.items || []).map((x: any) => ({ id: x.id, name: x.name, category: x.category, onHand: Number(x.on_hand), unit: x.unit, reorderLevel: Number(x.reorder_level), cost: Number(x.cost || 0) })));
+        setInventoryList((inventoryJson.items || []).map((x: any) => ({ id: x.id, name: x.name, category: x.category, onHand: Number(x.on_hand), unit: x.unit, reorderLevel: Number(x.reorder_level), cost: Number(x.cost || 0), sellingPrice: Number(x.selling_price || 0) })));
         setInventoryTransactions(inventoryJson.transactions || []);
       }
       if (!menuRes.error) setDishes((menuRes.data || []).map((x: any) => ({ id: x.id, name: x.name, category: x.category, price: Number(x.price), cost: Number(x.cost), stock: x.available, emoji: x.emoji, diet: x.diet, time: x.prep_minutes, imageUrl: x.image_url })));
@@ -1958,6 +1963,8 @@ export default function Home() {
           on_hand: qty,
           unit: invForm.unit,
           reorder_level: Number.isFinite(reorder) ? reorder : 5,
+          cost: Math.max(0, Number(invForm.cost) || 0),
+          selling_price: Math.max(0, Number(invForm.sellingPrice) || 0),
           transaction_type: editingInvId ? "Adjustment" : "Opening balance",
         }),
       });
@@ -1965,7 +1972,7 @@ export default function Home() {
       if (!res.ok) throw new Error(json.error || "Could not save inventory item");
       await loadRestaurantData(tenantId);
       setModal(null); setEditingInvId(null);
-      setInvForm({ name: "", category: "Grains", onHand: "", unit: "bags", reorderLevel: "5" });
+      setInvForm({ name: "", category: isProduceShop ? (tenantInfo.business_type === "fruit_shop" ? "Fruits" : "Vegetables") : "Grains", onHand: "", unit: isProduceShop ? "kg" : "bags", reorderLevel: "5", cost: "", sellingPrice: "" });
       toast.success(editingInvId ? "Inventory item updated successfully!" : "Inventory item added successfully!");
     } catch (e: any) { toast.error(e.message || "Could not save inventory item"); }
   };
@@ -2026,15 +2033,15 @@ export default function Home() {
       toast.error("Enter a quantity greater than 0");
       return;
     }
-    if (stockAdjustMode === "reduce" && qty > stockAdjustItem.onHand) {
+    if (stockAdjustMode !== "add" && qty > stockAdjustItem.onHand) {
       toast.error(`You can reduce a maximum of ${stockAdjustItem.onHand} ${stockAdjustItem.unit}`);
       return;
     }
     const delta = stockAdjustMode === "add" ? qty : -qty;
-    const type = stockAdjustMode === "add" ? "Stock addition" : "Stock reduction";
+    const type = stockAdjustMode === "add" ? "Stock purchase" : stockAdjustMode === "waste" ? "Wastage" : "Stock reduction";
     const defaultNote = stockAdjustMode === "add"
-      ? `Manual stock addition of ${qty} ${stockAdjustItem.unit}`
-      : `Manual stock reduction of ${qty} ${stockAdjustItem.unit}`;
+      ? `Purchase received: ${qty} ${stockAdjustItem.unit}`
+      : stockAdjustMode === "waste" ? `Spoiled / damaged produce: ${qty} ${stockAdjustItem.unit}` : `Manual stock reduction of ${qty} ${stockAdjustItem.unit}`;
     const ok = await adjustInventory(stockAdjustItem, delta, type, stockAdjustNote.trim() || defaultNote);
     if (ok) {
       setModal(null);
@@ -2053,10 +2060,12 @@ export default function Home() {
         onHand: String(item.onHand),
         unit: item.unit,
         reorderLevel: String(item.reorderLevel),
+        cost: String(item.cost || 0),
+        sellingPrice: String(item.sellingPrice || 0),
       });
     } else {
       setEditingInvId(null);
-      setInvForm({ name: "", category: "Grains", onHand: "", unit: "bags", reorderLevel: "5" });
+      setInvForm({ name: "", category: isProduceShop ? (tenantInfo.business_type === "fruit_shop" ? "Fruits" : "Vegetables") : "Grains", onHand: "", unit: isProduceShop ? "kg" : "bags", reorderLevel: "5", cost: "", sellingPrice: "" });
     }
     setModal("inventory");
   };
@@ -2125,9 +2134,12 @@ export default function Home() {
     (d) => (category === "All items" || d.category === category) && d.name.toLowerCase().includes(query.toLowerCase())
   );
 
+  const isProduceShop = ["fruit_shop", "vegetable_shop"].includes(String(tenantInfo.business_type || "restaurant"));
+  const posCatalog = isProduceShop ? inventoryList.filter((x) => x.onHand > 0 && Number(x.sellingPrice) > 0) : [];
   const subtotal = cart.reduce((sum, l) => {
     const d = dishes.find((x) => x.id === l.id);
-    return sum + (l.override ?? d?.price ?? 0) * l.qty;
+    const stockItem = isProduceShop ? inventoryList.find((x) => x.id === l.id) : undefined;
+    return sum + (l.override ?? (isProduceShop ? stockItem?.sellingPrice : d?.price) ?? 0) * l.qty;
   }, 0);
   const lineDiscount = cart.reduce((sum, l) => sum + l.discount * l.qty, 0);
   const totalDiscount = Math.min(subtotal, lineDiscount + orderDiscount);
@@ -2158,7 +2170,7 @@ export default function Home() {
   };
 
   const qty = (id: number | string, delta: number) =>
-    setCart((old) => old.map((l) => (l.id === id ? { ...l, qty: l.qty + delta } : l)).filter((l) => l.qty > 0));
+    setCart((old) => old.map((l) => (l.id === id ? { ...l, qty: Math.max(0, Math.round((l.qty + delta) * 1000) / 1000) } : l)).filter((l) => l.qty > 0));
 
   const open = (which: typeof modal, id?: number | string) => {
     setModal(which);
@@ -2477,12 +2489,12 @@ export default function Home() {
     const time = now.toLocaleTimeString("en-IN", { hour: "numeric", minute: "2-digit" });
     const bill: Bill = {
       id, issuedAt: now.toLocaleString("en-IN"), business: tenantInfo,
-      items: cart.map((l) => ({ name: dishes.find((d) => d.id === l.id)?.name || "Menu item", qty: l.qty, unitPrice: l.override ?? dishes.find((d) => d.id === l.id)?.price ?? 0, discount: l.discount })),
+      items: cart.map((l) => { const d = dishes.find((d) => d.id === l.id); const item = isProduceShop ? inventoryList.find((x) => x.id === l.id) : undefined; return { name: item?.name || d?.name || "Menu item", qty: l.qty, unit: item?.unit || "each", unitPrice: l.override ?? (item?.sellingPrice ?? d?.price ?? 0), discount: l.discount }; }),
       subtotal, discount: totalDiscount, tax, cgst: cgstAmount, sgst: sgstAmount, total,
       type: orderType, table: orderType === "Dine-in" ? table : "", payment, status: "Paid",
     };
     try {
-      const res = await authedFetch("/api/sales", { method: "POST", body: JSON.stringify({ restaurant_id: tenantId, placed_at: now.toISOString(), receipt: bill }) });
+      const res = await authedFetch("/api/sales", { method: "POST", body: JSON.stringify({ restaurant_id: tenantId, placed_at: now.toISOString(), receipt: bill, retail_lines: isProduceShop ? cart.map((l) => ({ inventory_item_id: String(l.id), quantity: l.qty })) : undefined }) });
       const json = await res.json(); if (!res.ok) throw new Error(json.error || "Could not save sale");
       const sale: Sale = { id, time, placedAt: now.toISOString(), amount: total, type: orderType, status: "Paid", bill };
       setReceipt(bill); setOrders(old => [sale, ...old]); setCart([]); setOrderDiscount(0);
@@ -3573,26 +3585,18 @@ export default function Home() {
                     </label>
                   </div>
                   <div className="dish-grid">
-                    {displayed.map((d) => (
-                      <button
-                        className={"dish-tile " + (!d.stock ? "sold-out" : "")}
-                        key={d.id}
-                        onClick={() => d.stock && addCart(d.id)}
-                        disabled={!d.stock}
-                      >
-                        <span className="dish-photo overflow-hidden flex items-center justify-center">
-                          {d.imageUrl ? (
-                            <img src={d.imageUrl} alt={d.name} className="dish-image-full" />
-                          ) : (
-                            <span>{d.emoji}</span>
-                          )}
-                        </span>
-                        <span className="dish-body">
-                          <span className="dish-name">{d.name}</span>
-                          <span className="dish-price">{money(d.price)}</span>
-                        </span>
+                    {isProduceShop ? posCatalog.filter((item) => item.name.toLowerCase().includes(query.toLowerCase())).map((item) => (
+                      <button className="dish-tile" key={String(item.id)} onClick={() => addCart(item.id)}>
+                        <span className="dish-photo overflow-hidden flex items-center justify-center"><span>{String(tenantInfo.business_type) === "fruit_shop" ? "🍎" : "🥬"}</span></span>
+                        <span className="dish-body"><span className="dish-name">{item.name}</span><span className="dish-price">{money(item.sellingPrice || 0)} / {item.unit} · {item.onHand} {item.unit} left</span></span>
+                      </button>
+                    )) : displayed.map((d) => (
+                      <button className={"dish-tile " + (!d.stock ? "sold-out" : "")} key={d.id} onClick={() => d.stock && addCart(d.id)} disabled={!d.stock}>
+                        <span className="dish-photo overflow-hidden flex items-center justify-center">{d.imageUrl ? <img src={d.imageUrl} alt={d.name} className="dish-image-full" /> : <span>{d.emoji}</span>}</span>
+                        <span className="dish-body"><span className="dish-name">{d.name}</span><span className="dish-price">{money(d.price)}</span></span>
                       </button>
                     ))}
+                    {isProduceShop && posCatalog.length === 0 && <p className="text-sm text-muted-foreground p-4">Add produce to Inventory and set a selling price to make it available in POS.</p>}
                   </div>
                 </section>
 
@@ -3607,7 +3611,9 @@ export default function Home() {
 
                     <div className="cart-items space-y-3 max-h-[460px] overflow-y-auto pr-1">
                       {cart.map((l) => {
-                        const d = dishes.find((x) => x.id === l.id)!;
+                        const dish = dishes.find((x) => x.id === l.id);
+                        const stockItem = isProduceShop ? inventoryList.find((x) => x.id === l.id) : undefined;
+                        const d = { name: stockItem?.name || dish?.name || "Item", price: stockItem?.sellingPrice ?? dish?.price ?? 0, emoji: stockItem ? (tenantInfo.business_type === "fruit_shop" ? "🍎" : "🥬") : dish?.emoji || "🍽️", imageUrl: dish?.imageUrl };
                         return (
                           <div
                             key={l.id}
@@ -3627,7 +3633,7 @@ export default function Home() {
                                     {d.name}
                                   </h4>
                                   <span className="text-[11px] text-muted-foreground block">
-                                    {money(l.override ?? d.price)} each
+                                    {money(l.override ?? d.price)} / {stockItem?.unit || "each"}
                                   </span>
                                 </div>
                               </div>
@@ -3649,17 +3655,15 @@ export default function Home() {
                               <div className="cart-controls flex items-center border rounded-lg bg-secondary/40 overflow-hidden">
                                 <button
                                   className="px-2.5 py-1 hover:bg-secondary rounded-l transition-colors"
-                                  onClick={() => qty(l.id, -1)}
+                                  onClick={() => qty(l.id, isProduceShop ? -0.5 : -1)}
                                   aria-label={tr("Decrease quantity")}
                                 >
                                   <Minus size={11} />
                                 </button>
-                                <span className="px-2.5 text-xs font-bold font-mono min-w-[20px] text-center">
-                                  {l.qty}
-                                </span>
+                                {isProduceShop ? <input aria-label={`Quantity of ${d.name}`} type="number" min="0.001" step="0.001" value={l.qty} onChange={(e) => { const next = Number(e.target.value); if (Number.isFinite(next) && next > 0) setCart((old) => old.map((line) => line.id === l.id ? { ...line, qty: next } : line)); }} className="w-16 px-1 text-xs font-bold font-mono text-center bg-transparent" /> : <span className="px-2.5 text-xs font-bold font-mono min-w-[20px] text-center">{l.qty}</span>}
                                 <button
                                   className="px-2.5 py-1 hover:bg-secondary rounded-r transition-colors"
-                                  onClick={() => qty(l.id, 1)}
+                                  onClick={() => qty(l.id, isProduceShop ? 0.5 : 1)}
                                   aria-label={tr("Increase quantity")}
                                 >
                                   <Plus size={11} />
@@ -3798,10 +3802,10 @@ export default function Home() {
               <div className="page-head flex justify-between items-center">
                 <div>
                   <div className="eyebrow">{tr("WAREHOUSE & STOCK")}</div>
-                  <h1>{tr("Inventory Manager")}</h1>
+                  <h1>{isProduceShop ? (tenantInfo.business_type === "fruit_shop" ? "Fruit Inventory" : "Vegetable Inventory") : tr("Inventory Manager")}</h1>
                 </div>
                 <button className="primary-btn flex items-center gap-2" onClick={() => openInventoryModal()}>
-                  <Plus size={17} /> Add Stock Item
+                  <Plus size={17} /> {isProduceShop ? "Add Produce" : "Add Stock Item"}
                 </button>
               </div>
               <div className="kpi-grid mt-4">
@@ -3820,6 +3824,7 @@ export default function Home() {
                       <tr className="border-b text-sm text-muted-foreground">
                         <th className="p-3">{tr("ITEM NAME")}</th>
                         <th className="p-3">{tr("ON HAND")}</th>
+                        {isProduceShop && <><th className="p-3">{tr("COST / UNIT")}</th><th className="p-3">{tr("SELL / UNIT")}</th></>}
                         <th className="p-3">{tr("REORDER LEVEL")}</th>
                         <th className="p-3">{tr("STATUS ALERT")}</th>
                         <th className="p-3 text-right">{tr("ACTIONS")}</th>
@@ -3833,6 +3838,7 @@ export default function Home() {
                           <tr key={item.id} className="border-b hover:bg-muted/50">
                             <td className="p-3 font-semibold">{item.name}</td>
                             <td className="p-3 font-mono font-bold">{item.onHand} {item.unit}</td>
+                            {isProduceShop && <><td className="p-3">{money(item.cost || 0)}</td><td className="p-3">{money(item.sellingPrice || 0)}</td></>}
                             <td className="p-3 font-mono text-muted-foreground">{item.reorderLevel} {item.unit}</td>
                             <td className="p-3">
                               {isOut ? (
@@ -3847,6 +3853,7 @@ export default function Home() {
                               <div className="inventory-actions" aria-label={`Actions for ${item.name}`}>
                                 <button className="inventory-action add" title={tr("Add stock")} aria-label={`Add stock to ${item.name}`} onClick={() => openStockAddition(item)}><Plus size={14} strokeWidth={2.5} /></button>
                                 <button className="inventory-action reduce" title={tr("Reduce stock")} aria-label={`Reduce stock from ${item.name}`} onClick={() => openStockReduction(item)}><Minus size={14} strokeWidth={2.5} /></button>
+                                {isProduceShop && <button className="inventory-action reduce" title="Record wastage" aria-label={`Record wastage for ${item.name}`} onClick={() => { setStockAdjustItem(item); setStockAdjustMode("waste"); setStockAdjustQty(""); setStockAdjustNote("Spoiled or damaged produce"); setModal("stockAdjust"); }}><Trash2 size={14} /></button>}
                                 <button className="inventory-action edit" title={tr("Edit item")} aria-label={`Edit ${item.name}`} onClick={() => openInventoryModal(item)}><Pencil size={14} /></button>
                                 <button className="inventory-action delete" title={tr("Delete item")} aria-label={`Delete ${item.name}`} onClick={() => handleDeleteInventory(item.id)}><Trash2 size={14} /></button>
                               </div>
@@ -3856,7 +3863,7 @@ export default function Home() {
                       })}
                       {!inventoryList.length && (
                         <tr>
-                          <td colSpan={5} className="text-center py-6 text-muted-foreground text-xs">
+                          <td colSpan={isProduceShop ? 7 : 5} className="text-center py-6 text-muted-foreground text-xs">
                             No inventory items found. Add items to track stock.
                           </td>
                         </tr>
@@ -4961,6 +4968,16 @@ export default function Home() {
                 <input type="text" value={invForm.unit} onChange={(e) => setInvForm({ ...invForm, unit: e.target.value })} className="w-full p-2 border rounded-md text-sm bg-transparent" />
               </label>
             </div>
+            <div className="grid grid-cols-2 gap-3">
+              <label className="block space-y-1">
+                <span className="text-sm font-medium">{tr("Cost Price (per unit)")}</span>
+                <input type="number" min="0" step="0.01" value={invForm.cost} onChange={(e) => setInvForm({ ...invForm, cost: e.target.value })} className="w-full p-2 border rounded-md text-sm bg-transparent" />
+              </label>
+              <label className="block space-y-1">
+                <span className="text-sm font-medium">{tr("Selling Price (per unit)")}</span>
+                <input type="number" min="0" step="0.01" value={invForm.sellingPrice} onChange={(e) => setInvForm({ ...invForm, sellingPrice: e.target.value })} className="w-full p-2 border rounded-md text-sm bg-transparent" />
+              </label>
+            </div>
             <label className="block space-y-1">
               <span className="text-sm font-medium">{tr("Reorder Threshold")}</span>
               <input type="number" min="0" value={invForm.reorderLevel} onChange={(e) => setInvForm({ ...invForm, reorderLevel: e.target.value })} className="w-full p-2 border rounded-md text-sm bg-transparent" />
@@ -4985,7 +5002,7 @@ export default function Home() {
       }}>
         <DialogContent className="max-w-md">
           <DialogHeader>
-            <DialogTitle>{stockAdjustMode === "add" ? "Add Stock" : "Reduce Stock"}</DialogTitle>
+            <DialogTitle>{stockAdjustMode === "add" ? "Add Stock / Purchase" : stockAdjustMode === "waste" ? "Record Wastage" : "Reduce Stock"}</DialogTitle>
             <DialogDescription>{tr("Enter the exact quantity and an optional reason for this stock movement.")}</DialogDescription>
           </DialogHeader>
           {stockAdjustItem && (
@@ -4999,7 +5016,7 @@ export default function Home() {
                 <input
                   type="number"
                   min="0.01"
-                  max={stockAdjustMode === "reduce" ? stockAdjustItem.onHand : undefined}
+                  max={stockAdjustMode !== "add" ? stockAdjustItem.onHand : undefined}
                   step="any"
                   autoFocus
                   value={stockAdjustQty}
@@ -5007,7 +5024,7 @@ export default function Home() {
                   placeholder={`e.g. 2 or 0.5 ${stockAdjustItem.unit}`}
                   className="w-full p-2.5 border rounded-md text-sm bg-transparent"
                 />
-                {stockAdjustMode === "reduce" ? (
+                {stockAdjustMode !== "add" ? (
                   <span className="text-xs text-muted-foreground">Maximum: {stockAdjustItem.onHand} {stockAdjustItem.unit}</span>
                 ) : (
                   <span className="text-xs text-muted-foreground">{tr("No fixed maximum")}</span>
@@ -5033,7 +5050,7 @@ export default function Home() {
           )}
           <DialogFooter>
             <button className="quiet-btn" onClick={() => { setModal(null); setStockAdjustItem(null); }}>{tr("Cancel")}</button>
-            <button className="primary-btn" onClick={submitStockAdjustment}>{stockAdjustMode === "add" ? "Add Stock" : "Reduce Stock"}</button>
+            <button className="primary-btn" onClick={submitStockAdjustment}>{stockAdjustMode === "add" ? "Add Stock / Purchase" : stockAdjustMode === "waste" ? "Record Wastage" : "Reduce Stock"}</button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
@@ -5435,7 +5452,7 @@ export default function Home() {
                   {receipt.items.map((item, idx) => (
                     <tr key={idx} className="border-b border-dotted border-gray-200">
                       <td className="py-1 pr-1 truncate text-left">{item.name}</td>
-                      <td className="py-1 text-center">{item.qty}</td>
+                      <td className="py-1 text-center">{item.qty}{item.unit ? ` ${item.unit}` : ""}</td>
                       <td className="py-1 text-right">{money(item.unitPrice)}</td>
                       <td className="py-1 text-right font-semibold">
                         {money(item.qty * (item.unitPrice - item.discount))}

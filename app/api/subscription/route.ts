@@ -104,6 +104,7 @@ export async function GET(request: Request) {
         ? {
             id: restaurant.id,
             name: restaurant.name,
+            business_type: restaurant.business_type || "restaurant",
             plan: restaurant.plan || "Free trial",
             renewal_on: restaurant.renewal_on || "—",
             status: restaurant.status || "Active",

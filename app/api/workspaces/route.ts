@@ -16,7 +16,7 @@ export async function GET(request: Request) {
 
     const { data: restaurants, error: restaurantError } = await supabase
       .from("restaurants")
-      .select("id,name,plan,status,renewal_on,city,owner_name,owner_email,owner_phone")
+      .select("id,name,plan,status,renewal_on,city,owner_name,owner_email,owner_phone,business_type")
       .in("id", ids);
     if (restaurantError) throw restaurantError;
 
@@ -27,6 +27,7 @@ export async function GET(request: Request) {
       return {
         id: r.id,
         name: r.name,
+        business_type: r.business_type || "restaurant",
         plan: r.plan,
         status: r.status,
         renewal: r.renewal_on || "—",

@@ -374,10 +374,610 @@ export default function Home() {
   const [uiLanguage, setUiLanguage] = useState<UiLanguage>("en");
   const languageStorageKey = `rp-language:${tenantId || "platform"}`;
   const translations: Record<UiLanguage, Record<string, string>> = {
-    en: {},
-    ta: {"Overview":"கண்ணோட்டம்","POS Terminal":"விற்பனை முனையம்","Menu & dishes":"மெனு மற்றும் உணவுகள்","Inventory":"சரக்கு இருப்பு","Team & payroll":"குழு மற்றும் ஊதியம்","Expenses":"செலவுகள்","Suppliers":"சப்ளையர்கள்","Subscription":"சந்தா","Settings":"அமைப்புகள்","Support & Help":"ஆதரவு மற்றும் உதவி","RESTAURANT":"உணவகம்","WORKSPACE":"பணியிடம்","Switch Workspace":"பணியிடத்தை மாற்று","Select Workspace":"பணியிடத்தைத் தேர்ந்தெடுக்கவும்","Restaurant":"உணவகம்","Platform console":"நிர்வாகத் தளம்","Search":"தேடல்","Save":"சேமி","Cancel":"ரத்து செய்","Add Employee":"பணியாளரைச் சேர்","Employees":"பணியாளர்கள்","Date":"தேதி","Category":"வகை","Language":"மொழி"},
-    kn: {"Overview":"ಕಣ್ಣೋಟ","POS Terminal":"ಮಾರಾಟ ಕೇಂದ್ರ","Menu & dishes":"ಮೆನು ಮತ್ತು ಖಾದ್ಯಗಳು","Inventory":"ದಾಸ್ತಾನು","Team & payroll":"ತಂಡ ಮತ್ತು ವೇತನ","Expenses":"ವೆಚ್ಚಗಳು","Suppliers":"ಪೂರೈಕೆದಾರರು","Subscription":"ಚಂದಾದಾರಿಕೆ","Settings":"ಸೆಟ್ಟಿಂಗ್‌ಗಳು","Support & Help":"ಬೆಂಬಲ ಮತ್ತು ಸಹಾಯ","RESTAURANT":"ರೆಸ್ಟೋರೆಂಟ್","WORKSPACE":"ಕಾರ್ಯಸ್ಥಳ","Switch Workspace":"ಕಾರ್ಯಸ್ಥಳ ಬದಲಿಸಿ","Select Workspace":"ಕಾರ್ಯಸ್ಥಳ ಆಯ್ಕೆಮಾಡಿ","Restaurant":"ರೆಸ್ಟೋರೆಂಟ್","Platform console":"ನಿರ್ವಹಣಾ ಕನ್ಸೋಲ್","Search":"ಹುಡುಕಿ","Save":"ಉಳಿಸಿ","Cancel":"ರದ್ದುಮಾಡಿ","Add Employee":"ಉದ್ಯೋಗಿಯನ್ನು ಸೇರಿಸಿ","Employees":"ಉದ್ಯೋಗಿಗಳು","Date":"ದಿನಾಂಕ","Category":"ವರ್ಗ","Language":"ಭಾಷೆ"}
-  };
+  "en": {},
+  "ta": {
+    "Overview": "கண்ணோட்டம்",
+    "POS Terminal": "விற்பனை முனையம்",
+    "Menu & dishes": "மெனு மற்றும் உணவுகள்",
+    "Inventory": "சரக்கு இருப்பு",
+    "Team & payroll": "குழு மற்றும் ஊதியம்",
+    "Expenses": "செலவுகள்",
+    "Suppliers": "சப்ளையர்கள்",
+    "Subscription": "சந்தா",
+    "Settings": "அமைப்புகள்",
+    "Support & Help": "ஆதரவு மற்றும் உதவி",
+    "RESTAURANT": "உணவகம்",
+    "WORKSPACE": "பணியிடம்",
+    "Switch Workspace": "பணியிடத்தை மாற்று",
+    "Select Workspace": "பணியிடத்தைத் தேர்ந்தெடுக்கவும்",
+    "Restaurant": "உணவகம்",
+    "Platform console": "நிர்வாகத் தளம்",
+    "Search": "தேடல்",
+    "Save": "சேமி",
+    "Cancel": "ரத்து செய்",
+    "Add Employee": "பணியாளரைச் சேர்",
+    "Employees": "பணியாளர்கள்",
+    "Date": "தேதி",
+    "Category": "வகை",
+    "Language": "மொழி",
+    "PLATFORM CONFIGURATION": "தள அமைப்புகள்",
+    "Admin Settings": "நிர்வாக அமைப்புகள்",
+    "Platform Payment UPI": "தள கட்டண UPI",
+    "UPI ID displayed to restaurant owners for subscription upgrades.": "சந்தா புதுப்பிப்புகளுக்காக உணவக உரிமையாளர்களுக்குக் காட்டப்படும் UPI ID.",
+    "Admin UPI Identifier": "நிர்வாக UPI அடையாளம்",
+    "Admin Account": "நிர்வாகக் கணக்கு",
+    "Authenticated master platform credentials and authorization.": "தளத்தின் முதன்மை உள்நுழைவு மற்றும் அனுமதிகள்.",
+    "Signed In Email": "உள்நுழைந்த மின்னஞ்சல்",
+    "System Role": "கணினிப் பங்கு",
+    "Platform Administrator": "தள நிர்வாகி",
+    "Subscription Operations Status": "சந்தா செயல்பாட்டு நிலை",
+    "High-level financial and onboarding lifecycle summary.": "நிதி மற்றும் பதிவு செயல்முறைகளின் சுருக்கம்.",
+    "Active / Trial Workspaces": "செயலில் உள்ள / சோதனை பணியிடங்கள்",
+    "Expired Subscriptions": "காலாவதியான சந்தாக்கள்",
+    "Pending Pipeline Verifications": "நிலுவையில் உள்ள சரிபார்ப்புகள்",
+    "Total Verified Revenue": "சரிபார்க்கப்பட்ட மொத்த வருவாய்",
+    "Support & Help Desk Management": "ஆதரவு மைய மேலாண்மை",
+    "Desk / Channel Title": "மையம் / சேனல் தலைப்பு",
+    "Support Description & Working Hours": "ஆதரவு விளக்கம் மற்றும் வேலை நேரம்",
+    "RestoPulse configuration needed": "RestoPulse அமைப்பு தேவை",
+    "Loading RestoPulse…": "RestoPulse ஏற்றப்படுகிறது…",
+    "Loading workspace…": "பணியிடம் ஏற்றப்படுகிறது…",
+    "Welcome to RestoPulse": "RestoPulse-க்கு வரவேற்கிறோம்",
+    "Sign in to your restaurant or platform account.": "உங்கள் உணவகம் அல்லது தளக் கணக்கில் உள்நுழையவும்.",
+    "Platform Admin": "தள நிர்வாகி",
+    "RestoPulse console": "RestoPulse கன்சோல்",
+    "Active Plan": "செயலில் உள்ள திட்டம்",
+    "Notifications": "அறிவிப்புகள்",
+    "Review applications & proofs": "விண்ணப்பங்கள் மற்றும் ஆதாரங்களைப் பார்க்கவும்",
+    "No new platform notifications.": "புதிய தள அறிவிப்புகள் இல்லை.",
+    "No new notifications for this restaurant.": "இந்த உணவகத்திற்கு புதிய அறிவிப்புகள் இல்லை.",
+    "PLATFORM OVERVIEW": "தள கண்ணோட்டம்",
+    "Good afternoon, Platform Admin": "மதிய வணக்கம், தள நிர்வாகி",
+    "Platform-wide operations, subscription volume, and revenue metrics.": "தள செயல்பாடுகள், சந்தாக்கள் மற்றும் வருவாய் விவரங்கள்.",
+    "Subscription revenue": "சந்தா வருவாய்",
+    "Approved subscription payments": "அங்கீகரிக்கப்பட்ட சந்தா கட்டணங்கள்",
+    "Active workspaces": "செயலில் உள்ள பணியிடங்கள்",
+    "Restaurants on active/trial plans": "செயலில் / சோதனைத் திட்டங்களில் உள்ள உணவகங்கள்",
+    "Pending approvals": "நிலுவை ஒப்புதல்கள்",
+    "Onboarding & payment verifications": "பதிவு மற்றும் கட்டணச் சரிபார்ப்புகள்",
+    "Expired subscriptions": "காலாவதியான சந்தாக்கள்",
+    "Require renewal outreach": "புதுப்பிப்பு தொடர்பு தேவை",
+    "Platform subscription revenue": "தள சந்தா வருவாய்",
+    "7-day approved billing trend": "7 நாள் அங்கீகரிக்கப்பட்ட கட்டணப் போக்கு",
+    "Registered restaurants": "பதிவு செய்யப்பட்ட உணவகங்கள்",
+    "Latest active workspaces": "சமீபத்திய செயலில் உள்ள பணியிடங்கள்",
+    "View all": "அனைத்தையும் காண்க",
+    "No restaurants registered yet.": "இன்னும் உணவகங்கள் பதிவு செய்யப்படவில்லை.",
+    "OVERVIEW": "கண்ணோட்டம்",
+    "Today": "இன்று",
+    "Yesterday": "நேற்று",
+    "This week": "இந்த வாரம்",
+    "This month": "இந்த மாதம்",
+    "Custom": "தனிப்பயன்",
+    "Gross sales": "மொத்த விற்பனை",
+    "Net revenue": "நிகர வருவாய்",
+    "Paid sales, excluding tax": "வரி தவிர்த்து செலுத்தப்பட்ட விற்பனை",
+    "Operating expenses": "செயல்பாட்டு செலவுகள்",
+    "Expenses + paid wages": "செலவுகள் + செலுத்திய ஊதியம்",
+    "Real net profit": "உண்மையான நிகர லாபம்",
+    "Net sales − operating costs": "நிகர விற்பனை − செயல்பாட்டு செலவுகள்",
+    "Today Sales": "இன்றைய விற்பனை",
+    "Weekly Sales": "வாராந்திர விற்பனை",
+    "Monthly Sales": "மாதாந்திர விற்பனை",
+    "Stock Status": "இருப்பு நிலை",
+    "Revenue & expenses": "வருவாய் மற்றும் செலவுகள்",
+    "Top performing dishes": "அதிகம் விற்பனையான உணவுகள்",
+    "Popular catalog items": "பிரபலமான பட்டியல் பொருட்கள்",
+    "View menu": "மெனுவைக் காண்க",
+    "No dishes added yet.": "இன்னும் உணவுகள் சேர்க்கப்படவில்லை.",
+    "FAST CHECKOUT": "விரைவு பில்லிங்",
+    "Point of sale": "விற்பனை முனையம்",
+    "Current order": "தற்போதைய ஆர்டர்",
+    "Quantity": "அளவு",
+    "Receipt format": "ரசீது வடிவம்",
+    "Total due": "செலுத்த வேண்டிய மொத்தம்",
+    "CATALOG": "பட்டியல்",
+    "Manage recipes, dish images, pricing, and stock status.": "செய்முறை, உணவுப் படங்கள், விலை மற்றும் இருப்பு நிலையை நிர்வகிக்கவும்.",
+    "PHOTO": "படம்",
+    "DISH NAME": "உணவின் பெயர்",
+    "AVAILABILITY": "கிடைக்கும் நிலை",
+    "WAREHOUSE & STOCK": "கிடங்கு மற்றும் இருப்பு",
+    "Inventory Manager": "இருப்பு மேலாளர்",
+    "ITEM NAME": "பொருளின் பெயர்",
+    "ON HAND": "கையிருப்பு",
+    "REORDER LEVEL": "மீண்டும் ஆர்டர் அளவு",
+    "STATUS ALERT": "நிலை எச்சரிக்கை",
+    "Out of Stock 🚨": "இருப்பில் இல்லை 🚨",
+    "Low Stock ⚠️": "குறைந்த இருப்பு ⚠️",
+    "In Stock": "இருப்பில் உள்ளது",
+    "Inventory history": "இருப்பு வரலாறு",
+    "Latest stock movements": "சமீபத்திய இருப்பு மாற்றங்கள்",
+    "DATE & TIME": "தேதி மற்றும் நேரம்",
+    "TRANSACTION": "பரிவர்த்தனை",
+    "CHANGE": "மாற்றம்",
+    "STOCK": "இருப்பு",
+    "No inventory movements recorded yet.": "இன்னும் இருப்பு மாற்றங்கள் பதிவு செய்யப்படவில்லை.",
+    "YOUR PEOPLE": "உங்கள் பணியாளர்கள்",
+    "Designations, role access, and compensation (Monthly, Weekly & Daily).": "பதவிகள், அணுகல் அனுமதிகள் மற்றும் ஊதியம் (மாதம், வாரம், நாள்).",
+    "FINANCE": "நிதி",
+    "Log expense": "செலவைப் பதிவு செய்",
+    "All categories": "அனைத்து வகைகளும்",
+    "From": "தொடக்கம்",
+    "To": "முடிவு",
+    "VENDOR": "விற்பனையாளர்",
+    "ACCOUNTS": "கணக்குகள்",
+    "Supplier Directory": "வழங்குநர் பட்டியல்",
+    "All suppliers": "அனைத்து வழங்குநர்களும்",
+    "With transactions": "பரிவர்த்தனைகள் உள்ளவை",
+    "No transactions": "பரிவர்த்தனைகள் இல்லை",
+    "No suppliers match these filters.": "இந்த வடிகட்டிகளுக்கு பொருந்தும் வழங்குநர்கள் இல்லை.",
+    "Purchases": "கொள்முதல்",
+    "Payments": "கட்டணங்கள்",
+    "Balance": "மீதித் தொகை",
+    "Transaction History": "பரிவர்த்தனை வரலாறு",
+    "TYPE": "வகை",
+    "METHOD / VENDOR": "முறை / வழங்குநர்",
+    "No transactions recorded for this supplier yet.": "இந்த வழங்குநருக்கு இன்னும் பரிவர்த்தனைகள் இல்லை.",
+    "Select a supplier to view transaction history.": "பரிவர்த்தனை வரலாற்றைக் காண வழங்குநரைத் தேர்ந்தெடுக்கவும்.",
+    "PLANS & BILLING": "திட்டங்கள் மற்றும் கட்டணம்",
+    "Choose an active platform plan, scan the UPI QR code below, and submit the transaction reference.": "செயலில் உள்ள திட்டத்தைத் தேர்ந்தெடுத்து, கீழே உள்ள UPI QR குறியீட்டை ஸ்கேன் செய்து பரிவர்த்தனை எண்ணைச் சமர்ப்பிக்கவும்.",
+    "Restaurant subscription": "உணவக சந்தா",
+    "Subscription history": "சந்தா வரலாறு",
+    "Payment and approval requests for this restaurant": "இந்த உணவகத்தின் கட்டண மற்றும் ஒப்புதல் கோரிக்கைகள்",
+    "No subscription requests yet.": "இன்னும் சந்தா கோரிக்கைகள் இல்லை.",
+    "Google Pay": "Google Pay",
+    "PhonePe": "PhonePe",
+    "Other UPI": "பிற UPI",
+    "HELP & SUPPORT": "உதவி மற்றும் ஆதரவு",
+    "Contact the RestoPulse support team for billing, technical, and restaurant operations assistance.": "பில்லிங், தொழில்நுட்பம் மற்றும் உணவக செயல்பாட்டு உதவிக்கு RestoPulse ஆதரவு குழுவைத் தொடர்புகொள்ளவும்.",
+    "Support Phone": "ஆதரவு தொலைபேசி",
+    "Support Email": "ஆதரவு மின்னஞ்சல்",
+    "WhatsApp Support": "WhatsApp ஆதரவு",
+    "Support contact information is not configured yet.": "ஆதரவு தொடர்பு விவரங்கள் இன்னும் அமைக்கப்படவில்லை.",
+    "PREFERENCES": "விருப்பங்கள்",
+    "Settings & Tax Details": "அமைப்புகள் மற்றும் வரி விவரங்கள்",
+    "Configure restaurant identity, GST tax slabs, and account security.": "உணவக விவரங்கள், GST வரி விகிதங்கள் மற்றும் கணக்குப் பாதுகாப்பை அமைக்கவும்.",
+    "Restaurant & GST Details": "உணவகம் மற்றும் GST விவரங்கள்",
+    "Restaurant Name": "உணவகப் பெயர்",
+    "Phone Number": "தொலைபேசி எண்",
+    "Address": "முகவரி",
+    "GSTIN (GST Number)": "GSTIN (GST எண்)",
+    "GST Total %": "மொத்த GST %",
+    "CGST %": "CGST %",
+    "SGST %": "SGST %",
+    "Password & Security": "கடவுச்சொல் மற்றும் பாதுகாப்பு",
+    "Reset the account login password.": "கணக்கின் உள்நுழைவு கடவுச்சொல்லை மீட்டமைக்கவும்.",
+    "New Password": "புதிய கடவுச்சொல்",
+    "Confirm New Password": "புதிய கடவுச்சொல்லை உறுதிப்படுத்தவும்",
+    "PLATFORM CONTROL": "தளக் கட்டுப்பாடு",
+    "Restaurant Directory": "உணவகப் பட்டியல்",
+    "Registered restaurants on RestoPulse and their active plans.": "RestoPulse-ல் பதிவு செய்யப்பட்ட உணவகங்கள் மற்றும் அவற்றின் செயலில் உள்ள திட்டங்கள்.",
+    "STATUS": "நிலை",
+    "RENEWAL": "புதுப்பிப்பு",
+    "PLATFORM ADMINISTRATION": "தள நிர்வாகம்",
+    "Manage Admins": "நிர்வாகிகளை நிர்வகி",
+    "Add, edit, or remove platform administrators.": "தள நிர்வாகிகளைச் சேர்க்கவும், திருத்தவும் அல்லது நீக்கவும்.",
+    "Add new admin": "புதிய நிர்வாகியைச் சேர்",
+    "ADMIN": "நிர்வாகி",
+    "EMAIL": "மின்னஞ்சல்",
+    "CREATED": "உருவாக்கப்பட்டது",
+    "No platform admins found.": "தள நிர்வாகிகள் இல்லை.",
+    "PLATFORM PIPELINE": "தள செயல்முறை",
+    "Pending Approvals": "நிலுவை ஒப்புதல்கள்",
+    "Review restaurant onboarding applications and incoming subscription payment proofs.": "உணவகப் பதிவு விண்ணப்பங்கள் மற்றும் சந்தா கட்டண ஆதாரங்களைப் பரிசீலிக்கவும்.",
+    "PAYMENT PROOF": "கட்டண ஆதாரம்",
+    "TRANSACTION NOTE": "பரிவர்த்தனை குறிப்பு",
+    "No screenshot": "திரைப்பிடிப்பு இல்லை",
+    "Pending Review": "பரிசீலனை நிலுவையில்",
+    "No pending restaurant onboarding applications.": "நிலுவையில் உணவகப் பதிவு விண்ணப்பங்கள் இல்லை.",
+    "PLATFORM CONTROLS": "தளக் கட்டுப்பாடுகள்",
+    "Pricing Plans & Configuration": "விலைத் திட்டங்கள் மற்றும் அமைப்பு",
+    "Add, edit, or delete the plans offered to all restaurants across RestoPulse.": "RestoPulse உணவகங்களுக்கு வழங்கப்படும் திட்டங்களைச் சேர்க்கவும், திருத்தவும் அல்லது நீக்கவும்.",
+    "Restaurant payment UPI ID": "உணவக கட்டண UPI ID",
+    "Admin UPI ID": "நிர்வாக UPI ID",
+    "Save Admin UPI ID": "நிர்வாக UPI ID-ஐச் சேமி",
+    "Extend Subscription": "சந்தாவை நீட்டிக்கவும்",
+    "Extend the selected restaurant's current subscription without changing its plan.": "திட்டத்தை மாற்றாமல் தேர்ந்தெடுத்த உணவகத்தின் சந்தாவை நீட்டிக்கவும்.",
+    "Extension period": "நீட்டிப்பு காலம்",
+    "Extend subscription": "சந்தாவை நீட்டிக்கவும்",
+    "Manage platform administrator access.": "தள நிர்வாகி அணுகலை நிர்வகிக்கவும்.",
+    "Admin name": "நிர்வாகி பெயர்",
+    "Admin email": "நிர்வாகி மின்னஞ்சல்",
+    "Section access": "பிரிவு அணுகல்",
+    "Manage the platform restaurant account without changing the existing console style.": "தற்போதைய கன்சோல் வடிவத்தை மாற்றாமல் உணவகக் கணக்கை நிர்வகிக்கவும்.",
+    "Restaurant name": "உணவகப் பெயர்",
+    "Owner name": "உரிமையாளர் பெயர்",
+    "Owner email": "உரிமையாளர் மின்னஞ்சல்",
+    "Owner phone": "உரிமையாளர் தொலைபேசி",
+    "City": "நகரம்",
+    "Temporary password": "தற்காலிக கடவுச்சொல்",
+    "Plan": "திட்டம்",
+    "Trial": "சோதனை",
+    "Paused": "இடைநிறுத்தப்பட்டது",
+    "Renewal date": "புதுப்பிப்பு தேதி",
+    "Plan Name": "திட்டத்தின் பெயர்",
+    "Duration / Period Label": "கால அளவு / காலப் பெயர்",
+    "Features Description": "அம்ச விளக்கம்",
+    "Save Plan": "திட்டத்தைச் சேமி",
+    "Dish Photo": "உணவுப் படம்",
+    "No image": "படம் இல்லை",
+    "Dish Name": "உணவின் பெயர்",
+    "Emoji Icon": "எமோஜி குறியீடு",
+    "Appetizers": "தொடக்க உணவுகள்",
+    "Mains": "முக்கிய உணவுகள்",
+    "Breads": "ரொட்டிகள்",
+    "Rice & Biryani": "சாதம் மற்றும் பிரியாணி",
+    "Desserts": "இனிப்புகள்",
+    "Drinks": "பானங்கள்",
+    "Dietary Tag": "உணவு வகை",
+    "Standard": "சாதாரணம்",
+    "Vegetarian": "சைவம்",
+    "Non-Vegetarian": "அசைவம்",
+    "Vegan": "வீகன்",
+    "Gluten-free": "குளூட்டன் இல்லாதது",
+    "Cost (₹)": "செலவு (₹)",
+    "Prep Time (mins)": "தயாரிப்பு நேரம் (நிமிடங்கள்)",
+    "Item Name": "பொருளின் பெயர்",
+    "Quantity On Hand": "கையிருப்பு அளவு",
+    "Unit": "அலகு",
+    "Reorder Threshold": "மீண்டும் ஆர்டர் வரம்பு",
+    "Save Item": "பொருளைச் சேமி",
+    "Enter the exact quantity and an optional reason for this stock movement.": "சரியான அளவையும் விருப்பமான காரணத்தையும் உள்ளிடவும்.",
+    "Current stock:": "தற்போதைய இருப்பு:",
+    "No fixed maximum": "நிலையான அதிகபட்சம் இல்லை",
+    "Reason": "காரணம்",
+    "(optional)": "(விருப்பமானது)",
+    "Assign designation, access permissions, and salary structure.": "பதவி, அணுகல் அனுமதி மற்றும் ஊதிய அமைப்பை ஒதுக்கவும்.",
+    "Full Name": "முழுப் பெயர்",
+    "Designation & Access Role": "பதவி மற்றும் அணுகல் பங்கு",
+    "Required access": "தேவையான அணுகல்",
+    "Select only the modules this employee needs. Owner retains full access.": "பணியாளருக்குத் தேவையான பகுதிகளை மட்டும் தேர்ந்தெடுக்கவும். உரிமையாளருக்கு முழு அணுகல் இருக்கும்.",
+    "Pay Type": "ஊதிய வகை",
+    "Monthly Salary": "மாதச் சம்பளம்",
+    "Weekly Salary": "வாரச் சம்பளம்",
+    "Daily Wage": "தினக்கூலி",
+    "Daily Rate (₹)": "தினசரி விகிதம் (₹)",
+    "Weekly Salary (₹)": "வாரச் சம்பளம் (₹)",
+    "Monthly Salary (₹)": "மாதச் சம்பளம் (₹)",
+    "Save Employee": "பணியாளரைச் சேமி",
+    "Description": "விளக்கம்",
+    "Utilities": "பயன்பாட்டு செலவுகள்",
+    "Maintenance": "பராமரிப்பு",
+    "Marketing": "சந்தைப்படுத்தல்",
+    "Rent": "வாடகை",
+    "Staff welfare": "பணியாளர் நலன்",
+    "None": "எதுவுமில்லை",
+    "Supplier name": "வழங்குநர் பெயர்",
+    "Contact person": "தொடர்பு நபர்",
+    "Inactive": "செயலற்றது",
+    "Select": "தேர்ந்தெடு",
+    "Save changes": "மாற்றங்களைச் சேமி",
+    "Employee & Wage Record": "பணியாளர் மற்றும் ஊதியப் பதிவு",
+    "Record Day's Wage / Daily Attendance": "தினக்கூலி / தினசரி வருகையைப் பதிவு செய்",
+    "Weekly Payment": "வாராந்திர கட்டணம்",
+    "Pay all unpaid wage entries for a selected week.": "தேர்ந்தெடுத்த வாரத்தின் செலுத்தப்படாத ஊதியங்களைச் செலுத்தவும்.",
+    "Week start": "வாரத் தொடக்கம்",
+    "Week end": "வார முடிவு",
+    "Wage History": "ஊதிய வரலாறு",
+    "Sale History": "விற்பனை வரலாறு",
+    "Completed sales for the currently signed-in restaurant.": "தற்போது உள்நுழைந்துள்ள உணவகத்தின் நிறைவு செய்யப்பட்ட விற்பனைகள்.",
+    "Receipt": "ரசீது",
+    "Date & time": "தேதி மற்றும் நேரம்",
+    "Items": "பொருட்கள்",
+    "Payment": "கட்டணம்",
+    "Total": "மொத்தம்",
+    "View receipt": "ரசீதைக் காண்க",
+    "No completed sales yet.": "இன்னும் நிறைவு செய்யப்பட்ட விற்பனைகள் இல்லை.",
+    "Bill Details & Receipt": "பில் விவரங்கள் மற்றும் ரசீது",
+    "Format:": "வடிவம்:",
+    "QTY": "அளவு",
+    "TOTAL": "மொத்தம்",
+    "Subtotal": "உபமொத்தம்",
+    "Discount": "தள்ளுபடி",
+    "TOTAL DUE": "செலுத்த வேண்டிய மொத்தம்",
+    "Payment Mode": "கட்டண முறை",
+    "Mark as read": "படித்ததாகக் குறி",
+    "Active": "செயலில்",
+    "Status": "நிலை",
+    "Price (₹)": "விலை (₹)",
+    "Phone": "தொலைபேசி",
+    "Amount (₹)": "தொகை (₹)",
+    "ACTIONS": "செயல்கள்",
+    "OWNER": "உரிமையாளர்",
+    "PLAN": "திட்டம்",
+    "PRICE": "விலை",
+    "ITEM": "பொருள்",
+    "AMOUNT": "தொகை",
+    "DATE": "தேதி",
+    "DESCRIPTION": "விளக்கம்",
+    "Shift": "பணி நேரம்",
+    "7 days": "7 நாட்கள்",
+    "30 days": "30 நாட்கள்",
+    "90 days": "90 நாட்கள்",
+    "180 days": "180 நாட்கள்",
+    "365 days": "365 நாட்கள்"
+  },
+  "kn": {
+    "Overview": "ಅವಲೋಕನ",
+    "POS Terminal": "ಮಾರಾಟ ಕೇಂದ್ರ",
+    "Menu & dishes": "ಮೆನು ಮತ್ತು ತಿನಿಸುಗಳು",
+    "Inventory": "ದಾಸ್ತಾನು",
+    "Team & payroll": "ತಂಡ ಮತ್ತು ವೇತನ",
+    "Expenses": "ವೆಚ್ಚಗಳು",
+    "Suppliers": "ಪೂರೈಕೆದಾರರು",
+    "Subscription": "ಚಂದಾದಾರಿಕೆ",
+    "Settings": "ಸೆಟ್ಟಿಂಗ್‌ಗಳು",
+    "Support & Help": "ಬೆಂಬಲ ಮತ್ತು ಸಹಾಯ",
+    "RESTAURANT": "ರೆಸ್ಟೋರೆಂಟ್",
+    "WORKSPACE": "ಕಾರ್ಯಸ್ಥಳ",
+    "Switch Workspace": "ಕಾರ್ಯಸ್ಥಳ ಬದಲಿಸಿ",
+    "Select Workspace": "ಕಾರ್ಯಸ್ಥಳ ಆಯ್ಕೆಮಾಡಿ",
+    "Restaurant": "ರೆಸ್ಟೋರೆಂಟ್",
+    "Platform console": "ನಿರ್ವಹಣಾ ಕನ್ಸೋಲ್",
+    "Search": "ಹುಡುಕಿ",
+    "Save": "ಉಳಿಸಿ",
+    "Cancel": "ರದ್ದುಮಾಡಿ",
+    "Add Employee": "ಉದ್ಯೋಗಿಯನ್ನು ಸೇರಿಸಿ",
+    "Employees": "ಉದ್ಯೋಗಿಗಳು",
+    "Date": "ದಿನಾಂಕ",
+    "Category": "ವರ್ಗ",
+    "Language": "ಭಾಷೆ",
+    "PLATFORM CONFIGURATION": "ಪ್ಲಾಟ್‌ಫಾರ್ಮ್ ಸಂರಚನೆ",
+    "Admin Settings": "ನಿರ್ವಾಹಕ ಸೆಟ್ಟಿಂಗ್‌ಗಳು",
+    "Platform Payment UPI": "ಪ್ಲಾಟ್‌ಫಾರ್ಮ್ ಪಾವತಿ UPI",
+    "Admin UPI Identifier": "ನಿರ್ವಾಹಕ UPI ಗುರುತು",
+    "Admin Account": "ನಿರ್ವಾಹಕ ಖಾತೆ",
+    "Signed In Email": "ಲಾಗಿನ್ ಇಮೇಲ್",
+    "System Role": "ಸಿಸ್ಟಮ್ ಪಾತ್ರ",
+    "Platform Administrator": "ಪ್ಲಾಟ್‌ಫಾರ್ಮ್ ನಿರ್ವಾಹಕರು",
+    "Subscription Operations Status": "ಚಂದಾದಾರಿಕೆ ಕಾರ್ಯಾಚರಣೆ ಸ್ಥಿತಿ",
+    "Active / Trial Workspaces": "ಸಕ್ರಿಯ / ಪ್ರಯೋಗ ಕಾರ್ಯಸ್ಥಳಗಳು",
+    "Expired Subscriptions": "ಅವಧಿ ಮುಗಿದ ಚಂದಾದಾರಿಕೆಗಳು",
+    "Pending Pipeline Verifications": "ಬಾಕಿ ಪರಿಶೀಲನೆಗಳು",
+    "Total Verified Revenue": "ಒಟ್ಟು ಪರಿಶೀಲಿತ ಆದಾಯ",
+    "Support & Help Desk Management": "ಬೆಂಬಲ ಕೇಂದ್ರ ನಿರ್ವಹಣೆ",
+    "Loading RestoPulse…": "RestoPulse ಲೋಡ್ ಆಗುತ್ತಿದೆ…",
+    "Loading workspace…": "ಕಾರ್ಯಸ್ಥಳ ಲೋಡ್ ಆಗುತ್ತಿದೆ…",
+    "Welcome to RestoPulse": "RestoPulse ಗೆ ಸ್ವಾಗತ",
+    "Sign in to your restaurant or platform account.": "ನಿಮ್ಮ ರೆಸ್ಟೋರೆಂಟ್ ಅಥವಾ ಪ್ಲಾಟ್‌ಫಾರ್ಮ್ ಖಾತೆಗೆ ಲಾಗಿನ್ ಆಗಿ.",
+    "Platform Admin": "ಪ್ಲಾಟ್‌ಫಾರ್ಮ್ ನಿರ್ವಾಹಕರು",
+    "Active Plan": "ಸಕ್ರಿಯ ಯೋಜನೆ",
+    "Notifications": "ಅಧಿಸೂಚನೆಗಳು",
+    "Review applications & proofs": "ಅರ್ಜಿಗಳು ಮತ್ತು ಪುರಾವೆಗಳನ್ನು ಪರಿಶೀಲಿಸಿ",
+    "No new platform notifications.": "ಹೊಸ ಪ್ಲಾಟ್‌ಫಾರ್ಮ್ ಅಧಿಸೂಚನೆಗಳಿಲ್ಲ.",
+    "No new notifications for this restaurant.": "ಈ ರೆಸ್ಟೋರೆಂಟ್‌ಗೆ ಹೊಸ ಅಧಿಸೂಚನೆಗಳಿಲ್ಲ.",
+    "PLATFORM OVERVIEW": "ಪ್ಲಾಟ್‌ಫಾರ್ಮ್ ಅವಲೋಕನ",
+    "Good afternoon, Platform Admin": "ಶುಭ ಮಧ್ಯಾಹ್ನ, ಪ್ಲಾಟ್‌ಫಾರ್ಮ್ ನಿರ್ವಾಹಕರು",
+    "Subscription revenue": "ಚಂದಾದಾರಿಕೆ ಆದಾಯ",
+    "Approved subscription payments": "ಅನುಮೋದಿತ ಚಂದಾದಾರಿಕೆ ಪಾವತಿಗಳು",
+    "Active workspaces": "ಸಕ್ರಿಯ ಕಾರ್ಯಸ್ಥಳಗಳು",
+    "Restaurants on active/trial plans": "ಸಕ್ರಿಯ / ಪ್ರಯೋಗ ಯೋಜನೆಗಳಲ್ಲಿರುವ ರೆಸ್ಟೋರೆಂಟ್‌ಗಳು",
+    "Pending approvals": "ಬಾಕಿ ಅನುಮೋದನೆಗಳು",
+    "Expired subscriptions": "ಅವಧಿ ಮುಗಿದ ಚಂದಾದಾರಿಕೆಗಳು",
+    "Require renewal outreach": "ನವೀಕರಣ ಸಂಪರ್ಕ ಅಗತ್ಯ",
+    "View all": "ಎಲ್ಲವನ್ನೂ ನೋಡಿ",
+    "No restaurants registered yet.": "ಇನ್ನೂ ಯಾವುದೇ ರೆಸ್ಟೋರೆಂಟ್ ನೋಂದಾಯಿಸಿಲ್ಲ.",
+    "OVERVIEW": "ಅವಲೋಕನ",
+    "Today": "ಇಂದು",
+    "Yesterday": "ನಿನ್ನೆ",
+    "This week": "ಈ ವಾರ",
+    "This month": "ಈ ತಿಂಗಳು",
+    "Custom": "ಕಸ್ಟಮ್",
+    "Gross sales": "ಒಟ್ಟು ಮಾರಾಟ",
+    "Net revenue": "ನಿವ್ವಳ ಆದಾಯ",
+    "Operating expenses": "ಕಾರ್ಯಾಚರಣೆ ವೆಚ್ಚಗಳು",
+    "Real net profit": "ನಿಜವಾದ ನಿವ್ವಳ ಲಾಭ",
+    "Today Sales": "ಇಂದಿನ ಮಾರಾಟ",
+    "Weekly Sales": "ವಾರದ ಮಾರಾಟ",
+    "Monthly Sales": "ತಿಂಗಳ ಮಾರಾಟ",
+    "Stock Status": "ದಾಸ್ತಾನು ಸ್ಥಿತಿ",
+    "Revenue & expenses": "ಆದಾಯ ಮತ್ತು ವೆಚ್ಚಗಳು",
+    "Top performing dishes": "ಹೆಚ್ಚು ಮಾರಾಟವಾದ ತಿನಿಸುಗಳು",
+    "View menu": "ಮೆನು ನೋಡಿ",
+    "No dishes added yet.": "ಇನ್ನೂ ತಿನಿಸುಗಳನ್ನು ಸೇರಿಸಿಲ್ಲ.",
+    "FAST CHECKOUT": "ತ್ವರಿತ ಬಿಲ್ಲಿಂಗ್",
+    "Point of sale": "ಮಾರಾಟ ಕೇಂದ್ರ",
+    "Current order": "ಪ್ರಸ್ತುತ ಆರ್ಡರ್",
+    "Quantity": "ಪ್ರಮಾಣ",
+    "Receipt format": "ರಸೀದಿ ಸ್ವರೂಪ",
+    "Total due": "ಪಾವತಿಸಬೇಕಾದ ಒಟ್ಟು",
+    "CATALOG": "ಪಟ್ಟಿ",
+    "Manage recipes, dish images, pricing, and stock status.": "ಪಾಕವಿಧಾನ, ತಿನಿಸಿನ ಚಿತ್ರ, ಬೆಲೆ ಮತ್ತು ದಾಸ್ತಾನು ಸ್ಥಿತಿಯನ್ನು ನಿರ್ವಹಿಸಿ.",
+    "PHOTO": "ಚಿತ್ರ",
+    "DISH NAME": "ತಿನಿಸಿನ ಹೆಸರು",
+    "AVAILABILITY": "ಲಭ್ಯತೆ",
+    "WAREHOUSE & STOCK": "ಗೋದಾಮು ಮತ್ತು ದಾಸ್ತಾನು",
+    "Inventory Manager": "ದಾಸ್ತಾನು ನಿರ್ವಾಹಕ",
+    "ITEM NAME": "ವಸ್ತುವಿನ ಹೆಸರು",
+    "ON HAND": "ಲಭ್ಯವಿರುವುದು",
+    "REORDER LEVEL": "ಮರುಆರ್ಡರ್ ಮಟ್ಟ",
+    "STATUS ALERT": "ಸ್ಥಿತಿ ಎಚ್ಚರಿಕೆ",
+    "Out of Stock 🚨": "ಸ್ಟಾಕ್ ಇಲ್ಲ 🚨",
+    "Low Stock ⚠️": "ಕಡಿಮೆ ಸ್ಟಾಕ್ ⚠️",
+    "In Stock": "ಸ್ಟಾಕ್ ಇದೆ",
+    "Inventory history": "ದಾಸ್ತಾನು ಇತಿಹಾಸ",
+    "Latest stock movements": "ಇತ್ತೀಚಿನ ಸ್ಟಾಕ್ ಬದಲಾವಣೆಗಳು",
+    "DATE & TIME": "ದಿನಾಂಕ ಮತ್ತು ಸಮಯ",
+    "TRANSACTION": "ವಹಿವಾಟು",
+    "CHANGE": "ಬದಲಾವಣೆ",
+    "STOCK": "ಸ್ಟಾಕ್",
+    "No inventory movements recorded yet.": "ಇನ್ನೂ ದಾಸ್ತಾನು ಬದಲಾವಣೆಗಳನ್ನು ದಾಖಲಿಸಿಲ್ಲ.",
+    "YOUR PEOPLE": "ನಿಮ್ಮ ಸಿಬ್ಬಂದಿ",
+    "Designations, role access, and compensation (Monthly, Weekly & Daily).": "ಹುದ್ದೆಗಳು, ಪ್ರವೇಶ ಅನುಮತಿ ಮತ್ತು ವೇತನ (ಮಾಸಿಕ, ವಾರದ, ದೈನಂದಿನ).",
+    "FINANCE": "ಹಣಕಾಸು",
+    "Log expense": "ವೆಚ್ಚ ದಾಖಲಿಸಿ",
+    "All categories": "ಎಲ್ಲ ವರ್ಗಗಳು",
+    "From": "ಇಂದ",
+    "To": "ವರೆಗೆ",
+    "VENDOR": "ಮಾರಾಟಗಾರ",
+    "ACCOUNTS": "ಖಾತೆಗಳು",
+    "Supplier Directory": "ಪೂರೈಕೆದಾರರ ಪಟ್ಟಿ",
+    "All suppliers": "ಎಲ್ಲ ಪೂರೈಕೆದಾರರು",
+    "With transactions": "ವಹಿವಾಟುಗಳಿರುವವು",
+    "No transactions": "ವಹಿವಾಟುಗಳಿಲ್ಲ",
+    "No suppliers match these filters.": "ಈ ಫಿಲ್ಟರ್‌ಗಳಿಗೆ ಹೊಂದುವ ಪೂರೈಕೆದಾರರಿಲ್ಲ.",
+    "Purchases": "ಖರೀದಿಗಳು",
+    "Payments": "ಪಾವತಿಗಳು",
+    "Balance": "ಬಾಕಿ ಮೊತ್ತ",
+    "Transaction History": "ವಹಿವಾಟಿನ ಇತಿಹಾಸ",
+    "TYPE": "ಪ್ರಕಾರ",
+    "METHOD / VENDOR": "ವಿಧಾನ / ಮಾರಾಟಗಾರ",
+    "No transactions recorded for this supplier yet.": "ಈ ಪೂರೈಕೆದಾರರಿಗೆ ಇನ್ನೂ ವಹಿವಾಟುಗಳಿಲ್ಲ.",
+    "Select a supplier to view transaction history.": "ವಹಿವಾಟಿನ ಇತಿಹಾಸ ನೋಡಲು ಪೂರೈಕೆದಾರರನ್ನು ಆಯ್ಕೆಮಾಡಿ.",
+    "PLANS & BILLING": "ಯೋಜನೆಗಳು ಮತ್ತು ಬಿಲ್ಲಿಂಗ್",
+    "Restaurant subscription": "ರೆಸ್ಟೋರೆಂಟ್ ಚಂದಾದಾರಿಕೆ",
+    "Subscription history": "ಚಂದಾದಾರಿಕೆ ಇತಿಹಾಸ",
+    "No subscription requests yet.": "ಇನ್ನೂ ಚಂದಾದಾರಿಕೆ ವಿನಂತಿಗಳಿಲ್ಲ.",
+    "Google Pay": "Google Pay",
+    "PhonePe": "PhonePe",
+    "Other UPI": "ಇತರೆ UPI",
+    "HELP & SUPPORT": "ಸಹಾಯ ಮತ್ತು ಬೆಂಬಲ",
+    "Support Phone": "ಬೆಂಬಲ ದೂರವಾಣಿ",
+    "Support Email": "ಬೆಂಬಲ ಇಮೇಲ್",
+    "WhatsApp Support": "WhatsApp ಬೆಂಬಲ",
+    "PREFERENCES": "ಆದ್ಯತೆಗಳು",
+    "Settings & Tax Details": "ಸೆಟ್ಟಿಂಗ್‌ಗಳು ಮತ್ತು ತೆರಿಗೆ ವಿವರಗಳು",
+    "Restaurant & GST Details": "ರೆಸ್ಟೋರೆಂಟ್ ಮತ್ತು GST ವಿವರಗಳು",
+    "Restaurant Name": "ರೆಸ್ಟೋರೆಂಟ್ ಹೆಸರು",
+    "Phone Number": "ದೂರವಾಣಿ ಸಂಖ್ಯೆ",
+    "Address": "ವಿಳಾಸ",
+    "GSTIN (GST Number)": "GSTIN (GST ಸಂಖ್ಯೆ)",
+    "Password & Security": "ಪಾಸ್‌ವರ್ಡ್ ಮತ್ತು ಭದ್ರತೆ",
+    "New Password": "ಹೊಸ ಪಾಸ್‌ವರ್ಡ್",
+    "Confirm New Password": "ಹೊಸ ಪಾಸ್‌ವರ್ಡ್ ದೃಢೀಕರಿಸಿ",
+    "PLATFORM CONTROL": "ಪ್ಲಾಟ್‌ಫಾರ್ಮ್ ನಿಯಂತ್ರಣ",
+    "Restaurant Directory": "ರೆಸ್ಟೋರೆಂಟ್ ಪಟ್ಟಿ",
+    "STATUS": "ಸ್ಥಿತಿ",
+    "RENEWAL": "ನವೀಕರಣ",
+    "PLATFORM ADMINISTRATION": "ಪ್ಲಾಟ್‌ಫಾರ್ಮ್ ಆಡಳಿತ",
+    "Manage Admins": "ನಿರ್ವಾಹಕರನ್ನು ನಿರ್ವಹಿಸಿ",
+    "Add new admin": "ಹೊಸ ನಿರ್ವಾಹಕರನ್ನು ಸೇರಿಸಿ",
+    "ADMIN": "ನಿರ್ವಾಹಕ",
+    "EMAIL": "ಇಮೇಲ್",
+    "CREATED": "ರಚಿಸಲಾಗಿದೆ",
+    "No platform admins found.": "ಪ್ಲಾಟ್‌ಫಾರ್ಮ್ ನಿರ್ವಾಹಕರು ಕಂಡುಬಂದಿಲ್ಲ.",
+    "PLATFORM PIPELINE": "ಪ್ಲಾಟ್‌ಫಾರ್ಮ್ ಪ್ರಕ್ರಿಯೆ",
+    "Pending Approvals": "ಬಾಕಿ ಅನುಮೋದನೆಗಳು",
+    "PAYMENT PROOF": "ಪಾವತಿ ಪುರಾವೆ",
+    "TRANSACTION NOTE": "ವಹಿವಾಟಿನ ಟಿಪ್ಪಣಿ",
+    "No screenshot": "ಸ್ಕ್ರೀನ್‌ಶಾಟ್ ಇಲ್ಲ",
+    "Pending Review": "ಪರಿಶೀಲನೆ ಬಾಕಿ",
+    "PLATFORM CONTROLS": "ಪ್ಲಾಟ್‌ಫಾರ್ಮ್ ನಿಯಂತ್ರಣಗಳು",
+    "Pricing Plans & Configuration": "ಬೆಲೆ ಯೋಜನೆಗಳು ಮತ್ತು ಸಂರಚನೆ",
+    "Admin UPI ID": "ನಿರ್ವಾಹಕ UPI ID",
+    "Save Admin UPI ID": "ನಿರ್ವಾಹಕ UPI ID ಉಳಿಸಿ",
+    "Extend Subscription": "ಚಂದಾದಾರಿಕೆಯನ್ನು ವಿಸ್ತರಿಸಿ",
+    "Extension period": "ವಿಸ್ತರಣೆ ಅವಧಿ",
+    "Extend subscription": "ಚಂದಾದಾರಿಕೆಯನ್ನು ವಿಸ್ತರಿಸಿ",
+    "Admin name": "ನಿರ್ವಾಹಕರ ಹೆಸರು",
+    "Admin email": "ನಿರ್ವಾಹಕರ ಇಮೇಲ್",
+    "Section access": "ವಿಭಾಗ ಪ್ರವೇಶ",
+    "Restaurant name": "ರೆಸ್ಟೋರೆಂಟ್ ಹೆಸರು",
+    "Owner name": "ಮಾಲೀಕರ ಹೆಸರು",
+    "Owner email": "ಮಾಲೀಕರ ಇಮೇಲ್",
+    "Owner phone": "ಮಾಲೀಕರ ದೂರವಾಣಿ",
+    "City": "ನಗರ",
+    "Temporary password": "ತಾತ್ಕಾಲಿಕ ಪಾಸ್‌ವರ್ಡ್",
+    "Plan": "ಯೋಜನೆ",
+    "Trial": "ಪ್ರಯೋಗ",
+    "Paused": "ವಿರಾಮಗೊಳಿಸಲಾಗಿದೆ",
+    "Renewal date": "ನವೀಕರಣ ದಿನಾಂಕ",
+    "Plan Name": "ಯೋಜನೆಯ ಹೆಸರು",
+    "Duration / Period Label": "ಅವಧಿ / ಕಾಲದ ಹೆಸರು",
+    "Features Description": "ವೈಶಿಷ್ಟ್ಯಗಳ ವಿವರಣೆ",
+    "Save Plan": "ಯೋಜನೆ ಉಳಿಸಿ",
+    "Dish Photo": "ತಿನಿಸಿನ ಚಿತ್ರ",
+    "No image": "ಚಿತ್ರವಿಲ್ಲ",
+    "Dish Name": "ತಿನಿಸಿನ ಹೆಸರು",
+    "Emoji Icon": "ಎಮೋಜಿ ಐಕಾನ್",
+    "Appetizers": "ಆರಂಭಿಕ ತಿನಿಸುಗಳು",
+    "Mains": "ಮುಖ್ಯ ತಿನಿಸುಗಳು",
+    "Breads": "ರೊಟ್ಟಿಗಳು",
+    "Rice & Biryani": "ಅನ್ನ ಮತ್ತು ಬಿರಿಯಾನಿ",
+    "Desserts": "ಸಿಹಿತಿಂಡಿಗಳು",
+    "Drinks": "ಪಾನೀಯಗಳು",
+    "Dietary Tag": "ಆಹಾರ ಪ್ರಕಾರ",
+    "Standard": "ಸಾಮಾನ್ಯ",
+    "Vegetarian": "ಸಸ್ಯಾಹಾರಿ",
+    "Non-Vegetarian": "ಮಾಂಸಾಹಾರಿ",
+    "Vegan": "ವೀಗನ್",
+    "Gluten-free": "ಗ್ಲುಟನ್ ರಹಿತ",
+    "Cost (₹)": "ವೆಚ್ಚ (₹)",
+    "Prep Time (mins)": "ತಯಾರಿ ಸಮಯ (ನಿಮಿಷ)",
+    "Item Name": "ವಸ್ತುವಿನ ಹೆಸರು",
+    "Quantity On Hand": "ಲಭ್ಯ ಪ್ರಮಾಣ",
+    "Unit": "ಘಟಕ",
+    "Reorder Threshold": "ಮರುಆರ್ಡರ್ ಮಿತಿ",
+    "Save Item": "ವಸ್ತು ಉಳಿಸಿ",
+    "Current stock:": "ಪ್ರಸ್ತುತ ಸ್ಟಾಕ್:",
+    "Reason": "ಕಾರಣ",
+    "(optional)": "(ಐಚ್ಛಿಕ)",
+    "Assign designation, access permissions, and salary structure.": "ಹುದ್ದೆ, ಪ್ರವೇಶ ಅನುಮತಿ ಮತ್ತು ವೇತನ ರಚನೆ ನಿಗದಿಪಡಿಸಿ.",
+    "Full Name": "ಪೂರ್ಣ ಹೆಸರು",
+    "Designation & Access Role": "ಹುದ್ದೆ ಮತ್ತು ಪ್ರವೇಶ ಪಾತ್ರ",
+    "Required access": "ಅಗತ್ಯ ಪ್ರವೇಶ",
+    "Select only the modules this employee needs. Owner retains full access.": "ಉದ್ಯೋಗಿಗೆ ಅಗತ್ಯವಿರುವ ವಿಭಾಗಗಳನ್ನು ಮಾತ್ರ ಆಯ್ಕೆಮಾಡಿ. ಮಾಲೀಕರಿಗೆ ಪೂರ್ಣ ಪ್ರವೇಶವಿದೆ.",
+    "Pay Type": "ವೇತನ ಪ್ರಕಾರ",
+    "Monthly Salary": "ಮಾಸಿಕ ವೇತನ",
+    "Weekly Salary": "ವಾರದ ವೇತನ",
+    "Daily Wage": "ದಿನಗೂಲಿ",
+    "Daily Rate (₹)": "ದೈನಂದಿನ ದರ (₹)",
+    "Weekly Salary (₹)": "ವಾರದ ವೇತನ (₹)",
+    "Monthly Salary (₹)": "ಮಾಸಿಕ ವೇತನ (₹)",
+    "Save Employee": "ಉದ್ಯೋಗಿಯನ್ನು ಉಳಿಸಿ",
+    "Description": "ವಿವರಣೆ",
+    "Utilities": "ಉಪಯುಕ್ತ ಸೇವೆಗಳು",
+    "Maintenance": "ನಿರ್ವಹಣೆ",
+    "Marketing": "ಮಾರ್ಕೆಟಿಂಗ್",
+    "Rent": "ಬಾಡಿಗೆ",
+    "Staff welfare": "ಸಿಬ್ಬಂದಿ ಕಲ್ಯಾಣ",
+    "None": "ಯಾವುದೂ ಇಲ್ಲ",
+    "Supplier name": "ಪೂರೈಕೆದಾರರ ಹೆಸರು",
+    "Contact person": "ಸಂಪರ್ಕ ವ್ಯಕ್ತಿ",
+    "Inactive": "ನಿಷ್ಕ್ರಿಯ",
+    "Select": "ಆಯ್ಕೆಮಾಡಿ",
+    "Save changes": "ಬದಲಾವಣೆಗಳನ್ನು ಉಳಿಸಿ",
+    "Employee & Wage Record": "ಉದ್ಯೋಗಿ ಮತ್ತು ವೇತನ ದಾಖಲೆ",
+    "Weekly Payment": "ವಾರದ ಪಾವತಿ",
+    "Week start": "ವಾರದ ಆರಂಭ",
+    "Week end": "ವಾರದ ಅಂತ್ಯ",
+    "Wage History": "ವೇತನ ಇತಿಹಾಸ",
+    "Sale History": "ಮಾರಾಟ ಇತಿಹಾಸ",
+    "Receipt": "ರಸೀದಿ",
+    "Date & time": "ದಿನಾಂಕ ಮತ್ತು ಸಮಯ",
+    "Items": "ವಸ್ತುಗಳು",
+    "Payment": "ಪಾವತಿ",
+    "Total": "ಒಟ್ಟು",
+    "View receipt": "ರಸೀದಿ ನೋಡಿ",
+    "No completed sales yet.": "ಇನ್ನೂ ಪೂರ್ಣಗೊಂಡ ಮಾರಾಟಗಳಿಲ್ಲ.",
+    "Bill Details & Receipt": "ಬಿಲ್ ವಿವರಗಳು ಮತ್ತು ರಸೀದಿ",
+    "Format:": "ಸ್ವರೂಪ:",
+    "QTY": "ಪ್ರಮಾಣ",
+    "TOTAL": "ಒಟ್ಟು",
+    "Subtotal": "ಉಪಮೊತ್ತ",
+    "Discount": "ರಿಯಾಯಿತಿ",
+    "TOTAL DUE": "ಪಾವತಿಸಬೇಕಾದ ಒಟ್ಟು",
+    "Payment Mode": "ಪಾವತಿ ವಿಧಾನ",
+    "Mark as read": "ಓದಿದಂತೆ ಗುರುತಿಸಿ",
+    "Active": "ಸಕ್ರಿಯ",
+    "Status": "ಸ್ಥಿತಿ",
+    "Price (₹)": "ಬೆಲೆ (₹)",
+    "Phone": "ದೂರವಾಣಿ",
+    "Amount (₹)": "ಮೊತ್ತ (₹)",
+    "ACTIONS": "ಕ್ರಿಯೆಗಳು",
+    "OWNER": "ಮಾಲೀಕರು",
+    "PRICE": "ಬೆಲೆ",
+    "ITEM": "ವಸ್ತು",
+    "AMOUNT": "ಮೊತ್ತ",
+    "DATE": "ದಿನಾಂಕ",
+    "DESCRIPTION": "ವಿವರಣೆ",
+    "7 days": "7 ದಿನಗಳು",
+    "30 days": "30 ದಿನಗಳು",
+    "90 days": "90 ದಿನಗಳು",
+    "180 days": "180 ದಿನಗಳು",
+    "365 days": "365 ದಿನಗಳು"
+  }
+};
   const tr = (label: string) => translations[uiLanguage][label] || label;
   const [profileMenu, setProfileMenu] = useState(false);
   useEffect(() => {
@@ -741,9 +1341,9 @@ export default function Home() {
       <div className="space-y-6">
         <div className="page-head flex flex-col sm:flex-row sm:justify-between sm:items-center gap-3">
           <div>
-            <div className="eyebrow">PLATFORM CONFIGURATION</div>
-            <h1>Admin Settings</h1>
-            <p>Manage platform billing, administrator credentials, system operations, and restaurant support desks.</p>
+            <div className="eyebrow">{tr("PLATFORM CONFIGURATION")}</div>
+            <h1>{tr("Admin Settings")}</h1>
+            <p>{tr("Manage platform billing, administrator credentials, system operations, and restaurant support desks.")}</p>
           </div>
           <button className="quiet-btn text-xs font-semibold" onClick={() => { fetchSupportSections(); toast.success("Settings refreshed"); }}>
             <RefreshCw size={14} /> Refresh
@@ -758,12 +1358,12 @@ export default function Home() {
                 <Wallet size={20} />
               </span>
               <div>
-                <h2 className="text-base font-bold text-foreground">Platform Payment UPI</h2>
-                <p className="text-xs text-muted-foreground">UPI ID displayed to restaurant owners for subscription upgrades.</p>
+                <h2 className="text-base font-bold text-foreground">{tr("Platform Payment UPI")}</h2>
+                <p className="text-xs text-muted-foreground">{tr("UPI ID displayed to restaurant owners for subscription upgrades.")}</p>
               </div>
             </div>
             <div className="space-y-2">
-              <label className="text-xs font-semibold text-muted-foreground block">Admin UPI Identifier</label>
+              <label className="text-xs font-semibold text-muted-foreground block">{tr("Admin UPI Identifier")}</label>
               <div className="flex gap-2">
                 <input
                   value={adminUpiId}
@@ -788,18 +1388,18 @@ export default function Home() {
                 <ShieldCheck size={20} />
               </span>
               <div>
-                <h2 className="text-base font-bold text-foreground">Admin Account</h2>
-                <p className="text-xs text-muted-foreground">Authenticated master platform credentials and authorization.</p>
+                <h2 className="text-base font-bold text-foreground">{tr("Admin Account")}</h2>
+                <p className="text-xs text-muted-foreground">{tr("Authenticated master platform credentials and authorization.")}</p>
               </div>
             </div>
             <div className="grid grid-cols-2 gap-3 text-xs">
               <div className="p-3 border rounded-xl bg-secondary/20">
-                <span className="text-muted-foreground block text-[11px]">Signed In Email</span>
+                <span className="text-muted-foreground block text-[11px]">{tr("Signed In Email")}</span>
                 <b className="truncate block font-mono mt-0.5">{loginEmail}</b>
               </div>
               <div className="p-3 border rounded-xl bg-secondary/20">
-                <span className="text-muted-foreground block text-[11px]">System Role</span>
-                <b className="text-indigo-600 block mt-0.5">Platform Administrator</b>
+                <span className="text-muted-foreground block text-[11px]">{tr("System Role")}</span>
+                <b className="text-indigo-600 block mt-0.5">{tr("Platform Administrator")}</b>
               </div>
             </div>
           </section>
@@ -809,31 +1409,31 @@ export default function Home() {
         <section className="panel p-6 border rounded-2xl bg-card space-y-4 shadow-sm">
           <div className="flex justify-between items-center pb-2 border-b">
             <div>
-              <h2 className="text-base font-bold">Subscription Operations Status</h2>
-              <p className="text-xs text-muted-foreground">High-level financial and onboarding lifecycle summary.</p>
+              <h2 className="text-base font-bold">{tr("Subscription Operations Status")}</h2>
+              <p className="text-xs text-muted-foreground">{tr("High-level financial and onboarding lifecycle summary.")}</p>
             </div>
           </div>
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
             <div className="p-3.5 border rounded-xl bg-background">
-              <span className="text-[11px] text-muted-foreground block">Active / Trial Workspaces</span>
+              <span className="text-[11px] text-muted-foreground block">{tr("Active / Trial Workspaces")}</span>
               <strong className="text-xl text-emerald-600 mt-1 block">
                 {restaurants.filter((r: any) => ["Active", "Trial"].includes(r.status)).length}
               </strong>
             </div>
             <div className="p-3.5 border rounded-xl bg-background">
-              <span className="text-[11px] text-muted-foreground block">Expired Subscriptions</span>
+              <span className="text-[11px] text-muted-foreground block">{tr("Expired Subscriptions")}</span>
               <strong className="text-xl text-rose-600 mt-1 block">
                 {restaurants.filter((r: any) => r.renewal && new Date(r.renewal) < new Date()).length}
               </strong>
             </div>
             <div className="p-3.5 border rounded-xl bg-background">
-              <span className="text-[11px] text-muted-foreground block">Pending Pipeline Verifications</span>
+              <span className="text-[11px] text-muted-foreground block">{tr("Pending Pipeline Verifications")}</span>
               <strong className="text-xl text-amber-600 mt-1 block">
                 {subscriptionRequests.length + approvals.length}
               </strong>
             </div>
             <div className="p-3.5 border rounded-xl bg-background">
-              <span className="text-[11px] text-muted-foreground block">Total Verified Revenue</span>
+              <span className="text-[11px] text-muted-foreground block">{tr("Total Verified Revenue")}</span>
               <strong className="text-xl text-foreground mt-1 block">
                 {money(subscriptionHistory.filter((x: any) => x.status === "Approved").reduce((n: number, x: any) => n + Number(x.amount || 0), 0))}
               </strong>
@@ -849,8 +1449,8 @@ export default function Home() {
                 <LifeBuoy size={22} />
               </span>
               <div>
-                <h2 className="text-base font-bold text-foreground">Support & Help Desk Management</h2>
-                <p className="text-xs text-muted-foreground">Configure the contact methods (Phone, WhatsApp, Email) shown to all restaurant owners on their Support & Help page.</p>
+                <h2 className="text-base font-bold text-foreground">{tr("Support & Help Desk Management")}</h2>
+                <p className="text-xs text-muted-foreground">{tr("Configure the contact methods (Phone, WhatsApp, Email) shown to all restaurant owners on their Support & Help page.")}</p>
               </div>
             </div>
             <span className="px-3 py-1 rounded-full text-xs font-bold bg-secondary text-secondary-foreground self-start sm:self-auto">
@@ -874,11 +1474,11 @@ export default function Home() {
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
                 <label className="block space-y-1 sm:col-span-2">
-                  <span className="font-semibold text-muted-foreground">Desk / Channel Title</span>
+                  <span className="font-semibold text-muted-foreground">{tr("Desk / Channel Title")}</span>
                   <input
                     value={supportForm.title}
                     onChange={(e) => setSupportForm((prev) => ({ ...prev, title: e.target.value }))}
-                    placeholder="e.g. 24/7 Operations & Helpdesk"
+                    placeholder={tr("e.g. 24/7 Operations & Helpdesk")}
                     className="w-full p-2.5 border rounded-xl bg-background font-medium"
                   />
                 </label>
@@ -915,17 +1515,17 @@ export default function Home() {
                     type="email"
                     value={supportForm.email}
                     onChange={(e) => setSupportForm((prev) => ({ ...prev, email: e.target.value }))}
-                    placeholder="e.g. support@restopulse.com"
+                    placeholder={tr("e.g. support@restopulse.com")}
                     className="w-full p-2.5 border rounded-xl bg-background font-mono"
                   />
                 </label>
 
                 <label className="block space-y-1 sm:col-span-2">
-                  <span className="font-semibold text-muted-foreground">Support Description & Working Hours</span>
+                  <span className="font-semibold text-muted-foreground">{tr("Support Description & Working Hours")}</span>
                   <textarea
                     value={supportForm.description}
                     onChange={(e) => setSupportForm((prev) => ({ ...prev, description: e.target.value }))}
-                    placeholder="Need assistance with RestoPulse? Our support engineers are available Monday to Saturday..."
+                    placeholder={tr("Need assistance with RestoPulse? Our support engineers are available Monday to Saturday...")}
                     className="w-full min-h-24 p-2.5 border rounded-xl bg-background resize-none leading-relaxed"
                   />
                 </label>
@@ -2198,23 +2798,23 @@ export default function Home() {
     return (
       <div className="auth-page">
         <div className="auth-card">
-          <h1>RestoPulse configuration needed</h1>
-          <p>Add the Supabase URL and publishable key in Vercel environment variables, then redeploy.</p>
+          <h1>{tr("RestoPulse configuration needed")}</h1>
+          <p>{tr("Add the Supabase URL and publishable key in Vercel environment variables, then redeploy.")}</p>
         </div>
       </div>
     );
 
-  if (authLoading) return <div className="auth-page">Loading RestoPulse…</div>;
+  if (authLoading) return <div className="auth-page">{tr("Loading RestoPulse…")}</div>;
 
-  if (authUser && !roleHydrated) return <div className="auth-page">Loading workspace…</div>;
+  if (authUser && !roleHydrated) return <div className="auth-page">{tr("Loading workspace…")}</div>;
 
   if (!authUser)
     return (
       <div className="auth-page">
         <form className="auth-card" onSubmit={login}>
           <div className="brand-symbol">✳</div>
-          <h1>Welcome to RestoPulse</h1>
-          <p>Sign in to your restaurant or platform account.</p>
+          <h1>{tr("Welcome to RestoPulse")}</h1>
+          <p>{tr("Sign in to your restaurant or platform account.")}</p>
           <label>
             Email
             <input type="email" autoComplete="username" required value={loginEmail} onChange={(e) => setLoginEmail(e.target.value)} />
@@ -2235,7 +2835,7 @@ export default function Home() {
     );
 
   if (tenantHydrating)
-    return <div className="auth-page">Loading workspace…</div>;
+    return <div className="auth-page">{tr("Loading workspace…")}</div>;
 
   const openUpiApp = (provider: "gpay" | "phonepe" | "upi") => {
     const params = `pa=${encodeURIComponent(subscriptionUpiId)}&pn=${encodeURIComponent("RestoPulse")}&am=${encodeURIComponent(activePlanPrice.toFixed(2))}&cu=INR&tn=${encodeURIComponent(`${activeRestaurantName} ${activeInlinePlan?.name || "Subscription"}`)}`;
@@ -2429,8 +3029,8 @@ export default function Home() {
             </svg>
           </div>
           <div>
-            <strong>RestoPulse</strong>
-            <small>THE PULSE OF MODERN GASTRONOMY</small>
+            <strong>{tr("RestoPulse")}</strong>
+            <small>{tr("THE PULSE OF MODERN GASTRONOMY")}</small>
           </div>
         </div>
 
@@ -2476,18 +3076,18 @@ export default function Home() {
         <div className="px-3 py-3">
           <label htmlFor="rp-language-select" className="block text-xs font-semibold mb-1">{tr("Language")}</label>
           <select id="rp-language-select" value={uiLanguage} onChange={(e) => changeUiLanguage(e.target.value)} className="w-full rounded-lg border border-slate-600 bg-slate-900 text-white px-3 py-2 text-sm">
-            <option value="en">English</option><option value="ta">தமிழ் (Tamil)</option><option value="kn">ಕನ್ನಡ (Kannada)</option>
+            <option value="en">{tr("English")}</option><option value="ta">{tr("தமிழ் (Tamil)")}</option><option value="kn">{tr("ಕನ್ನಡ (Kannada)")}</option>
           </select>
         </div>
 
         {isAdmin && <div className="platform-workspace-label">
           <span className="store-avatar"><Building2 size={16}/></span>
-          <div><b className="block">Platform Admin</b><small>RestoPulse console</small></div>
+          <div><b className="block">{tr("Platform Admin")}</b><small>{tr("RestoPulse console")}</small></div>
         </div>}
 
         {/* RESTAURANT NAVIGATION */}
         {!isAdmin && <><div className="nav-heading">{tr("RESTAURANT")}</div>
-        <nav aria-label="Restaurant navigation">
+        <nav aria-label={tr("Restaurant navigation")}>
           {visibleNavTenant.map((item) => (
             <button
               key={item.id}
@@ -2504,8 +3104,8 @@ export default function Home() {
         {/* PLATFORM ADMIN NAVIGATION */}
         {isAdmin && (
           <>
-            <div className="nav-heading admin-heading">PLATFORM ADMIN</div>
-            <nav aria-label="Platform navigation">
+            <div className="nav-heading admin-heading">{tr("PLATFORM ADMIN")}</div>
+            <nav aria-label={tr("Platform navigation")}>
               {visibleNavPlatform.map((item) => (
                 <button
                   key={item.id}
@@ -2527,7 +3127,7 @@ export default function Home() {
         <div className="sidebar-bottom">
           {!isAdmin && <div className="trial-note">
             <span className="trial-icon">✦</span>
-            <b>Active Plan</b>
+            <b>{tr("Active Plan")}</b>
             <p className="font-semibold text-white capitalize">{activePlanName || "Free trial"}</p>
             <p className="text-[11px] text-gray-400 mt-0.5">Expires: {activeRenewalDate || "—"}</p>
             <button onClick={() => nav(isAdmin ? "pricing" : "subscription")}>
@@ -2537,7 +3137,7 @@ export default function Home() {
           <button
             className="profile profile-trigger"
             onClick={() => setProfileMenu(!profileMenu)}
-            aria-label="Open profile menu"
+            aria-label={tr("Open profile menu")}
           >
             <span className="profile-avatar">{profileInitials}</span>
             <div>
@@ -2554,7 +3154,7 @@ export default function Home() {
           <div className="top-left">
             <button
               className="icon-btn mobile-menu"
-              aria-label="Open navigation"
+              aria-label={tr("Open navigation")}
               onClick={() => setMobileNav(!mobileNav)}
             >
               <Menu size={21} />
@@ -2572,7 +3172,7 @@ export default function Home() {
               className="theme-switch"
               aria-label={dark ? "Switch to light theme" : "Switch to dark theme"}
               onClick={() => setDark(!dark)}
-              title="Toggle light and dark theme"
+              title={tr("Toggle light and dark theme")}
             >
               <Sun size={17} />
               <Moon size={17} />
@@ -2583,7 +3183,7 @@ export default function Home() {
             </button>
             <button
               className="icon-btn notification-button"
-              aria-label="Notifications"
+              aria-label={tr("Notifications")}
               aria-expanded={notifications}
               onClick={() => setNotifications(!notifications)}
             >
@@ -2592,7 +3192,7 @@ export default function Home() {
             </button>
             <button
               className="profile-avatar top-avatar profile-top-button"
-              aria-label="Open profile menu"
+              aria-label={tr("Open profile menu")}
               aria-expanded={profileMenu}
               onClick={() => {
                 setProfileMenu(!profileMenu);
@@ -2640,27 +3240,27 @@ export default function Home() {
           {notifications && (
             <div className="notification-popover">
               <div className="popover-title">
-                <b>Notifications</b>
+                <b>{tr("Notifications")}</b>
                 <span>{isAdmin ? ((approvals.length + subscriptionRequests.length) && !readNotificationKeys.includes("admin-pending") ? approvals.length + subscriptionRequests.length : 0) : visibleRestaurantNotifications.length} new</span>
               </div>
               {isAdmin ? (
                 (approvals.length + subscriptionRequests.length) > 0 && !readNotificationKeys.includes("admin-pending") ? (
                   <div className="p-2 space-y-2">
                     <button className="w-full text-left" onClick={() => { markNotificationRead("admin-pending"); nav("approvals"); }}>
-                      <span className="notif-icon amber">◎</span><span><b>{approvals.length + subscriptionRequests.length} pending items</b><small>Review applications & proofs</small></span>
+                      <span className="notif-icon amber">◎</span><span><b>{approvals.length + subscriptionRequests.length} pending items</b><small>{tr("Review applications & proofs")}</small></span>
                     </button>
-                    <button className="quiet-btn w-full text-xs" onClick={() => markNotificationRead("admin-pending")}>Mark as read</button>
+                    <button className="quiet-btn w-full text-xs" onClick={() => markNotificationRead("admin-pending")}>{tr("Mark as read")}</button>
                   </div>
-                ) : <div className="p-3 text-xs text-muted-foreground">No new platform notifications.</div>
+                ) : <div className="p-3 text-xs text-muted-foreground">{tr("No new platform notifications.")}</div>
               ) : (
                 visibleRestaurantNotifications.length ? visibleRestaurantNotifications.map((n: any) => (
                   <div key={n.key} className="p-2 border-b last:border-0">
                     <button className="w-full text-left flex items-start gap-2" onClick={() => { markNotificationRead(n.key); setNotifications(false); nav(n.key === "wage" ? "staff" : n.key === "sub" ? "subscription" : "inventory"); }}>
                       <span className="notif-icon amber">!</span><span><b>{n.title}</b><small>{n.detail}</small></span>
                     </button>
-                    <button className="quiet-btn text-[11px] mt-1" onClick={() => markNotificationRead(n.key)}>Mark as read</button>
+                    <button className="quiet-btn text-[11px] mt-1" onClick={() => markNotificationRead(n.key)}>{tr("Mark as read")}</button>
                   </div>
-                )) : <div className="p-3 text-xs text-muted-foreground">No new notifications for this restaurant.</div>
+                )) : <div className="p-3 text-xs text-muted-foreground">{tr("No new notifications for this restaurant.")}</div>
               )}
             </div>
           )}
@@ -2675,9 +3275,9 @@ export default function Home() {
                 <div className="space-y-6">
                   <div className="page-head flex flex-col sm:flex-row sm:justify-between sm:items-center gap-3">
                     <div>
-                      <div className="eyebrow">PLATFORM OVERVIEW</div>
-                      <h1>Good afternoon, Platform Admin</h1>
-                      <p>Platform-wide operations, subscription volume, and revenue metrics.</p>
+                      <div className="eyebrow">{tr("PLATFORM OVERVIEW")}</div>
+                      <h1>{tr("Good afternoon, Platform Admin")}</h1>
+                      <p>{tr("Platform-wide operations, subscription volume, and revenue metrics.")}</p>
                     </div>
                     <div className="flex gap-2">
                       <button className="quiet-btn text-xs" onClick={() => nav("approvals")}>
@@ -2693,35 +3293,35 @@ export default function Home() {
                   <div className="kpi-grid">
                     <div className="kpi-card">
                       <div className="kpi-top">
-                        <span>Subscription revenue</span>
+                        <span>{tr("Subscription revenue")}</span>
                         <span className="kpi-icon teal"><Wallet size={19} /></span>
                       </div>
                       <strong>{money(subscriptionRevenue)}</strong>
-                      <div className="kpi-foot"><span>Approved subscription payments</span></div>
+                      <div className="kpi-foot"><span>{tr("Approved subscription payments")}</span></div>
                     </div>
                     <div className="kpi-card">
                       <div className="kpi-top">
-                        <span>Active workspaces</span>
+                        <span>{tr("Active workspaces")}</span>
                         <span className="kpi-icon green"><Building2 size={19} /></span>
                       </div>
                       <strong>{activeSubscriptionCount}</strong>
-                      <div className="kpi-foot"><span>Restaurants on active/trial plans</span></div>
+                      <div className="kpi-foot"><span>{tr("Restaurants on active/trial plans")}</span></div>
                     </div>
                     <div className="kpi-card">
                       <div className="kpi-top">
-                        <span>Pending approvals</span>
+                        <span>{tr("Pending approvals")}</span>
                         <span className="kpi-icon amber"><BadgeCheck size={19} /></span>
                       </div>
                       <strong>{subscriptionRequests.length + approvals.length}</strong>
-                      <div className="kpi-foot"><span>Onboarding & payment verifications</span></div>
+                      <div className="kpi-foot"><span>{tr("Onboarding & payment verifications")}</span></div>
                     </div>
                     <div className="kpi-card">
                       <div className="kpi-top">
-                        <span>Expired subscriptions</span>
+                        <span>{tr("Expired subscriptions")}</span>
                         <span className="kpi-icon violet"><Clock size={19} /></span>
                       </div>
                       <strong>{expiredSubscriptionCount}</strong>
-                      <div className="kpi-foot"><span>Require renewal outreach</span></div>
+                      <div className="kpi-foot"><span>{tr("Require renewal outreach")}</span></div>
                     </div>
                   </div>
 
@@ -2730,8 +3330,8 @@ export default function Home() {
                     <section className="panel chart-panel">
                       <div className="panel-header">
                         <div>
-                          <h2>Platform subscription revenue</h2>
-                          <p>7-day approved billing trend</p>
+                          <h2>{tr("Platform subscription revenue")}</h2>
+                          <p>{tr("7-day approved billing trend")}</p>
                         </div>
                       </div>
                       <div className="chart">
@@ -2750,10 +3350,10 @@ export default function Home() {
                     <section className="panel top-dishes">
                       <div className="panel-header">
                         <div>
-                          <h2>Registered restaurants</h2>
-                          <p>Latest active workspaces</p>
+                          <h2>{tr("Registered restaurants")}</h2>
+                          <p>{tr("Latest active workspaces")}</p>
                         </div>
-                        <button className="quiet-btn text-xs" onClick={() => nav("restaurants")}>View all</button>
+                        <button className="quiet-btn text-xs" onClick={() => nav("restaurants")}>{tr("View all")}</button>
                       </div>
                       <div className="space-y-2 mt-2">
                         {restaurants.slice(0, 5).map((r: any, i: number) => (
@@ -2772,7 +3372,7 @@ export default function Home() {
                           </div>
                         ))}
                         {!restaurants.length && (
-                          <div className="text-center py-8 text-xs text-muted-foreground">No restaurants registered yet.</div>
+                          <div className="text-center py-8 text-xs text-muted-foreground">{tr("No restaurants registered yet.")}</div>
                         )}
                       </div>
                     </section>
@@ -2783,17 +3383,17 @@ export default function Home() {
                 <div className="space-y-6">
                   <div className="page-head flex flex-col sm:flex-row sm:justify-between sm:items-center gap-3">
                     <div>
-                      <div className="eyebrow">OVERVIEW</div>
+                      <div className="eyebrow">{tr("OVERVIEW")}</div>
                       <h1>Good afternoon, {activeRestaurantName || "Owner"}</h1>
                       <p>Operational snapshot and financial health for {activeRestaurantName || "your workspace"}.</p>
                     </div>
                     <div className="head-actions flex flex-wrap items-center gap-2">
-                      <select aria-label="Date range" value={dateRange} onChange={(e) => setDateRange(e.target.value)} className="bg-background border rounded-lg text-xs p-2">
-                        <option>Today</option>
-                        <option>Yesterday</option>
-                        <option>This week</option>
-                        <option>This month</option>
-                        <option>Custom</option>
+                      <select aria-label={tr("Date range")} value={dateRange} onChange={(e) => setDateRange(e.target.value)} className="bg-background border rounded-lg text-xs p-2">
+                        <option>{tr("Today")}</option>
+                        <option>{tr("Yesterday")}</option>
+                        <option>{tr("This week")}</option>
+                        <option>{tr("This month")}</option>
+                        <option>{tr("Custom")}</option>
                       </select>
                       {dateRange === "Custom" && (
                         <div className="flex items-center gap-1">
@@ -2815,7 +3415,7 @@ export default function Home() {
                         <AlertTriangle className="text-red-500 shrink-0" size={20} />
                         <div>
                           <b className="text-red-600 block text-sm">Subscription Expired ({activeRenewalDate})</b>
-                          <p className="text-xs text-muted-foreground">Renew your plan to maintain full access to POS and management terminals.</p>
+                          <p className="text-xs text-muted-foreground">{tr("Renew your plan to maintain full access to POS and management terminals.")}</p>
                         </div>
                       </div>
                       <button className="primary-btn text-xs font-bold shrink-0" onClick={() => nav("subscription")}>
@@ -2828,7 +3428,7 @@ export default function Home() {
                   <div className="kpi-grid">
                     <div className="kpi-card">
                       <div className="kpi-top">
-                        <span>Gross sales</span>
+                        <span>{tr("Gross sales")}</span>
                         <span className="kpi-icon amber"><Wallet size={19} /></span>
                       </div>
                       <strong>{money(selectedOrders.reduce((n, o) => n + Number(o.bill?.subtotal || 0), 0))}</strong>
@@ -2836,46 +3436,46 @@ export default function Home() {
                     </div>
                     <div className="kpi-card">
                       <div className="kpi-top">
-                        <span>Net revenue</span>
+                        <span>{tr("Net revenue")}</span>
                         <span className="kpi-icon teal"><ArrowUpRight size={19} /></span>
                       </div>
                       <strong>{money(netSales)}</strong>
-                      <div className="kpi-foot"><span>Paid sales, excluding tax</span></div>
+                      <div className="kpi-foot"><span>{tr("Paid sales, excluding tax")}</span></div>
                     </div>
                     <div className="kpi-card">
                       <div className="kpi-top">
-                        <span>Operating expenses</span>
+                        <span>{tr("Operating expenses")}</span>
                         <span className="kpi-icon violet"><ReceiptText size={19} /></span>
                       </div>
                       <strong>{money(totalExpenses + paidWages)}</strong>
-                      <div className="kpi-foot"><span>Expenses + paid wages</span></div>
+                      <div className="kpi-foot"><span>{tr("Expenses + paid wages")}</span></div>
                     </div>
                     <div className="kpi-card">
                       <div className="kpi-top">
-                        <span>Real net profit</span>
+                        <span>{tr("Real net profit")}</span>
                         <span className="kpi-icon green"><ArrowUpRight size={19} /></span>
                       </div>
                       <strong>{money(netSales - totalExpenses - paidWages)}</strong>
-                      <div className="kpi-foot"><span>Net sales − operating costs</span></div>
+                      <div className="kpi-foot"><span>{tr("Net sales − operating costs")}</span></div>
                     </div>
                   </div>
 
                   {/* Operational Summary Strip */}
                   <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
                     <div className="p-3 border rounded-xl bg-card">
-                      <small className="text-muted-foreground block text-[11px]">Today Sales</small>
+                      <small className="text-muted-foreground block text-[11px]">{tr("Today Sales")}</small>
                       <b className="text-sm">{money(todaySales)}</b>
                     </div>
                     <div className="p-3 border rounded-xl bg-card">
-                      <small className="text-muted-foreground block text-[11px]">Weekly Sales</small>
+                      <small className="text-muted-foreground block text-[11px]">{tr("Weekly Sales")}</small>
                       <b className="text-sm">{money(weeklySales)}</b>
                     </div>
                     <div className="p-3 border rounded-xl bg-card">
-                      <small className="text-muted-foreground block text-[11px]">Monthly Sales</small>
+                      <small className="text-muted-foreground block text-[11px]">{tr("Monthly Sales")}</small>
                       <b className="text-sm">{money(monthlySales)}</b>
                     </div>
                     <div className="p-3 border rounded-xl bg-card">
-                      <small className="text-muted-foreground block text-[11px]">Stock Status</small>
+                      <small className="text-muted-foreground block text-[11px]">{tr("Stock Status")}</small>
                       <b className={`text-sm ${outOfStockCount > 0 ? "text-red-600" : lowStockCount > 0 ? "text-amber-600" : "text-emerald-600"}`}>
                         {outOfStockCount > 0 ? `${outOfStockCount} Out of stock` : lowStockCount > 0 ? `${lowStockCount} Low stock` : "In stock"}
                       </b>
@@ -2887,7 +3487,7 @@ export default function Home() {
                     <section className="panel chart-panel">
                       <div className="panel-header">
                         <div>
-                          <h2>Revenue & expenses</h2>
+                          <h2>{tr("Revenue & expenses")}</h2>
                           <p>{dateRange} financial trend</p>
                         </div>
                       </div>
@@ -2908,10 +3508,10 @@ export default function Home() {
                     <section className="panel top-dishes">
                       <div className="panel-header">
                         <div>
-                          <h2>Top performing dishes</h2>
-                          <p>Popular catalog items</p>
+                          <h2>{tr("Top performing dishes")}</h2>
+                          <p>{tr("Popular catalog items")}</p>
                         </div>
-                        <button className="quiet-btn text-xs" onClick={() => nav("menu")}>View menu</button>
+                        <button className="quiet-btn text-xs" onClick={() => nav("menu")}>{tr("View menu")}</button>
                       </div>
                       <div className="space-y-2 mt-2">
                         {dishes.slice(0, 4).map((d, i) => (
@@ -2932,7 +3532,7 @@ export default function Home() {
                           </div>
                         ))}
                         {!dishes.length && (
-                          <div className="text-center py-8 text-xs text-muted-foreground">No dishes added yet.</div>
+                          <div className="text-center py-8 text-xs text-muted-foreground">{tr("No dishes added yet.")}</div>
                         )}
                       </div>
                     </section>
@@ -2947,8 +3547,8 @@ export default function Home() {
             <>
               <div className="page-head pos-head">
                 <div>
-                  <div className="eyebrow">FAST CHECKOUT</div>
-                  <h1>Point of sale</h1>
+                  <div className="eyebrow">{tr("FAST CHECKOUT")}</div>
+                  <h1>{tr("Point of sale")}</h1>
                 </div>
                 <div className="head-actions">
                   <button className="quiet-btn" onClick={() => setSound(!sound)}>
@@ -2967,7 +3567,7 @@ export default function Home() {
                       <input
                         value={query}
                         onChange={(e) => setQuery(e.target.value)}
-                        placeholder="Search dishes..."
+                        placeholder={tr("Search dishes...")}
                       />
                     </label>
                   </div>
@@ -2998,7 +3598,7 @@ export default function Home() {
                 <aside className="order-panel flex flex-col justify-between p-4 bg-card border rounded-2xl shadow-sm">
                   <div>
                     <div className="order-head flex justify-between items-center mb-4 pb-2 border-b">
-                      <h2 className="text-base font-bold">Current order</h2>
+                      <h2 className="text-base font-bold">{tr("Current order")}</h2>
                       <span className="order-count text-xs px-2.5 py-1 rounded-full bg-secondary font-semibold">
                         {cart.reduce((a, x) => a + x.qty, 0)} items
                       </span>
@@ -3042,14 +3642,14 @@ export default function Home() {
                                     Disc: -{money(l.discount * l.qty)}
                                   </span>
                                 ) : (
-                                  <span>Quantity</span>
+                                  <span>{tr("Quantity")}</span>
                                 )}
                               </div>
                               <div className="cart-controls flex items-center border rounded-lg bg-secondary/40 overflow-hidden">
                                 <button
                                   className="px-2.5 py-1 hover:bg-secondary rounded-l transition-colors"
                                   onClick={() => qty(l.id, -1)}
-                                  aria-label="Decrease quantity"
+                                  aria-label={tr("Decrease quantity")}
                                 >
                                   <Minus size={11} />
                                 </button>
@@ -3059,7 +3659,7 @@ export default function Home() {
                                 <button
                                   className="px-2.5 py-1 hover:bg-secondary rounded-r transition-colors"
                                   onClick={() => qty(l.id, 1)}
-                                  aria-label="Increase quantity"
+                                  aria-label={tr("Increase quantity")}
                                 >
                                   <Plus size={11} />
                                 </button>
@@ -3078,7 +3678,7 @@ export default function Home() {
 
                   <div className="cart-footer mt-4 pt-3 border-t space-y-3">
                     <div className="print-format no-print">
-                      <span>Receipt format</span>
+                      <span>{tr("Receipt format")}</span>
                       <div className="print-format-options">
                         {(["58mm", "85mm", "A4"] as const).map((sz) => (
                           <button type="button" key={sz} onClick={() => setPrintPaperSize(sz)} className={printPaperSize === sz ? "selected" : ""}>{sz}</button>
@@ -3086,7 +3686,7 @@ export default function Home() {
                       </div>
                     </div>
                     <div className="flex justify-between items-center px-1">
-                      <span className="text-xs font-medium text-muted-foreground">Total due</span>
+                      <span className="text-xs font-medium text-muted-foreground">{tr("Total due")}</span>
                       <strong className="text-lg font-extrabold">{money(total)}</strong>
                     </div>
 
@@ -3108,9 +3708,9 @@ export default function Home() {
             <>
               <div className="page-head flex flex-col sm:flex-row sm:items-center justify-between gap-4">
                 <div>
-                  <div className="eyebrow">CATALOG</div>
-                  <h1>Menu & dishes</h1>
-                  <p className="text-xs text-muted-foreground">Manage recipes, dish images, pricing, and stock status.</p>
+                  <div className="eyebrow">{tr("CATALOG")}</div>
+                  <h1>{tr("Menu & dishes")}</h1>
+                  <p className="text-xs text-muted-foreground">{tr("Manage recipes, dish images, pricing, and stock status.")}</p>
                 </div>
                 <button className="primary-btn flex items-center gap-1.5" onClick={() => open("dish")}>
                   <Plus size={17} /> Add dish
@@ -3122,12 +3722,12 @@ export default function Home() {
                   <table className="w-full text-left border-collapse text-xs">
                     <thead>
                       <tr className="border-b">
-                        <th className="p-3">PHOTO</th>
-                        <th className="p-3">DISH NAME</th>
-                        <th className="p-3">CATEGORY</th>
-                        <th className="p-3">PRICE</th>
-                        <th className="p-3">AVAILABILITY</th>
-                        <th className="p-3 text-right">ACTIONS</th>
+                        <th className="p-3">{tr("PHOTO")}</th>
+                        <th className="p-3">{tr("DISH NAME")}</th>
+                        <th className="p-3">{tr("CATEGORY")}</th>
+                        <th className="p-3">{tr("PRICE")}</th>
+                        <th className="p-3">{tr("AVAILABILITY")}</th>
+                        <th className="p-3 text-right">{tr("ACTIONS")}</th>
                       </tr>
                     </thead>
                     <tbody>
@@ -3162,14 +3762,14 @@ export default function Home() {
                               <button
                                 className="p-2 border rounded-xl hover:bg-muted text-muted-foreground hover:text-foreground transition-colors"
                                 onClick={() => open("dish", d.id)}
-                                title="Edit Dish"
+                                title={tr("Edit Dish")}
                               >
                                 <Pencil size={14} />
                               </button>
                               <button
                                 className="p-2 border rounded-xl hover:bg-red-50 text-muted-foreground hover:text-red-500 transition-colors"
                                 onClick={() => handleDeleteDish(d.id)}
-                                title="Delete Dish"
+                                title={tr("Delete Dish")}
                               >
                                 <Trash2 size={14} />
                               </button>
@@ -3196,8 +3796,8 @@ export default function Home() {
             <>
               <div className="page-head flex justify-between items-center">
                 <div>
-                  <div className="eyebrow">WAREHOUSE & STOCK</div>
-                  <h1>Inventory Manager</h1>
+                  <div className="eyebrow">{tr("WAREHOUSE & STOCK")}</div>
+                  <h1>{tr("Inventory Manager")}</h1>
                 </div>
                 <button className="primary-btn flex items-center gap-2" onClick={() => openInventoryModal()}>
                   <Plus size={17} /> Add Stock Item
@@ -3217,11 +3817,11 @@ export default function Home() {
                   <table className="w-full text-left border-collapse">
                     <thead>
                       <tr className="border-b text-sm text-muted-foreground">
-                        <th className="p-3">ITEM NAME</th>
-                        <th className="p-3">ON HAND</th>
-                        <th className="p-3">REORDER LEVEL</th>
-                        <th className="p-3">STATUS ALERT</th>
-                        <th className="p-3 text-right">ACTIONS</th>
+                        <th className="p-3">{tr("ITEM NAME")}</th>
+                        <th className="p-3">{tr("ON HAND")}</th>
+                        <th className="p-3">{tr("REORDER LEVEL")}</th>
+                        <th className="p-3">{tr("STATUS ALERT")}</th>
+                        <th className="p-3 text-right">{tr("ACTIONS")}</th>
                       </tr>
                     </thead>
                     <tbody>
@@ -3235,19 +3835,19 @@ export default function Home() {
                             <td className="p-3 font-mono text-muted-foreground">{item.reorderLevel} {item.unit}</td>
                             <td className="p-3">
                               {isOut ? (
-                                <span className="px-2.5 py-1 rounded-full text-xs font-bold bg-red-100 text-red-800">Out of Stock 🚨</span>
+                                <span className="px-2.5 py-1 rounded-full text-xs font-bold bg-red-100 text-red-800">{tr("Out of Stock 🚨")}</span>
                               ) : isLow ? (
-                                <span className="px-2.5 py-1 rounded-full text-xs font-bold bg-amber-100 text-amber-800">Low Stock ⚠️</span>
+                                <span className="px-2.5 py-1 rounded-full text-xs font-bold bg-amber-100 text-amber-800">{tr("Low Stock ⚠️")}</span>
                               ) : (
-                                <span className="px-2.5 py-1 rounded-full text-xs font-semibold bg-green-100 text-green-800">In Stock</span>
+                                <span className="px-2.5 py-1 rounded-full text-xs font-semibold bg-green-100 text-green-800">{tr("In Stock")}</span>
                               )}
                             </td>
                             <td className="p-3 text-right">
                               <div className="inventory-actions" aria-label={`Actions for ${item.name}`}>
-                                <button className="inventory-action add" title="Add stock" aria-label={`Add stock to ${item.name}`} onClick={() => openStockAddition(item)}><Plus size={14} strokeWidth={2.5} /></button>
-                                <button className="inventory-action reduce" title="Reduce stock" aria-label={`Reduce stock from ${item.name}`} onClick={() => openStockReduction(item)}><Minus size={14} strokeWidth={2.5} /></button>
-                                <button className="inventory-action edit" title="Edit item" aria-label={`Edit ${item.name}`} onClick={() => openInventoryModal(item)}><Pencil size={14} /></button>
-                                <button className="inventory-action delete" title="Delete item" aria-label={`Delete ${item.name}`} onClick={() => handleDeleteInventory(item.id)}><Trash2 size={14} /></button>
+                                <button className="inventory-action add" title={tr("Add stock")} aria-label={`Add stock to ${item.name}`} onClick={() => openStockAddition(item)}><Plus size={14} strokeWidth={2.5} /></button>
+                                <button className="inventory-action reduce" title={tr("Reduce stock")} aria-label={`Reduce stock from ${item.name}`} onClick={() => openStockReduction(item)}><Minus size={14} strokeWidth={2.5} /></button>
+                                <button className="inventory-action edit" title={tr("Edit item")} aria-label={`Edit ${item.name}`} onClick={() => openInventoryModal(item)}><Pencil size={14} /></button>
+                                <button className="inventory-action delete" title={tr("Delete item")} aria-label={`Delete ${item.name}`} onClick={() => handleDeleteInventory(item.id)}><Trash2 size={14} /></button>
                               </div>
                             </td>
                           </tr>
@@ -3265,10 +3865,10 @@ export default function Home() {
                 </div>
               </div>
               <div className="panel management-panel inventory-history-panel bg-card border rounded-xl p-6 mt-4">
-                <div className="panel-header border-b pb-3 mb-3"><h2 className="text-base font-bold">Inventory history</h2><span className="text-xs text-muted-foreground">Latest stock movements</span></div>
+                <div className="panel-header border-b pb-3 mb-3"><h2 className="text-base font-bold">{tr("Inventory history")}</h2><span className="text-xs text-muted-foreground">{tr("Latest stock movements")}</span></div>
                 <div className="table-scroll inventory-history-table-wrap">
                   <table className="inventory-history-table">
-                    <thead><tr><th>DATE & TIME</th><th>ITEM</th><th>TRANSACTION</th><th className="text-right">CHANGE</th><th className="text-right">STOCK</th></tr></thead>
+                    <thead><tr><th>{tr("DATE & TIME")}</th><th>{tr("ITEM")}</th><th>{tr("TRANSACTION")}</th><th className="text-right">{tr("CHANGE")}</th><th className="text-right">{tr("STOCK")}</th></tr></thead>
                     <tbody>
                       {inventoryTransactions.map((tx: any) => {
                         const change = Number(tx.change_quantity || 0);
@@ -3280,7 +3880,7 @@ export default function Home() {
                           <td className="text-right text-xs font-semibold">{tx.previous_quantity} → {tx.new_quantity}</td>
                         </tr>
                       })}
-                      {!inventoryTransactions.length && <tr><td colSpan={5} className="text-center py-8 text-xs text-muted-foreground">No inventory movements recorded yet.</td></tr>}
+                      {!inventoryTransactions.length && <tr><td colSpan={5} className="text-center py-8 text-xs text-muted-foreground">{tr("No inventory movements recorded yet.")}</td></tr>}
                     </tbody>
                   </table>
                 </div>
@@ -3293,9 +3893,9 @@ export default function Home() {
             <>
               <div className="page-head flex justify-between items-center">
                 <div>
-                  <div className="eyebrow text-amber-500 font-bold uppercase tracking-wider text-[11px]">YOUR PEOPLE</div>
-                  <h1 className="text-2xl font-black">Team & payroll</h1>
-                  <p className="text-xs text-muted-foreground mt-0.5">Designations, role access, and compensation (Monthly, Weekly & Daily).</p>
+                  <div className="eyebrow text-amber-500 font-bold uppercase tracking-wider text-[11px]">{tr("YOUR PEOPLE")}</div>
+                  <h1 className="text-2xl font-black">{tr("Team & payroll")}</h1>
+                  <p className="text-xs text-muted-foreground mt-0.5">{tr("Designations, role access, and compensation (Monthly, Weekly & Daily).")}</p>
                 </div>
                 <button
                   className="bg-amber-500 hover:bg-amber-600 text-white font-bold text-xs py-2 px-4 rounded-xl flex items-center gap-1.5 transition-all shadow-md active:scale-95"
@@ -3324,14 +3924,14 @@ export default function Home() {
                           <button
                             className="p-1.5 text-muted-foreground hover:text-foreground hover:bg-muted/80 rounded-lg transition-colors"
                             onClick={() => open("employee", s.id)}
-                            title="Edit Employee"
+                            title={tr("Edit Employee")}
                           >
                             <Pencil size={13} />
                           </button>
                           <button
                             className="p-1.5 text-muted-foreground hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-950/40 rounded-lg transition-colors"
                             onClick={async () => { if (!tenantId || !confirm("Delete this employee?")) return; const { error } = await db.from("employees").delete().eq("restaurant_id", tenantId).eq("id", s.id); if (error) { toast.error(error.message); return; } setStaff(old => old.filter(x => x.id !== s.id)); }}
-                            title="Delete Employee"
+                            title={tr("Delete Employee")}
                           >
                             <Trash2 size={13} />
                           </button>
@@ -3351,7 +3951,7 @@ export default function Home() {
 
                     <div className="pt-3 border-t border-border/50 text-[11px] space-y-1.5">
                       <div className="flex justify-between items-center">
-                        <span className="text-muted-foreground">Shift</span>
+                        <span className="text-muted-foreground">{tr("Shift")}</span>
                         <b className="font-mono text-foreground font-semibold">{s.shift}</b>
                       </div>
                       <div className="flex justify-between items-center">
@@ -3374,26 +3974,26 @@ export default function Home() {
             <>
               <div className="page-head flex justify-between items-center">
                 <div>
-                  <div className="eyebrow">FINANCE</div>
-                  <h1>Expenses</h1>
+                  <div className="eyebrow">{tr("FINANCE")}</div>
+                  <h1>{tr("Expenses")}</h1>
                 </div>
-                <button className="primary-btn" onClick={() => open("expense")}><Plus size={17} /> Log expense</button>
+                <button className="primary-btn" onClick={() => open("expense")}><Plus size={17} /> {tr("Log expense")}</button>
               </div>
 
               <div className="panel management-panel mt-6">
                 <div className="p-4 border-b grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
-                  <input value={expenseSearch} onChange={e => setExpenseSearch(e.target.value)} placeholder="Search description or vendor" className="w-full p-2 border rounded-lg bg-background text-xs" />
+                  <input value={expenseSearch} onChange={e => setExpenseSearch(e.target.value)} placeholder={tr("Search description or vendor")} className="w-full p-2 border rounded-lg bg-background text-xs" />
                   <select value={expenseCategoryFilter} onChange={e => setExpenseCategoryFilter(e.target.value)} className="w-full p-2 border rounded-lg bg-background text-xs">
-                    <option>All categories</option>
+                    <option>{tr("All categories")}</option>
                     {[...new Set(expenses.map(e => e.category).filter(Boolean))].sort().map(c => <option key={c}>{c}</option>)}
                   </select>
-                  <label className="text-xs text-muted-foreground">From <input type="date" value={expenseStartDate} onChange={e => setExpenseStartDate(e.target.value)} className="block w-full p-2 border rounded-lg bg-background text-xs" /></label>
+                  <label className="text-xs text-muted-foreground">{tr("From")} <input type="date" value={expenseStartDate} onChange={e => setExpenseStartDate(e.target.value)} className="block w-full p-2 border rounded-lg bg-background text-xs" /></label>
                   <label className="text-xs text-muted-foreground">To <input type="date" value={expenseEndDate} onChange={e => setExpenseEndDate(e.target.value)} className="block w-full p-2 border rounded-lg bg-background text-xs" /></label>
                 </div>
                 <div className="table-scroll">
                   <table className="enhanced-data-table">
                     <thead>
-                      <tr><th>DATE</th><th>DESCRIPTION</th><th>CATEGORY</th><th>VENDOR</th><th className="text-right">AMOUNT</th></tr>
+                      <tr><th>{tr("DATE")}</th><th>{tr("DESCRIPTION")}</th><th>{tr("CATEGORY")}</th><th>{tr("VENDOR")}</th><th className="text-right">{tr("AMOUNT")}</th></tr>
                     </thead>
                     <tbody>
                       {expenses.filter(e => {
@@ -3434,8 +4034,8 @@ export default function Home() {
             <>
               <div className="page-head flex justify-between items-center">
                 <div>
-                  <div className="eyebrow">ACCOUNTS</div>
-                  <h1>Suppliers</h1>
+                  <div className="eyebrow">{tr("ACCOUNTS")}</div>
+                  <h1>{tr("Suppliers")}</h1>
                 </div>
                 <div className="flex gap-2">
                   <button className="quiet-btn flex items-center gap-1.5" onClick={() => open("payment")}>
@@ -3449,10 +4049,10 @@ export default function Home() {
 
               <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mt-6">
                 <div className="panel p-4 border rounded-xl bg-card space-y-2">
-                  <h2 className="text-sm font-bold mb-3">Supplier Directory</h2>
-                  <input value={supplierSearch} onChange={e => setSupplierSearch(e.target.value)} placeholder="Search supplier or contact" className="w-full p-2 border rounded-lg bg-background text-xs" />
+                  <h2 className="text-sm font-bold mb-3">{tr("Supplier Directory")}</h2>
+                  <input value={supplierSearch} onChange={e => setSupplierSearch(e.target.value)} placeholder={tr("Search supplier or contact")} className="w-full p-2 border rounded-lg bg-background text-xs" />
                   <select value={supplierActivityFilter} onChange={e => setSupplierActivityFilter(e.target.value)} className="w-full p-2 border rounded-lg bg-background text-xs">
-                    <option>All suppliers</option><option>With transactions</option><option>No transactions</option>
+                    <option>{tr("All suppliers")}</option><option>{tr("With transactions")}</option><option>{tr("No transactions")}</option>
                   </select>
                   {suppliers.filter(sp => {
                     const q = supplierSearch.trim().toLowerCase();
@@ -3474,7 +4074,7 @@ export default function Home() {
                       <ChevronDown size={14} className="text-muted-foreground -rotate-90" />
                     </div>
                   ))}
-                  {!suppliers.filter(sp => { const q = supplierSearch.trim().toLowerCase(); const matchesSearch = !q || `${sp.name} ${sp.contact || ""} ${sp.phone || ""} ${sp.email || ""}`.toLowerCase().includes(q); const hasTransactions = expenses.some(e => e.supplierId === sp.id) || supplierPayments.some(p => p.supplierId === sp.id); return matchesSearch && (supplierActivityFilter === "All suppliers" || (supplierActivityFilter === "With transactions" ? hasTransactions : !hasTransactions)); }).length && <div className="text-xs text-muted-foreground py-4">No suppliers match these filters.</div>}
+                  {!suppliers.filter(sp => { const q = supplierSearch.trim().toLowerCase(); const matchesSearch = !q || `${sp.name} ${sp.contact || ""} ${sp.phone || ""} ${sp.email || ""}`.toLowerCase().includes(q); const hasTransactions = expenses.some(e => e.supplierId === sp.id) || supplierPayments.some(p => p.supplierId === sp.id); return matchesSearch && (supplierActivityFilter === "All suppliers" || (supplierActivityFilter === "With transactions" ? hasTransactions : !hasTransactions)); }).length && <div className="text-xs text-muted-foreground py-4">{tr("No suppliers match these filters.")}</div>}
                 </div>
 
                 <div className="panel p-4 border rounded-xl bg-card md:col-span-2">
@@ -3492,16 +4092,16 @@ export default function Home() {
                       <>
                         <div className="flex justify-between items-start mb-4">
                           <div><h2 className="text-sm font-bold">{selected.name}</h2><p className="text-[11px] text-muted-foreground">{selected.contact || ""} {selected.phone ? `· ${selected.phone}` : ""}</p></div>
-                          <div className="text-right text-[11px]"><div>Purchases <b>{money(purchases)}</b></div><div>Payments <b>{money(payments)}</b></div><div>Balance <b>{money(purchases - payments)}</b></div></div>
+                          <div className="text-right text-[11px]"><div>{tr("Purchases")} <b>{money(purchases)}</b></div><div>{tr("Payments")} <b>{money(payments)}</b></div><div>{tr("Balance")} <b>{money(purchases - payments)}</b></div></div>
                         </div>
-                        <div className="font-bold text-xs mb-2">Transaction History</div>
+                        <div className="font-bold text-xs mb-2">{tr("Transaction History")}</div>
                         <div className="table-scroll">
-                          <table className="enhanced-data-table"><thead><tr><th>DATE</th><th>TYPE</th><th>DESCRIPTION</th><th>METHOD / VENDOR</th><th className="text-right">AMOUNT</th></tr></thead>
+                          <table className="enhanced-data-table"><thead><tr><th>{tr("DATE")}</th><th>{tr("TYPE")}</th><th>{tr("DESCRIPTION")}</th><th>{tr("METHOD / VENDOR")}</th><th className="text-right">{tr("AMOUNT")}</th></tr></thead>
                           <tbody>{transactions.map(t => <tr key={t.id}><td>{new Date(t.date).toLocaleDateString("en-IN")}</td><td><span className={`data-badge ${t.type === "Payment" ? "payment" : "purchase"}`}>{t.type}</span></td><td>{t.description}</td><td>{t.method}</td><td className="text-right font-semibold">{money(t.amount)}</td></tr>)}
-                          {!transactions.length && <tr><td colSpan={5} className="text-center py-8 text-xs text-muted-foreground">No transactions recorded for this supplier yet.</td></tr>}</tbody></table>
+                          {!transactions.length && <tr><td colSpan={5} className="text-center py-8 text-xs text-muted-foreground">{tr("No transactions recorded for this supplier yet.")}</td></tr>}</tbody></table>
                         </div>
                       </>
-                    ) : <div className="py-10 text-center text-xs text-muted-foreground">Select a supplier to view transaction history.</div>;
+                    ) : <div className="py-10 text-center text-xs text-muted-foreground">{tr("Select a supplier to view transaction history.")}</div>;
                   })()}
                 </div>
               </div>
@@ -3513,9 +4113,9 @@ export default function Home() {
             <>
               <div className="page-head">
                 <div>
-                  <div className="eyebrow">PLANS & BILLING</div>
-                  <h1>Subscription</h1>
-                  <p>Choose an active platform plan, scan the UPI QR code below, and submit the transaction reference.</p>
+                  <div className="eyebrow">{tr("PLANS & BILLING")}</div>
+                  <h1>{tr("Subscription")}</h1>
+                  <p>{tr("Choose an active platform plan, scan the UPI QR code below, and submit the transaction reference.")}</p>
                 </div>
               </div>
 
@@ -3525,13 +4125,13 @@ export default function Home() {
                   ["Status", tenantInfo.id ? (activeRenewalDate && activeRenewalDate !== "—" && new Date(activeRenewalDate) < new Date() ? "Expired" : "Active") : "—"],
                   ["Renewal date", activeRenewalDate || "—"],
                   ["Payment history", String(subscriptionHistory.filter(x => x.restaurant_id === tenantId).length)],
-                ].map(([label, value]) => <div className="kpi-card" key={String(label)}><div className="kpi-top"><span>{label}</span><span className="kpi-icon teal"><CreditCard size={18}/></span></div><strong className="text-lg">{String(value)}</strong><div className="kpi-foot"><span>Restaurant subscription</span></div></div>)}
+                ].map(([label, value]) => <div className="kpi-card" key={String(label)}><div className="kpi-top"><span>{label}</span><span className="kpi-icon teal"><CreditCard size={18}/></span></div><strong className="text-lg">{String(value)}</strong><div className="kpi-foot"><span>{tr("Restaurant subscription")}</span></div></div>)}
               </div>
               <div className="panel p-4 mb-6">
-                <div className="panel-header"><div><h2>Subscription history</h2><p>Payment and approval requests for this restaurant</p></div></div>
+                <div className="panel-header"><div><h2>{tr("Subscription history")}</h2><p>{tr("Payment and approval requests for this restaurant")}</p></div></div>
                 <div className="space-y-2">
                   {subscriptionHistory.filter(x => x.restaurant_id === tenantId).slice(0, 6).map((x: any) => <div key={x.id} className="flex justify-between items-center border-b py-2 text-xs"><span><b>{x.plan}</b><span className="text-muted-foreground ml-2">{new Date(x.requested_at).toLocaleDateString("en-IN")}</span></span><span className="font-semibold">{x.status} · {money(Number(x.amount) || 0)}</span></div>)}
-                  {!subscriptionHistory.filter(x => x.restaurant_id === tenantId).length && <div className="text-xs text-muted-foreground py-3">No subscription requests yet.</div>}
+                  {!subscriptionHistory.filter(x => x.restaurant_id === tenantId).length && <div className="text-xs text-muted-foreground py-3">{tr("No subscription requests yet.")}</div>}
                 </div>
               </div>
 
@@ -3599,11 +4199,11 @@ export default function Home() {
                   </div>
 
                   <div className="grid grid-cols-3 gap-2 mb-3">
-                    <button type="button" onClick={() => openUpiApp("gpay")} className="upi-app-btn gpay-btn">Google Pay</button>
-                    <button type="button" onClick={() => openUpiApp("phonepe")} className="upi-app-btn phonepe-btn">PhonePe</button>
-                    <button type="button" onClick={() => openUpiApp("upi")} className="upi-app-btn upi-btn">Other UPI</button>
+                    <button type="button" onClick={() => openUpiApp("gpay")} className="upi-app-btn gpay-btn">{tr("Google Pay")}</button>
+                    <button type="button" onClick={() => openUpiApp("phonepe")} className="upi-app-btn phonepe-btn">{tr("PhonePe")}</button>
+                    <button type="button" onClick={() => openUpiApp("upi")} className="upi-app-btn upi-btn">{tr("Other UPI")}</button>
                   </div>
-                  <p className="text-[10px] text-muted-foreground mb-3">On mobile, choose your installed UPI app. If the app is not installed, use Other UPI or scan the QR code.</p>
+                  <p className="text-[10px] text-muted-foreground mb-3">{tr("On mobile, choose your installed UPI app. If the app is not installed, use Other UPI or scan the QR code.")}</p>
 
                   <div className="mb-4">
                     <input
@@ -3631,7 +4231,7 @@ export default function Home() {
                       required
                       value={inlineRefId}
                       onChange={(e) => setInlineRefId(e.target.value)}
-                      placeholder="Enter 12-digit UPI / UTR reference ID"
+                      placeholder={tr("Enter 12-digit UPI / UTR reference ID")}
                       className="w-full p-2.5 rounded-xl text-xs text-white border border-gray-700 bg-gray-900/90 focus:outline-none focus:border-green-500"
                     />
                   </div>
@@ -3651,20 +4251,20 @@ export default function Home() {
           {/* SUPPORT & HELP */}
           {view === "support" && !isAdmin && (
             <div className="page-head">
-              <div className="eyebrow">HELP & SUPPORT</div>
-              <h1>Support & Help</h1>
-              <p>Contact the RestoPulse support team for billing, technical, and restaurant operations assistance.</p>
+              <div className="eyebrow">{tr("HELP & SUPPORT")}</div>
+              <h1>{tr("Support & Help")}</h1>
+              <p>{tr("Contact the RestoPulse support team for billing, technical, and restaurant operations assistance.")}</p>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-5 mt-6">
                 {(supportSections.filter((x: any) => x.active !== false).length ? supportSections.filter((x: any) => x.active !== false) : [{ id: "default-support", title: "RestoPulse Support & Help", description: "Contact us for billing, technical, and restaurant operations assistance.", phone: "8122187039", whatsapp: "8122187039", email: "hosurwebservices@gmail.com", active: true }]).map((section: any) => (
                   <section key={section.id} className="panel p-6 border rounded-2xl bg-card space-y-4">
                     <h2 className="text-lg font-bold">{section.title || "Support & Help"}</h2>
                     <p className="text-sm text-muted-foreground">{section.description}</p>
-                    {section.phone && <div className="flex items-center justify-between gap-3 border rounded-xl p-3"><span className="text-sm font-semibold">Support Phone</span><a className="font-bold text-indigo-600" href={`tel:${String(section.phone).replace(/\s+/g, "")}`}>{section.phone}</a></div>}
-                    {section.email && <div className="flex items-center justify-between gap-3 border rounded-xl p-3"><span className="text-sm font-semibold">Support Email</span><a className="font-bold text-indigo-600 break-all" href={`mailto:${section.email}`}>{section.email}</a></div>}
-                    {section.whatsapp && <a className="primary-btn inline-flex" href={`https://wa.me/${String(section.whatsapp).replace(/\D/g, "")}`} target="_blank" rel="noreferrer">WhatsApp Support</a>}
+                    {section.phone && <div className="flex items-center justify-between gap-3 border rounded-xl p-3"><span className="text-sm font-semibold">{tr("Support Phone")}</span><a className="font-bold text-indigo-600" href={`tel:${String(section.phone).replace(/\s+/g, "")}`}>{section.phone}</a></div>}
+                    {section.email && <div className="flex items-center justify-between gap-3 border rounded-xl p-3"><span className="text-sm font-semibold">{tr("Support Email")}</span><a className="font-bold text-indigo-600 break-all" href={`mailto:${section.email}`}>{section.email}</a></div>}
+                    {section.whatsapp && <a className="primary-btn inline-flex" href={`https://wa.me/${String(section.whatsapp).replace(/\D/g, "")}`} target="_blank" rel="noreferrer">{tr("WhatsApp Support")}</a>}
                   </section>
                 ))}
-                {!supportSections.filter((x: any) => x.active !== false).length && <div className="panel p-6 border rounded-2xl text-sm text-muted-foreground">Support contact information is not configured yet.</div>}
+                {!supportSections.filter((x: any) => x.active !== false).length && <div className="panel p-6 border rounded-2xl text-sm text-muted-foreground">{tr("Support contact information is not configured yet.")}</div>}
               </div>
             </div>
           )}
@@ -3676,26 +4276,26 @@ export default function Home() {
                 AdminSettingsPanel()
               ) : <>
               <div className="page-head">
-                <div className="eyebrow">PREFERENCES</div>
-                <h1>Settings & Tax Details</h1>
-                <p>Configure restaurant identity, GST tax slabs, and account security.</p>
+                <div className="eyebrow">{tr("PREFERENCES")}</div>
+                <h1>{tr("Settings & Tax Details")}</h1>
+                <p>{tr("Configure restaurant identity, GST tax slabs, and account security.")}</p>
               </div>
 
               <div className="settings-grid grid grid-cols-1 md:grid-cols-2 gap-6 mt-6">
                 <section className="panel p-6 border rounded-2xl bg-card space-y-4">
-                  <h2 className="text-base font-bold">Restaurant & GST Details</h2>
+                  <h2 className="text-base font-bold">{tr("Restaurant & GST Details")}</h2>
                   <div className="space-y-3">
                     <label className="block space-y-1">
-                      <span className="text-xs font-medium text-muted-foreground">Restaurant Name</span>
+                      <span className="text-xs font-medium text-muted-foreground">{tr("Restaurant Name")}</span>
                       <input
                         value={storeForm.name}
                         onChange={(e) => setStoreForm({ ...storeForm, name: e.target.value })}
-                        placeholder="e.g. Mani"
+                        placeholder={tr("e.g. Mani")}
                         className="w-full p-2 border rounded-lg text-xs bg-background"
                       />
                     </label>
                     <label className="block space-y-1">
-                      <span className="text-xs font-medium text-muted-foreground">Phone Number</span>
+                      <span className="text-xs font-medium text-muted-foreground">{tr("Phone Number")}</span>
                       <input
                         value={storeForm.phone}
                         onChange={(e) => setStoreForm({ ...storeForm, phone: e.target.value })}
@@ -3704,18 +4304,18 @@ export default function Home() {
                       />
                     </label>
                     <label className="block space-y-1">
-                      <span className="text-xs font-medium text-muted-foreground">Address</span>
+                      <span className="text-xs font-medium text-muted-foreground">{tr("Address")}</span>
                       <input
                         value={storeForm.address}
                         onChange={(e) => setStoreForm({ ...storeForm, address: e.target.value })}
-                        placeholder="Street, City, State"
+                        placeholder={tr("Street, City, State")}
                         className="w-full p-2 border rounded-lg text-xs bg-background"
                       />
                     </label>
 
                     <div className="pt-2 border-t space-y-2">
                       <label className="block space-y-1">
-                        <span className="text-xs font-medium text-muted-foreground">GSTIN (GST Number)</span>
+                        <span className="text-xs font-medium text-muted-foreground">{tr("GSTIN (GST Number)")}</span>
                         <input
                           value={storeForm.gstin}
                           onChange={(e) => setStoreForm({ ...storeForm, gstin: e.target.value })}
@@ -3725,7 +4325,7 @@ export default function Home() {
                       </label>
                       <div className="grid grid-cols-3 gap-2">
                         <label className="block space-y-1">
-                          <span className="text-xs font-medium text-muted-foreground">GST Total %</span>
+                          <span className="text-xs font-medium text-muted-foreground">{tr("GST Total %")}</span>
                           <input
                             type="number"
                             value={storeForm.gst_percent}
@@ -3734,7 +4334,7 @@ export default function Home() {
                           />
                         </label>
                         <label className="block space-y-1">
-                          <span className="text-xs font-medium text-muted-foreground">CGST %</span>
+                          <span className="text-xs font-medium text-muted-foreground">{tr("CGST %")}</span>
                           <input
                             type="number"
                             value={storeForm.cgst_percent}
@@ -3743,7 +4343,7 @@ export default function Home() {
                           />
                         </label>
                         <label className="block space-y-1">
-                          <span className="text-xs font-medium text-muted-foreground">SGST %</span>
+                          <span className="text-xs font-medium text-muted-foreground">{tr("SGST %")}</span>
                           <input
                             type="number"
                             value={storeForm.sgst_percent}
@@ -3764,11 +4364,11 @@ export default function Home() {
                 </section>
 
                 <section className="panel p-6 border rounded-2xl bg-card space-y-4">
-                  <h2 className="text-base font-bold">Password & Security</h2>
-                  <p className="text-xs text-muted-foreground">Reset the account login password.</p>
+                  <h2 className="text-base font-bold">{tr("Password & Security")}</h2>
+                  <p className="text-xs text-muted-foreground">{tr("Reset the account login password.")}</p>
                   <form onSubmit={handleResetPassword} className="space-y-3">
                     <label className="block space-y-1">
-                      <span className="text-xs font-medium text-muted-foreground">New Password</span>
+                      <span className="text-xs font-medium text-muted-foreground">{tr("New Password")}</span>
                       <input
                         type={showNewPassword ? "text" : "password"}
                         required
@@ -3781,7 +4381,7 @@ export default function Home() {
                       <button type="button" className="text-muted-foreground" aria-label={showNewPassword ? "Hide password" : "Show password"} onClick={() => setShowNewPassword(v => !v)}>{showNewPassword ? <EyeOff size={15}/> : <Eye size={15}/>}</button>
                     </label>
                     <label className="block space-y-1">
-                      <span className="text-xs font-medium text-muted-foreground">Confirm New Password</span>
+                      <span className="text-xs font-medium text-muted-foreground">{tr("Confirm New Password")}</span>
                       <input
                         type={showConfirmPassword ? "text" : "password"}
                         required
@@ -3808,9 +4408,9 @@ export default function Home() {
             <>
               <div className="page-head flex justify-between items-center">
                 <div>
-                  <div className="eyebrow">PLATFORM CONTROL</div>
-                  <h1>Restaurant Directory</h1>
-                  <p>Registered restaurants on RestoPulse and their active plans.</p>
+                  <div className="eyebrow">{tr("PLATFORM CONTROL")}</div>
+                  <h1>{tr("Restaurant Directory")}</h1>
+                  <p>{tr("Registered restaurants on RestoPulse and their active plans.")}</p>
                 </div>
                 <button className="primary-btn flex items-center gap-1.5" onClick={() => { setEditing(null); setForm({ name: "", owner: "", email: "", phone: "", city: "", password: "" }); setModal("restaurant"); }}>
                   <Plus size={16}/> Add restaurant
@@ -3822,12 +4422,12 @@ export default function Home() {
                   <table>
                     <thead>
                       <tr>
-                        <th>RESTAURANT</th>
-                        <th>OWNER</th>
-                        <th>PLAN</th>
-                        <th>STATUS</th>
-                        <th>RENEWAL</th>
-                        <th>ACTIONS</th>
+                        <th>{tr("RESTAURANT")}</th>
+                        <th>{tr("OWNER")}</th>
+                        <th>{tr("PLAN")}</th>
+                        <th>{tr("STATUS")}</th>
+                        <th>{tr("RENEWAL")}</th>
+                        <th>{tr("ACTIONS")}</th>
                       </tr>
                     </thead>
                     <tbody>
@@ -3843,9 +4443,9 @@ export default function Home() {
                           </td>
                           <td className="font-mono text-sm">{r.renewal}</td>
                           <td><div className="flex gap-1.5">
-                            <button className="quiet-btn text-xs" title="Edit restaurant" onClick={() => { setEditing(r.id); setForm({ name: r.name, owner: r.owner, email: r.email, phone: r.phone, city: r.city || "", plan: r.plan || "Free Trial", status: r.status || "Active", renewal: r.renewal || "" }); setModal("restaurant"); }}><Pencil size={13}/></button>
-                            <button className="quiet-btn text-xs" title="Extend subscription" onClick={() => { setEditing(r.id); setForm({ days: "30" }); setModal("extend"); }}><Clock size={13}/></button>
-                            <button className="quiet-btn text-xs text-red-600" title="Deactivate restaurant" onClick={async () => { if (!confirm("Deactivate this restaurant?")) return; const res = await authedFetch("/api/admin/restaurants", { method: "DELETE", body: JSON.stringify({ id: r.id }) }); const j = await res.json(); if (!res.ok) { toast.error(j.error || "Failed"); return; } fetchAllRestaurants(); toast.success("Restaurant deactivated"); }}><Trash2 size={13}/></button>
+                            <button className="quiet-btn text-xs" title={tr("Edit restaurant")} onClick={() => { setEditing(r.id); setForm({ name: r.name, owner: r.owner, email: r.email, phone: r.phone, city: r.city || "", plan: r.plan || "Free Trial", status: r.status || "Active", renewal: r.renewal || "" }); setModal("restaurant"); }}><Pencil size={13}/></button>
+                            <button className="quiet-btn text-xs" title={tr("Extend subscription")} onClick={() => { setEditing(r.id); setForm({ days: "30" }); setModal("extend"); }}><Clock size={13}/></button>
+                            <button className="quiet-btn text-xs text-red-600" title={tr("Deactivate restaurant")} onClick={async () => { if (!confirm("Deactivate this restaurant?")) return; const res = await authedFetch("/api/admin/restaurants", { method: "DELETE", body: JSON.stringify({ id: r.id }) }); const j = await res.json(); if (!res.ok) { toast.error(j.error || "Failed"); return; } fetchAllRestaurants(); toast.success("Restaurant deactivated"); }}><Trash2 size={13}/></button>
                           </div></td>
                         </tr>
                       ))}
@@ -3860,16 +4460,16 @@ export default function Home() {
           {view === "admins" && (
             <>
               <div className="page-head flex flex-col sm:flex-row sm:justify-between sm:items-center gap-3">
-                <div><div className="eyebrow">PLATFORM ADMINISTRATION</div><h1>Manage Admins</h1><p>Add, edit, or remove platform administrators.</p></div>
-                <button className="primary-btn flex items-center gap-1.5" onClick={() => { setEditingAdminId(null); setAdminForm({ name: "", email: "", password: "", permissions: defaultAdminPermissions }); setModal("admin"); }}><Plus size={16}/> Add new admin</button>
+                <div><div className="eyebrow">{tr("PLATFORM ADMINISTRATION")}</div><h1>{tr("Manage Admins")}</h1><p>{tr("Add, edit, or remove platform administrators.")}</p></div>
+                <button className="primary-btn flex items-center gap-1.5" onClick={() => { setEditingAdminId(null); setAdminForm({ name: "", email: "", password: "", permissions: defaultAdminPermissions }); setModal("admin"); }}><Plus size={16}/> {tr("Add new admin")}</button>
               </div>
               <div className="panel management-panel mt-6">
-                <div className="table-scroll"><table><thead><tr><th>ADMIN</th><th>EMAIL</th><th>CREATED</th><th>ACTIONS</th></tr></thead>
+                <div className="table-scroll"><table><thead><tr><th>{tr("ADMIN")}</th><th>{tr("EMAIL")}</th><th>{tr("CREATED")}</th><th>{tr("ACTIONS")}</th></tr></thead>
                 <tbody>{admins.map((a: any) => <tr key={a.id}><td><b>{a.name}</b></td><td>{a.email}</td><td>{a.created_at ? new Date(a.created_at).toLocaleDateString("en-IN") : "—"}</td><td><div className="flex gap-1.5">
-                  <button className="quiet-btn text-xs" title="Edit admin" onClick={() => { setEditingAdminId(a.id); setAdminForm({ name: a.name || "", email: a.email || "", password: "", permissions: { restaurants: true, approvals: true, pricing: true, settings: true, admins: false, ...(a.permissions || {}) } }); setModal("admin"); }}><Pencil size={13}/></button>
-                  <button className="quiet-btn text-xs text-red-600" title="Remove admin" onClick={async () => { if (!confirm(`Remove ${a.name || a.email} from platform admins?`)) return; const res = await authedFetch("/api/admin/admins", { method: "DELETE", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ id: a.id }) }); const j = await res.json(); if (!res.ok) { toast.error(j.error || "Could not remove admin"); return; } await fetchAdmins(); toast.success("Admin access removed"); }}><Trash2 size={13}/></button>
+                  <button className="quiet-btn text-xs" title={tr("Edit admin")} onClick={() => { setEditingAdminId(a.id); setAdminForm({ name: a.name || "", email: a.email || "", password: "", permissions: { restaurants: true, approvals: true, pricing: true, settings: true, admins: false, ...(a.permissions || {}) } }); setModal("admin"); }}><Pencil size={13}/></button>
+                  <button className="quiet-btn text-xs text-red-600" title={tr("Remove admin")} onClick={async () => { if (!confirm(`Remove ${a.name || a.email} from platform admins?`)) return; const res = await authedFetch("/api/admin/admins", { method: "DELETE", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ id: a.id }) }); const j = await res.json(); if (!res.ok) { toast.error(j.error || "Could not remove admin"); return; } await fetchAdmins(); toast.success("Admin access removed"); }}><Trash2 size={13}/></button>
                 </div></td></tr>)}
-                {!admins.length && <tr><td colSpan={4} className="text-center py-8 text-muted-foreground">No platform admins found.</td></tr>}</tbody></table></div>
+                {!admins.length && <tr><td colSpan={4} className="text-center py-8 text-muted-foreground">{tr("No platform admins found.")}</td></tr>}</tbody></table></div>
               </div>
             </>
           )}
@@ -3879,9 +4479,9 @@ export default function Home() {
             <>
               <div className="page-head flex justify-between items-center">
                 <div>
-                  <div className="eyebrow">PLATFORM PIPELINE</div>
-                  <h1>Pending Approvals</h1>
-                  <p>Review restaurant onboarding applications and incoming subscription payment proofs.</p>
+                  <div className="eyebrow">{tr("PLATFORM PIPELINE")}</div>
+                  <h1>{tr("Pending Approvals")}</h1>
+                  <p>{tr("Review restaurant onboarding applications and incoming subscription payment proofs.")}</p>
                 </div>
                 <button className="quiet-btn flex items-center gap-1.5" onClick={() => { fetchRealApprovals(); fetchSubscriptionRequests(); fetchAllRestaurants(); toast.success("Refreshed queues"); }}>
                   <RefreshCw size={14} /> Refresh
@@ -3899,12 +4499,12 @@ export default function Home() {
                   <table>
                     <thead>
                       <tr>
-                        <th>RESTAURANT</th>
-                        <th>OWNER</th>
-                        <th>PLAN</th>
-                        <th>PAYMENT PROOF</th>
-                        <th>TRANSACTION NOTE</th>
-                        <th>ACTIONS</th>
+                        <th>{tr("RESTAURANT")}</th>
+                        <th>{tr("OWNER")}</th>
+                        <th>{tr("PLAN")}</th>
+                        <th>{tr("PAYMENT PROOF")}</th>
+                        <th>{tr("TRANSACTION NOTE")}</th>
+                        <th>{tr("ACTIONS")}</th>
                       </tr>
                     </thead>
                     <tbody>
@@ -3934,7 +4534,7 @@ export default function Home() {
                                 View Proof <ExternalLink size={12} />
                               </a>
                             ) : (
-                              <span className="text-gray-400 text-xs">No screenshot</span>
+                              <span className="text-gray-400 text-xs">{tr("No screenshot")}</span>
                             )}
                           </td>
                           <td className="text-sm max-w-xs truncate">{req.message || "—"}</td>
@@ -3980,7 +4580,7 @@ export default function Home() {
                     <div className="approval-card" key={a.id}>
                       <div className="approval-top flex justify-between items-center">
                         <span className="approval-avatar">{a.name.slice(0, 2).toUpperCase()}</span>
-                        <span className="status trial">Pending Review</span>
+                        <span className="status trial">{tr("Pending Review")}</span>
                       </div>
                       <h2 className="text-lg font-bold mt-2">{a.name}</h2>
                       <p className="text-xs text-muted-foreground">{a.city} · Submitted {a.submitted}</p>
@@ -3995,7 +4595,7 @@ export default function Home() {
                     </div>
                   ))}
                   {!approvals.length && (
-                    <div className="panel empty-state">No pending restaurant onboarding applications.</div>
+                    <div className="panel empty-state">{tr("No pending restaurant onboarding applications.")}</div>
                   )}
                 </div>
               </section>
@@ -4007,9 +4607,9 @@ export default function Home() {
             <>
               <div className="page-head flex justify-between items-center">
                 <div>
-                  <div className="eyebrow">PLATFORM CONTROLS</div>
-                  <h1>Pricing Plans & Configuration</h1>
-                  <p>Add, edit, or delete the plans offered to all restaurants across RestoPulse.</p>
+                  <div className="eyebrow">{tr("PLATFORM CONTROLS")}</div>
+                  <h1>{tr("Pricing Plans & Configuration")}</h1>
+                  <p>{tr("Add, edit, or delete the plans offered to all restaurants across RestoPulse.")}</p>
                 </div>
                 <button
                   className="primary-btn flex items-center gap-1.5 font-bold"
@@ -4020,11 +4620,11 @@ export default function Home() {
               </div>
 
               <section className="panel settings-panel mb-6 mt-4">
-                <h2>Restaurant payment UPI ID</h2>
+                <h2>{tr("Restaurant payment UPI ID")}</h2>
                 <div className="settings-fields mt-3">
-                  <label>Admin UPI ID<input value={adminUpiId} onChange={(e) => setAdminUpiId(e.target.value)} placeholder="merchant@upi" /></label>
+                  <label>{tr("Admin UPI ID")}<input value={adminUpiId} onChange={(e) => setAdminUpiId(e.target.value)} placeholder="merchant@upi" /></label>
                 </div>
-                <button className="primary-btn mt-3" onClick={saveAdminUpi} disabled={adminUpiBusy}>Save Admin UPI ID</button>
+                <button className="primary-btn mt-3" onClick={saveAdminUpi} disabled={adminUpiBusy}>{tr("Save Admin UPI ID")}</button>
               </section>
 
               {/* Editable Plans Grid */}
@@ -4067,46 +4667,46 @@ export default function Home() {
         </main>
       </div>
 
-      {mobileNav && <button className="nav-backdrop" aria-label="Close navigation" onClick={() => setMobileNav(false)} />}
+      {mobileNav && <button className="nav-backdrop" aria-label={tr("Close navigation")} onClick={() => setMobileNav(false)} />}
 
       <Dialog open={modal === "extend"} onOpenChange={(v) => !v && setModal(null)}>
         <DialogContent className="max-w-md">
-          <DialogHeader><DialogTitle>Extend Subscription</DialogTitle><DialogDescription>Extend the selected restaurant's current subscription without changing its plan.</DialogDescription></DialogHeader>
+          <DialogHeader><DialogTitle>{tr("Extend Subscription")}</DialogTitle><DialogDescription>{tr("Extend the selected restaurant's current subscription without changing its plan.")}</DialogDescription></DialogHeader>
           <div className="modal-fields">
-            <label>Extension period<select value={form.days || "30"} onChange={e => setForm({ ...form, days: e.target.value })}>
-              <option value="7">7 days</option><option value="30">30 days</option><option value="90">90 days</option><option value="180">180 days</option><option value="365">365 days</option>
+            <label>{tr("Extension period")}<select value={form.days || "30"} onChange={e => setForm({ ...form, days: e.target.value })}>
+              <option value="7">{tr("7 days")}</option><option value="30">{tr("30 days")}</option><option value="90">{tr("90 days")}</option><option value="180">{tr("180 days")}</option><option value="365">{tr("365 days")}</option>
             </select></label>
           </div>
-          <DialogFooter><button className="quiet-btn" onClick={() => setModal(null)}>Cancel</button><button className="primary-btn" onClick={save}>Extend subscription</button></DialogFooter>
+          <DialogFooter><button className="quiet-btn" onClick={() => setModal(null)}>{tr("Cancel")}</button><button className="primary-btn" onClick={save}>{tr("Extend subscription")}</button></DialogFooter>
         </DialogContent>
       </Dialog>
 
       <Dialog open={modal === "admin"} onOpenChange={(v) => !v && setModal(null)}>
         <DialogContent className="max-w-md">
-          <DialogHeader><DialogTitle>{editingAdminId ? "Edit Admin" : "Add New Admin"}</DialogTitle><DialogDescription>Manage platform administrator access.</DialogDescription></DialogHeader>
+          <DialogHeader><DialogTitle>{editingAdminId ? "Edit Admin" : "Add New Admin"}</DialogTitle><DialogDescription>{tr("Manage platform administrator access.")}</DialogDescription></DialogHeader>
           <div className="modal-fields">
-            <label>Admin name<input value={adminForm.name} onChange={e => setAdminForm({ ...adminForm, name: e.target.value })} /></label>
-            <label>Admin email<input type="email" value={adminForm.email} onChange={e => setAdminForm({ ...adminForm, email: e.target.value })} /></label>
-            <label>Password {editingAdminId ? "(leave blank to keep current)" : "(optional)"}<div className="relative"><input type={showAdminPassword ? "text" : "password"} minLength={12} placeholder="Minimum 12 characters" value={adminForm.password} onChange={e => setAdminForm({ ...adminForm, password: e.target.value })} className="pr-10" /><button type="button" className="absolute right-2 top-1/2 -translate-y-1/2" aria-label={showAdminPassword ? "Hide password" : "Show password"} onClick={() => setShowAdminPassword(v => !v)}>{showAdminPassword ? <EyeOff size={15}/> : <Eye size={15}/>}</button></div></label>
-            <div className="border rounded-xl p-3 space-y-2"><b className="text-xs">Section access</b>{([['restaurants', 'Restaurants'], ['approvals', 'Approvals'], ['pricing', 'Pricing plans'], ['settings', 'Settings'], ['support', 'Support & Help'], ['admins', 'Manage admins']] as const).map(([key, label]) => <label key={key} className="flex items-center gap-2 text-xs"><input type="checkbox" checked={!!(adminForm.permissions as any)[key]} onChange={e => setAdminForm({ ...adminForm, permissions: { ...adminForm.permissions, [key]: e.target.checked } })} />{label}</label>)}</div>
+            <label>{tr("Admin name")}<input value={adminForm.name} onChange={e => setAdminForm({ ...adminForm, name: e.target.value })} /></label>
+            <label>{tr("Admin email")}<input type="email" value={adminForm.email} onChange={e => setAdminForm({ ...adminForm, email: e.target.value })} /></label>
+            <label>Password {editingAdminId ? "(leave blank to keep current)" : "(optional)"}<div className="relative"><input type={showAdminPassword ? "text" : "password"} minLength={12} placeholder={tr("Minimum 12 characters")} value={adminForm.password} onChange={e => setAdminForm({ ...adminForm, password: e.target.value })} className="pr-10" /><button type="button" className="absolute right-2 top-1/2 -translate-y-1/2" aria-label={showAdminPassword ? "Hide password" : "Show password"} onClick={() => setShowAdminPassword(v => !v)}>{showAdminPassword ? <EyeOff size={15}/> : <Eye size={15}/>}</button></div></label>
+            <div className="border rounded-xl p-3 space-y-2"><b className="text-xs">{tr("Section access")}</b>{([['restaurants', 'Restaurants'], ['approvals', 'Approvals'], ['pricing', 'Pricing plans'], ['settings', 'Settings'], ['support', 'Support & Help'], ['admins', 'Manage admins']] as const).map(([key, label]) => <label key={key} className="flex items-center gap-2 text-xs"><input type="checkbox" checked={!!(adminForm.permissions as any)[key]} onChange={e => setAdminForm({ ...adminForm, permissions: { ...adminForm.permissions, [key]: e.target.checked } })} />{label}</label>)}</div>
           </div>
-          <DialogFooter><button className="quiet-btn" onClick={() => setModal(null)}>Cancel</button><button className="primary-btn" onClick={save}>{editingAdminId ? "Save changes" : "Add admin"}</button></DialogFooter>
+          <DialogFooter><button className="quiet-btn" onClick={() => setModal(null)}>{tr("Cancel")}</button><button className="primary-btn" onClick={save}>{editingAdminId ? "Save changes" : "Add admin"}</button></DialogFooter>
         </DialogContent>
       </Dialog>
 
       <Dialog open={modal === "restaurant"} onOpenChange={(v) => !v && setModal(null)}>
         <DialogContent className="modal-content">
-          <DialogHeader><DialogTitle>{editing ? "Edit Restaurant" : "Add Restaurant"}</DialogTitle><DialogDescription>Manage the platform restaurant account without changing the existing console style.</DialogDescription></DialogHeader>
+          <DialogHeader><DialogTitle>{editing ? "Edit Restaurant" : "Add Restaurant"}</DialogTitle><DialogDescription>{tr("Manage the platform restaurant account without changing the existing console style.")}</DialogDescription></DialogHeader>
           <div className="modal-fields">
-            <label>Restaurant name<input value={form.name || ""} onChange={e => setForm({ ...form, name: e.target.value })} /></label>
-            <label>Owner name<input value={form.owner || ""} onChange={e => setForm({ ...form, owner: e.target.value })} /></label>
-            <label>Owner email<input type="email" disabled={editing !== null} value={form.email || ""} onChange={e => setForm({ ...form, email: e.target.value })} /></label>
-            <label>Owner phone<input value={form.phone || ""} onChange={e => setForm({ ...form, phone: e.target.value })} /></label>
-            <label>City<input value={form.city || ""} onChange={e => setForm({ ...form, city: e.target.value })} /></label>
-            {!editing && <label>Temporary password<div className="relative"><input type={showRestaurantPassword ? "text" : "password"} minLength={12} placeholder="Minimum 12 characters" value={form.password || ""} onChange={e => setForm({ ...form, password: e.target.value })} className="pr-10" /><button type="button" className="absolute right-2 top-1/2 -translate-y-1/2" aria-label={showRestaurantPassword ? "Hide password" : "Show password"} onClick={() => setShowRestaurantPassword(v => !v)}>{showRestaurantPassword ? <EyeOff size={15}/> : <Eye size={15}/>}</button></div></label>}
-            {editing && <><label>Plan<select value={form.plan || "Free Trial"} onChange={e => setForm({ ...form, plan: e.target.value })}>{plans.map(x => <option key={x.id}>{x.name}</option>)}</select></label><label>Status<select value={form.status || "Active"} onChange={e => setForm({ ...form, status: e.target.value })}><option>Trial</option><option>Active</option><option>Paused</option></select></label><label>Renewal date<input type="date" value={form.renewal === "—" ? "" : form.renewal || ""} onChange={e => setForm({ ...form, renewal: e.target.value })} /></label></>}
+            <label>{tr("Restaurant name")}<input value={form.name || ""} onChange={e => setForm({ ...form, name: e.target.value })} /></label>
+            <label>{tr("Owner name")}<input value={form.owner || ""} onChange={e => setForm({ ...form, owner: e.target.value })} /></label>
+            <label>{tr("Owner email")}<input type="email" disabled={editing !== null} value={form.email || ""} onChange={e => setForm({ ...form, email: e.target.value })} /></label>
+            <label>{tr("Owner phone")}<input value={form.phone || ""} onChange={e => setForm({ ...form, phone: e.target.value })} /></label>
+            <label>{tr("City")}<input value={form.city || ""} onChange={e => setForm({ ...form, city: e.target.value })} /></label>
+            {!editing && <label>{tr("Temporary password")}<div className="relative"><input type={showRestaurantPassword ? "text" : "password"} minLength={12} placeholder={tr("Minimum 12 characters")} value={form.password || ""} onChange={e => setForm({ ...form, password: e.target.value })} className="pr-10" /><button type="button" className="absolute right-2 top-1/2 -translate-y-1/2" aria-label={showRestaurantPassword ? "Hide password" : "Show password"} onClick={() => setShowRestaurantPassword(v => !v)}>{showRestaurantPassword ? <EyeOff size={15}/> : <Eye size={15}/>}</button></div></label>}
+            {editing && <><label>{tr("Plan")}<select value={form.plan || "Free Trial"} onChange={e => setForm({ ...form, plan: e.target.value })}>{plans.map(x => <option key={x.id}>{x.name}</option>)}</select></label><label>{tr("Status")}<select value={form.status || "Active"} onChange={e => setForm({ ...form, status: e.target.value })}><option>{tr("Trial")}</option><option>{tr("Active")}</option><option>{tr("Paused")}</option></select></label><label>{tr("Renewal date")}<input type="date" value={form.renewal === "—" ? "" : form.renewal || ""} onChange={e => setForm({ ...form, renewal: e.target.value })} /></label></>}
           </div>
-          <DialogFooter><button className="quiet-btn" onClick={() => setModal(null)}>Cancel</button><button className="primary-btn" onClick={save}>{editing ? "Save changes" : "Create restaurant"}</button></DialogFooter>
+          <DialogFooter><button className="quiet-btn" onClick={() => setModal(null)}>{tr("Cancel")}</button><button className="primary-btn" onClick={save}>{editing ? "Save changes" : "Create restaurant"}</button></DialogFooter>
         </DialogContent>
       </Dialog>
 
@@ -4120,16 +4720,16 @@ export default function Home() {
           </DialogHeader>
           <div className="space-y-3 py-2 text-xs">
             <label className="block space-y-1">
-              <span className="font-semibold text-muted-foreground">Plan Name</span>
+              <span className="font-semibold text-muted-foreground">{tr("Plan Name")}</span>
               <input
                 value={form.name || ""}
                 onChange={(e) => setForm({ ...form, name: e.target.value })}
-                placeholder="e.g. Starter, Monthly, Quarterly, Yearly"
+                placeholder={tr("e.g. Starter, Monthly, Quarterly, Yearly")}
                 className="w-full p-2 border rounded-lg bg-background text-sm"
               />
             </label>
             <label className="block space-y-1">
-              <span className="font-semibold text-muted-foreground">Price (₹)</span>
+              <span className="font-semibold text-muted-foreground">{tr("Price (₹)")}</span>
               <input
                 type="number"
                 value={form.price || ""}
@@ -4139,27 +4739,27 @@ export default function Home() {
               />
             </label>
             <label className="block space-y-1">
-              <span className="font-semibold text-muted-foreground">Duration / Period Label</span>
+              <span className="font-semibold text-muted-foreground">{tr("Duration / Period Label")}</span>
               <input
                 value={form.period || ""}
                 onChange={(e) => setForm({ ...form, period: e.target.value })}
-                placeholder="e.g. 7 days, 30 days, 365 days"
+                placeholder={tr("e.g. 7 days, 30 days, 365 days")}
                 className="w-full p-2 border rounded-lg bg-background text-sm"
               />
             </label>
             <label className="block space-y-1">
-              <span className="font-semibold text-muted-foreground">Features Description</span>
+              <span className="font-semibold text-muted-foreground">{tr("Features Description")}</span>
               <textarea
                 value={form.features || ""}
                 onChange={(e) => setForm({ ...form, features: e.target.value })}
-                placeholder="Core POS, table management, live inventory tracking..."
+                placeholder={tr("Core POS, table management, live inventory tracking...")}
                 className="w-full p-2 border rounded-lg bg-background h-24 text-sm"
               />
             </label>
           </div>
           <DialogFooter>
-            <button className="quiet-btn" onClick={() => setModal(null)}>Cancel</button>
-            <button className="primary-btn" onClick={save}>Save Plan</button>
+            <button className="quiet-btn" onClick={() => setModal(null)}>{tr("Cancel")}</button>
+            <button className="primary-btn" onClick={save}>{tr("Save Plan")}</button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
@@ -4176,7 +4776,7 @@ export default function Home() {
           <div className="space-y-4 py-2 text-xs">
             {/* Image Upload Area */}
             <div className="space-y-2">
-              <label className="font-semibold text-muted-foreground block">Dish Photo</label>
+              <label className="font-semibold text-muted-foreground block">{tr("Dish Photo")}</label>
               <div className="flex items-center gap-4">
                 <div className="w-20 h-20 rounded-2xl border bg-muted flex items-center justify-center overflow-hidden shrink-0 relative group">
                   {form.imageUrl ? (
@@ -4184,7 +4784,7 @@ export default function Home() {
                   ) : (
                     <div className="text-center p-2 text-muted-foreground">
                       <ImageIcon className="mx-auto mb-1 text-muted-foreground" size={20} />
-                      <span className="text-[10px] block">No image</span>
+                      <span className="text-[10px] block">{tr("No image")}</span>
                     </div>
                   )}
                   {form.imageUrl && (
@@ -4219,7 +4819,7 @@ export default function Home() {
                     type="text"
                     value={form.imageUrl || ""}
                     onChange={(e) => setForm({ ...form, imageUrl: e.target.value })}
-                    placeholder="Or paste image URL"
+                    placeholder={tr("Or paste image URL")}
                     className="w-full p-2 border rounded-lg bg-background text-[11px]"
                   />
                 </div>
@@ -4228,16 +4828,16 @@ export default function Home() {
 
             <div className="grid grid-cols-3 gap-2">
               <label className="col-span-2 block space-y-1">
-                <span className="font-semibold text-muted-foreground">Dish Name</span>
+                <span className="font-semibold text-muted-foreground">{tr("Dish Name")}</span>
                 <input
                   value={form.name || ""}
                   onChange={(e) => setForm({ ...form, name: e.target.value })}
-                  placeholder="e.g. Paneer Butter Masala"
+                  placeholder={tr("e.g. Paneer Butter Masala")}
                   className="w-full p-2 border rounded-lg bg-background text-xs font-semibold"
                 />
               </label>
               <label className="block space-y-1">
-                <span className="font-semibold text-muted-foreground">Emoji Icon</span>
+                <span className="font-semibold text-muted-foreground">{tr("Emoji Icon")}</span>
                 <input
                   value={form.emoji || "🍽"}
                   onChange={(e) => setForm({ ...form, emoji: e.target.value })}
@@ -4250,39 +4850,39 @@ export default function Home() {
 
             <div className="grid grid-cols-2 gap-3">
               <label className="block space-y-1">
-                <span className="font-semibold text-muted-foreground">Category</span>
+                <span className="font-semibold text-muted-foreground">{tr("Category")}</span>
                 <select
                   value={form.category || "Mains"}
                   onChange={(e) => setForm({ ...form, category: e.target.value })}
                   className="w-full p-2 border rounded-lg bg-background text-xs"
                 >
-                  <option value="Appetizers">Appetizers</option>
-                  <option value="Mains">Mains</option>
-                  <option value="Breads">Breads</option>
-                  <option value="Rice & Biryani">Rice & Biryani</option>
-                  <option value="Desserts">Desserts</option>
-                  <option value="Drinks">Drinks</option>
+                  <option value="Appetizers">{tr("Appetizers")}</option>
+                  <option value="Mains">{tr("Mains")}</option>
+                  <option value="Breads">{tr("Breads")}</option>
+                  <option value="Rice & Biryani">{tr("Rice & Biryani")}</option>
+                  <option value="Desserts">{tr("Desserts")}</option>
+                  <option value="Drinks">{tr("Drinks")}</option>
                 </select>
               </label>
               <label className="block space-y-1">
-                <span className="font-semibold text-muted-foreground">Dietary Tag</span>
+                <span className="font-semibold text-muted-foreground">{tr("Dietary Tag")}</span>
                 <select
                   value={form.diet || ""}
                   onChange={(e) => setForm({ ...form, diet: e.target.value })}
                   className="w-full p-2 border rounded-lg bg-background text-xs"
                 >
-                  <option value="">Standard</option>
-                  <option value="Vegetarian">Vegetarian</option>
-                  <option value="Non-Vegetarian">Non-Vegetarian</option>
-                  <option value="Vegan">Vegan</option>
-                  <option value="Gluten-free">Gluten-free</option>
+                  <option value="">{tr("Standard")}</option>
+                  <option value="Vegetarian">{tr("Vegetarian")}</option>
+                  <option value="Non-Vegetarian">{tr("Non-Vegetarian")}</option>
+                  <option value="Vegan">{tr("Vegan")}</option>
+                  <option value="Gluten-free">{tr("Gluten-free")}</option>
                 </select>
               </label>
             </div>
 
             <div className="grid grid-cols-3 gap-2">
               <label className="block space-y-1">
-                <span className="font-semibold text-muted-foreground">Price (₹)</span>
+                <span className="font-semibold text-muted-foreground">{tr("Price (₹)")}</span>
                 <input
                   type="number"
                   value={form.price || ""}
@@ -4292,7 +4892,7 @@ export default function Home() {
                 />
               </label>
               <label className="block space-y-1">
-                <span className="font-semibold text-muted-foreground">Cost (₹)</span>
+                <span className="font-semibold text-muted-foreground">{tr("Cost (₹)")}</span>
                 <input
                   type="number"
                   value={form.cost || ""}
@@ -4302,7 +4902,7 @@ export default function Home() {
                 />
               </label>
               <label className="block space-y-1">
-                <span className="font-semibold text-muted-foreground">Prep Time (mins)</span>
+                <span className="font-semibold text-muted-foreground">{tr("Prep Time (mins)")}</span>
                 <input
                   type="number"
                   value={form.time || "15"}
@@ -4327,7 +4927,7 @@ export default function Home() {
               </button>
             ) : <span />}
             <div className="flex gap-2">
-              <button className="quiet-btn" onClick={() => setModal(null)}>Cancel</button>
+              <button className="quiet-btn" onClick={() => setModal(null)}>{tr("Cancel")}</button>
               <button className="primary-btn font-bold" onClick={save}>
                 {editing ? "Save Changes" : "Create Dish"}
               </button>
@@ -4344,27 +4944,27 @@ export default function Home() {
           </DialogHeader>
           <div className="space-y-4 py-2">
             <label className="block space-y-1">
-              <span className="text-sm font-medium">Item Name</span>
+              <span className="text-sm font-medium">{tr("Item Name")}</span>
               <input type="text" value={invForm.name} onChange={(e) => setInvForm({ ...invForm, name: e.target.value })} className="w-full p-2 border rounded-md text-sm bg-transparent" />
             </label>
             <div className="grid grid-cols-2 gap-3">
               <label className="block space-y-1">
-                <span className="text-sm font-medium">Quantity On Hand</span>
+                <span className="text-sm font-medium">{tr("Quantity On Hand")}</span>
                 <input type="number" min="0" value={invForm.onHand} onChange={(e) => setInvForm({ ...invForm, onHand: e.target.value })} className="w-full p-2 border rounded-md text-sm bg-transparent" />
               </label>
               <label className="block space-y-1">
-                <span className="text-sm font-medium">Unit</span>
+                <span className="text-sm font-medium">{tr("Unit")}</span>
                 <input type="text" value={invForm.unit} onChange={(e) => setInvForm({ ...invForm, unit: e.target.value })} className="w-full p-2 border rounded-md text-sm bg-transparent" />
               </label>
             </div>
             <label className="block space-y-1">
-              <span className="text-sm font-medium">Reorder Threshold</span>
+              <span className="text-sm font-medium">{tr("Reorder Threshold")}</span>
               <input type="number" min="0" value={invForm.reorderLevel} onChange={(e) => setInvForm({ ...invForm, reorderLevel: e.target.value })} className="w-full p-2 border rounded-md text-sm bg-transparent" />
             </label>
           </div>
           <DialogFooter>
-            <button className="quiet-btn" onClick={() => setModal(null)}>Cancel</button>
-            <button className="primary-btn" onClick={handleAddOrEditInventory}>Save Item</button>
+            <button className="quiet-btn" onClick={() => setModal(null)}>{tr("Cancel")}</button>
+            <button className="primary-btn" onClick={handleAddOrEditInventory}>{tr("Save Item")}</button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
@@ -4382,13 +4982,13 @@ export default function Home() {
         <DialogContent className="max-w-md">
           <DialogHeader>
             <DialogTitle>{stockAdjustMode === "add" ? "Add Stock" : "Reduce Stock"}</DialogTitle>
-            <DialogDescription>Enter the exact quantity and an optional reason for this stock movement.</DialogDescription>
+            <DialogDescription>{tr("Enter the exact quantity and an optional reason for this stock movement.")}</DialogDescription>
           </DialogHeader>
           {stockAdjustItem && (
             <div className="space-y-4 py-2">
               <div className="rounded-lg border p-3 bg-muted/30">
                 <div className="text-sm font-semibold">{stockAdjustItem.name}</div>
-                <div className="text-xs text-muted-foreground mt-1">Current stock: <b>{stockAdjustItem.onHand} {stockAdjustItem.unit}</b></div>
+                <div className="text-xs text-muted-foreground mt-1">{tr("Current stock:")} <b>{stockAdjustItem.onHand} {stockAdjustItem.unit}</b></div>
               </div>
               <label className="block space-y-1">
                 <span className="text-sm font-medium">Quantity {stockAdjustMode === "add" ? "to add" : "to reduce"}</span>
@@ -4406,16 +5006,16 @@ export default function Home() {
                 {stockAdjustMode === "reduce" ? (
                   <span className="text-xs text-muted-foreground">Maximum: {stockAdjustItem.onHand} {stockAdjustItem.unit}</span>
                 ) : (
-                  <span className="text-xs text-muted-foreground">No fixed maximum</span>
+                  <span className="text-xs text-muted-foreground">{tr("No fixed maximum")}</span>
                 )}
               </label>
               <label className="block space-y-1">
-                <span className="text-sm font-medium">Reason <span className="text-muted-foreground font-normal">(optional)</span></span>
+                <span className="text-sm font-medium">{tr("Reason")} <span className="text-muted-foreground font-normal">{tr("(optional)")}</span></span>
                 <input
                   type="text"
                   value={stockAdjustNote}
                   onChange={(e) => setStockAdjustNote(e.target.value)}
-                  placeholder="e.g. wastage, damaged, expired, manual correction"
+                  placeholder={tr("e.g. wastage, damaged, expired, manual correction")}
                   className="w-full p-2.5 border rounded-md text-sm bg-transparent"
                 />
               </label>
@@ -4428,7 +5028,7 @@ export default function Home() {
             </div>
           )}
           <DialogFooter>
-            <button className="quiet-btn" onClick={() => { setModal(null); setStockAdjustItem(null); }}>Cancel</button>
+            <button className="quiet-btn" onClick={() => { setModal(null); setStockAdjustItem(null); }}>{tr("Cancel")}</button>
             <button className="primary-btn" onClick={submitStockAdjustment}>{stockAdjustMode === "add" ? "Add Stock" : "Reduce Stock"}</button>
           </DialogFooter>
         </DialogContent>
@@ -4439,31 +5039,31 @@ export default function Home() {
         <DialogContent className="max-w-md">
           <DialogHeader>
             <DialogTitle>{editing ? "Edit Employee" : "Add New Employee"}</DialogTitle>
-            <DialogDescription>Assign designation, access permissions, and salary structure.</DialogDescription>
+            <DialogDescription>{tr("Assign designation, access permissions, and salary structure.")}</DialogDescription>
           </DialogHeader>
           <div className="space-y-3 py-2 text-xs">
             <label className="block space-y-1">
-              <span className="font-semibold text-muted-foreground">Full Name</span>
-              <input value={form.name || ""} onChange={(e) => setForm({ ...form, name: e.target.value })} placeholder="e.g. Ramesh Kumar" className="w-full p-2 border rounded-lg bg-background" />
+              <span className="font-semibold text-muted-foreground">{tr("Full Name")}</span>
+              <input value={form.name || ""} onChange={(e) => setForm({ ...form, name: e.target.value })} placeholder={tr("e.g. Ramesh Kumar")} className="w-full p-2 border rounded-lg bg-background" />
             </label>
 
             <label className="block space-y-1">
-              <span className="font-semibold text-muted-foreground">Designation & Access Role</span>
+              <span className="font-semibold text-muted-foreground">{tr("Designation & Access Role")}</span>
               <select
                 value={form.role || "Staff"}
                 onChange={(e) => setForm({ ...form, role: e.target.value })}
                 className="w-full p-2 border rounded-lg bg-background font-medium"
               >
-                <option value="Manager">Manager (Operational access: POS, Menu, Inventory, Staff)</option>
-                <option value="Accountant">Accountant (Financial access: Expenses, Suppliers, Payroll)</option>
-                <option value="Storekeeper">Storekeeper (Warehouse access: Inventory, Suppliers)</option>
-                <option value="Staff">Staff (POS cashier terminal access only)</option>
+                <option value="Manager">{tr("Manager (Operational access: POS, Menu, Inventory, Staff)")}</option>
+                <option value="Accountant">{tr("Accountant (Financial access: Expenses, Suppliers, Payroll)")}</option>
+                <option value="Storekeeper">{tr("Storekeeper (Warehouse access: Inventory, Suppliers)")}</option>
+                <option value="Staff">{tr("Staff (POS cashier terminal access only)")}</option>
               </select>
             </label>
 
             <div className="border rounded-xl p-3 space-y-2">
-              <div className="text-xs font-bold">Required access</div>
-              <p className="text-[11px] text-muted-foreground">Select only the modules this employee needs. Owner retains full access.</p>
+              <div className="text-xs font-bold">{tr("Required access")}</div>
+              <p className="text-[11px] text-muted-foreground">{tr("Select only the modules this employee needs. Owner retains full access.")}</p>
               <div className="grid grid-cols-2 gap-2">
                 {([["overview","Overview"],["pos","POS"],["menu","Menu"],["inventory","Inventory"],["staff","Team & payroll"],["expenses","Expenses"],["suppliers","Suppliers"],["subscription","Subscription"],["settings","Settings"]] as const).map(([key,label]) => {
                   const perms = (() => { try { const p = form.permissions ? JSON.parse(form.permissions) : {}; return p && typeof p === "object" ? p : {}; } catch { return {}; } })();
@@ -4474,31 +5074,31 @@ export default function Home() {
 
             <div className="grid grid-cols-2 gap-3">
               <label className="block space-y-1">
-                <span className="font-semibold text-muted-foreground">Pay Type</span>
+                <span className="font-semibold text-muted-foreground">{tr("Pay Type")}</span>
                 <select
                   value={form.payType || "Monthly"}
                   onChange={(e) => setForm({ ...form, payType: e.target.value })}
                   className="w-full p-2 border rounded-lg bg-background"
                 >
-                  <option value="Monthly">Monthly Salary</option>
-                  <option value="Weekly">Weekly Salary</option>
-                  <option value="Daily">Daily Wage</option>
+                  <option value="Monthly">{tr("Monthly Salary")}</option>
+                  <option value="Weekly">{tr("Weekly Salary")}</option>
+                  <option value="Daily">{tr("Daily Wage")}</option>
                 </select>
               </label>
 
               {form.payType === "Daily" ? (
                 <label className="block space-y-1">
-                  <span className="font-semibold text-muted-foreground">Daily Rate (₹)</span>
+                  <span className="font-semibold text-muted-foreground">{tr("Daily Rate (₹)")}</span>
                   <input type="number" value={form.dailyRate || ""} onChange={(e) => setForm({ ...form, dailyRate: e.target.value })} placeholder="800" className="w-full p-2 border rounded-lg bg-background" />
                 </label>
               ) : form.payType === "Weekly" ? (
                 <label className="block space-y-1">
-                  <span className="font-semibold text-muted-foreground">Weekly Salary (₹)</span>
+                  <span className="font-semibold text-muted-foreground">{tr("Weekly Salary (₹)")}</span>
                   <input type="number" value={form.weeklySalary || ""} onChange={(e) => setForm({ ...form, weeklySalary: e.target.value })} placeholder="5600" className="w-full p-2 border rounded-lg bg-background" />
                 </label>
               ) : (
                 <label className="block space-y-1">
-                  <span className="font-semibold text-muted-foreground">Monthly Salary (₹)</span>
+                  <span className="font-semibold text-muted-foreground">{tr("Monthly Salary (₹)")}</span>
                   <input type="number" value={form.monthlySalary || ""} onChange={(e) => setForm({ ...form, monthlySalary: e.target.value })} placeholder="25000" className="w-full p-2 border rounded-lg bg-background" />
                 </label>
               )}
@@ -4506,24 +5106,24 @@ export default function Home() {
 
             <label className="block space-y-1">
               <span className="font-semibold text-muted-foreground">Login password {editing ? "(leave blank to keep existing)" : ""}</span>
-              <div className="relative"><input type={showEmployeePassword ? "text" : "password"} value={form.password || ""} onChange={(e) => setForm({ ...form, password: e.target.value })} placeholder="Minimum 12 characters" className="w-full p-2 pr-10 border rounded-lg bg-background" /><button type="button" className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground" aria-label={showEmployeePassword ? "Hide password" : "Show password"} onClick={() => setShowEmployeePassword(v => !v)}>{showEmployeePassword ? <EyeOff size={15}/> : <Eye size={15}/>}</button></div>
-              <span className="text-[11px] text-muted-foreground">The employee signs in with the email above and receives only the selected designation's permissions.</span>
+              <div className="relative"><input type={showEmployeePassword ? "text" : "password"} value={form.password || ""} onChange={(e) => setForm({ ...form, password: e.target.value })} placeholder={tr("Minimum 12 characters")} className="w-full p-2 pr-10 border rounded-lg bg-background" /><button type="button" className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground" aria-label={showEmployeePassword ? "Hide password" : "Show password"} onClick={() => setShowEmployeePassword(v => !v)}>{showEmployeePassword ? <EyeOff size={15}/> : <Eye size={15}/>}</button></div>
+              <span className="text-[11px] text-muted-foreground">{tr("The employee signs in with the email above and receives only the selected designation's permissions.")}</span>
             </label>
 
             <div className="grid grid-cols-2 gap-3">
               <label className="block space-y-1">
-                <span className="font-semibold text-muted-foreground">Shift</span>
+                <span className="font-semibold text-muted-foreground">{tr("Shift")}</span>
                 <input value={form.shift || ""} onChange={(e) => setForm({ ...form, shift: e.target.value })} placeholder="09:00 – 18:00" className="w-full p-2 border rounded-lg bg-background" />
               </label>
               <label className="block space-y-1">
-                <span className="font-semibold text-muted-foreground">Phone</span>
+                <span className="font-semibold text-muted-foreground">{tr("Phone")}</span>
                 <input value={form.phone || ""} onChange={(e) => setForm({ ...form, phone: e.target.value })} placeholder="+91 98765 00000" className="w-full p-2 border rounded-lg bg-background" />
               </label>
             </div>
           </div>
           <DialogFooter>
-            <button className="quiet-btn" onClick={() => setModal(null)}>Cancel</button>
-            <button className="primary-btn" onClick={save}>Save Employee</button>
+            <button className="quiet-btn" onClick={() => setModal(null)}>{tr("Cancel")}</button>
+            <button className="primary-btn" onClick={save}>{tr("Save Employee")}</button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
@@ -4541,33 +5141,33 @@ export default function Home() {
           <div className="modal-fields">
             {modal === "expense" && (
               <>
-                <label>Description<input value={form.name || ""} onChange={(e) => setForm({ ...form, name: e.target.value })} /></label>
+                <label>{tr("Description")}<input value={form.name || ""} onChange={(e) => setForm({ ...form, name: e.target.value })} /></label>
                 <label>
                   Category
                   <select value={form.category || "Inventory"} onChange={(e) => setForm({ ...form, category: e.target.value })}>
-                    <option value="Inventory">Inventory</option>
-                    <option value="Utilities">Utilities</option>
-                    <option value="Maintenance">Maintenance</option>
-                    <option value="Marketing">Marketing</option>
-                    <option value="Rent">Rent</option>
-                    <option value="Staff welfare">Staff welfare</option>
+                    <option value="Inventory">{tr("Inventory")}</option>
+                    <option value="Utilities">{tr("Utilities")}</option>
+                    <option value="Maintenance">{tr("Maintenance")}</option>
+                    <option value="Marketing">{tr("Marketing")}</option>
+                    <option value="Rent">{tr("Rent")}</option>
+                    <option value="Staff welfare">{tr("Staff welfare")}</option>
                   </select>
                 </label>
                 <label>
                   Linked Supplier (optional)
                   <select value={form.supplierId || ""} onChange={(e) => setForm({ ...form, supplierId: e.target.value })}>
-                    <option value="">None</option>
+                    <option value="">{tr("None")}</option>
                     {suppliers.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
                   </select>
                 </label>
-                <label>Amount (₹)<input type="number" value={form.amount || ""} onChange={(e) => setForm({ ...form, amount: e.target.value })} /></label>
+                <label>{tr("Amount (₹)")}<input type="number" value={form.amount || ""} onChange={(e) => setForm({ ...form, amount: e.target.value })} /></label>
               </>
             )}
             {modal === "supplier" && (
               <>
-                <label>Supplier name<input value={form.name || ""} onChange={(e) => setForm({ ...form, name: e.target.value })} /></label>
-                <label>Contact person<input value={form.contact || ""} onChange={(e) => setForm({ ...form, contact: e.target.value })} /></label>
-                <label>Phone<input value={form.phone || ""} onChange={(e) => setForm({ ...form, phone: e.target.value })} /></label><label>Status<select value={form.active || "true"} onChange={(e) => setForm({ ...form, active: e.target.value })}><option value="true">Active</option><option value="false">Inactive</option></select></label>
+                <label>{tr("Supplier name")}<input value={form.name || ""} onChange={(e) => setForm({ ...form, name: e.target.value })} /></label>
+                <label>{tr("Contact person")}<input value={form.contact || ""} onChange={(e) => setForm({ ...form, contact: e.target.value })} /></label>
+                <label>{tr("Phone")}<input value={form.phone || ""} onChange={(e) => setForm({ ...form, phone: e.target.value })} /></label><label>{tr("Status")}<select value={form.active || "true"} onChange={(e) => setForm({ ...form, active: e.target.value })}><option value="true">{tr("Active")}</option><option value="false">{tr("Inactive")}</option></select></label>
               </>
             )}
             {modal === "payment" && (
@@ -4575,17 +5175,17 @@ export default function Home() {
                 <label>
                   Supplier
                   <select value={form.supplierId || ""} onChange={(e) => setForm({ ...form, supplierId: e.target.value })}>
-                    <option value="">Select</option>
+                    <option value="">{tr("Select")}</option>
                     {suppliers.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
                   </select>
                 </label>
-                <label>Amount (₹)<input type="number" value={form.amount || ""} onChange={(e) => setForm({ ...form, amount: e.target.value })} /></label>
+                <label>{tr("Amount (₹)")}<input type="number" value={form.amount || ""} onChange={(e) => setForm({ ...form, amount: e.target.value })} /></label>
               </>
             )}
           </div>
           <DialogFooter>
-            <button className="quiet-btn" onClick={() => setModal(null)}>Cancel</button>
-            <button className="primary-btn" onClick={save}>Save changes</button>
+            <button className="quiet-btn" onClick={() => setModal(null)}>{tr("Cancel")}</button>
+            <button className="primary-btn" onClick={save}>{tr("Save changes")}</button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
@@ -4594,7 +5194,7 @@ export default function Home() {
       <Sheet open={!!selectedStaff} onOpenChange={(v) => !v && setSelectedStaff(null)}>
         <SheetContent className="profile-sheet">
           <SheetHeader>
-            <SheetTitle>Employee & Wage Record</SheetTitle>
+            <SheetTitle>{tr("Employee & Wage Record")}</SheetTitle>
           </SheetHeader>
           {selectedStaff && (
             <div className="space-y-4 py-4 text-xs">
@@ -4616,10 +5216,10 @@ export default function Home() {
               </div>
 
               <div className="space-y-2 p-3 border rounded-xl">
-                <div className="font-bold">Record Day's Wage / Daily Attendance</div>
+                <div className="font-bold">{tr("Record Day's Wage / Daily Attendance")}</div>
                 <div className="grid grid-cols-2 gap-2">
                   <label className="space-y-1">
-                    <span>Date</span>
+                    <span>{tr("Date")}</span>
                     <input
                       type="date"
                       value={wageForm.date}
@@ -4628,7 +5228,7 @@ export default function Home() {
                     />
                   </label>
                   <label className="space-y-1">
-                    <span>Amount (₹)</span>
+                    <span>{tr("Amount (₹)")}</span>
                     <input
                       type="number"
                       value={wageForm.amount}
@@ -4656,12 +5256,12 @@ export default function Home() {
 
               <div className="space-y-2 p-3 border rounded-xl">
                 <div className="flex items-center justify-between gap-2">
-                  <div><div className="font-bold">Weekly Payment</div><div className="text-[10px] text-muted-foreground">Pay all unpaid wage entries for a selected week.</div></div>
+                  <div><div className="font-bold">{tr("Weekly Payment")}</div><div className="text-[10px] text-muted-foreground">{tr("Pay all unpaid wage entries for a selected week.")}</div></div>
                   <Wallet size={16} className="text-indigo-600" />
                 </div>
                 <div className="grid grid-cols-2 gap-2">
-                  <label className="space-y-1"><span>Week start</span><input type="date" value={weeklyPaymentForm.start} onChange={e => setWeeklyPaymentForm(v => ({ ...v, start: e.target.value }))} className="w-full p-1.5 border rounded" /></label>
-                  <label className="space-y-1"><span>Week end</span><input type="date" value={weeklyPaymentForm.end} onChange={e => setWeeklyPaymentForm(v => ({ ...v, end: e.target.value }))} className="w-full p-1.5 border rounded" /></label>
+                  <label className="space-y-1"><span>{tr("Week start")}</span><input type="date" value={weeklyPaymentForm.start} onChange={e => setWeeklyPaymentForm(v => ({ ...v, start: e.target.value }))} className="w-full p-1.5 border rounded" /></label>
+                  <label className="space-y-1"><span>{tr("Week end")}</span><input type="date" value={weeklyPaymentForm.end} onChange={e => setWeeklyPaymentForm(v => ({ ...v, end: e.target.value }))} className="w-full p-1.5 border rounded" /></label>
                 </div>
                 {(() => {
                   const start = weeklyPaymentForm.start ? new Date(`${weeklyPaymentForm.start}T00:00:00`) : null;
@@ -4693,7 +5293,7 @@ export default function Home() {
               </div>
 
               <div className="space-y-2">
-                <div className="font-bold">Wage History</div>
+                <div className="font-bold">{tr("Wage History")}</div>
                 <div className="space-y-1.5 max-h-48 overflow-y-auto">
                   {wages.filter(w => w.staffId === selectedStaff.id).map(w => (
                     <div key={w.id} className="p-2 border rounded-lg flex justify-between items-center">
@@ -4728,12 +5328,12 @@ export default function Home() {
       <Dialog open={saleHistoryOpen} onOpenChange={setSaleHistoryOpen}>
         <DialogContent className="max-w-3xl">
           <DialogHeader>
-            <DialogTitle>Sale History</DialogTitle>
-            <DialogDescription>Completed sales for the currently signed-in restaurant.</DialogDescription>
+            <DialogTitle>{tr("Sale History")}</DialogTitle>
+            <DialogDescription>{tr("Completed sales for the currently signed-in restaurant.")}</DialogDescription>
           </DialogHeader>
           <div className="max-h-[60vh] overflow-auto">
             <table className="w-full text-sm">
-              <thead><tr className="border-b"><th className="text-left p-2">Receipt</th><th className="text-left p-2">Date & time</th><th className="text-left p-2">Items</th><th className="text-left p-2">Payment</th><th className="text-right p-2">Total</th><th /></tr></thead>
+              <thead><tr className="border-b"><th className="text-left p-2">{tr("Receipt")}</th><th className="text-left p-2">{tr("Date & time")}</th><th className="text-left p-2">{tr("Items")}</th><th className="text-left p-2">{tr("Payment")}</th><th className="text-right p-2">{tr("Total")}</th><th /></tr></thead>
               <tbody>
                 {orders.map((sale) => (
                   <tr key={sale.id} className="border-b">
@@ -4742,10 +5342,10 @@ export default function Home() {
                     <td className="p-2">{sale.bill.items.reduce((n, x) => n + x.qty, 0)} item(s)</td>
                     <td className="p-2">{sale.bill.payment}</td>
                     <td className="p-2 text-right font-bold">{money(sale.bill.total)}</td>
-                    <td className="p-2 text-right"><button className="quiet-btn text-xs" onClick={() => setReceipt(sale.bill)}>View receipt</button></td>
+                    <td className="p-2 text-right"><button className="quiet-btn text-xs" onClick={() => setReceipt(sale.bill)}>{tr("View receipt")}</button></td>
                   </tr>
                 ))}
-                {!orders.length && <tr><td colSpan={6} className="p-8 text-center text-muted-foreground">No completed sales yet.</td></tr>}
+                {!orders.length && <tr><td colSpan={6} className="p-8 text-center text-muted-foreground">{tr("No completed sales yet.")}</td></tr>}
               </tbody>
             </table>
           </div>
@@ -4756,7 +5356,7 @@ export default function Home() {
       <Dialog open={!!receipt} onOpenChange={(v) => !v && setReceipt(null)}>
         <DialogContent className="max-w-md p-6 bg-slate-900 border border-slate-800 text-white">
           <DialogHeader className="no-print">
-            <DialogTitle className="text-base font-bold">Bill Details & Receipt</DialogTitle>
+            <DialogTitle className="text-base font-bold">{tr("Bill Details & Receipt")}</DialogTitle>
             <DialogDescription className="text-xs text-muted-foreground">
               Select paper format and print receipt
             </DialogDescription>
@@ -4764,7 +5364,7 @@ export default function Home() {
 
           {/* Paper Size Format Selector (58mm, 85mm, A4) */}
           <div className="no-print flex items-center justify-between p-2.5 mb-2 rounded-xl bg-slate-800 border border-slate-700 text-xs">
-            <span className="font-semibold text-gray-300">Format:</span>
+            <span className="font-semibold text-gray-300">{tr("Format:")}</span>
             <div className="flex gap-1.5">
               {(["58mm", "85mm", "A4"] as const).map((sz) => (
                 <button
@@ -4821,10 +5421,10 @@ export default function Home() {
               <table className="w-full text-[10px] font-mono border-collapse table-fixed">
                 <thead>
                   <tr className="border-b border-dashed border-gray-400 text-gray-700 font-bold">
-                    <th className="py-1 text-left w-[50%]">ITEM</th>
-                    <th className="py-1 text-center w-[15%]">QTY</th>
-                    <th className="py-1 text-right w-[17%]">PRICE</th>
-                    <th className="py-1 text-right w-[18%]">TOTAL</th>
+                    <th className="py-1 text-left w-[50%]">{tr("ITEM")}</th>
+                    <th className="py-1 text-center w-[15%]">{tr("QTY")}</th>
+                    <th className="py-1 text-right w-[17%]">{tr("PRICE")}</th>
+                    <th className="py-1 text-right w-[18%]">{tr("TOTAL")}</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -4846,12 +5446,12 @@ export default function Home() {
               {/* Financial Breakdown & GST Slabs */}
               <div className="space-y-0.5 text-[10px] font-mono">
                 <div className="flex justify-between">
-                  <span>Subtotal</span>
+                  <span>{tr("Subtotal")}</span>
                   <span>{money(receipt.subtotal)}</span>
                 </div>
                 {receipt.discount > 0 && (
                   <div className="flex justify-between text-green-700">
-                    <span>Discount</span>
+                    <span>{tr("Discount")}</span>
                     <span>−{money(receipt.discount)}</span>
                   </div>
                 )}
@@ -4865,11 +5465,11 @@ export default function Home() {
                 </div>
                 <div className="border-b border-solid border-gray-900 my-1" />
                 <div className="flex justify-between text-xs font-black pt-0.5">
-                  <span>TOTAL DUE</span>
+                  <span>{tr("TOTAL DUE")}</span>
                   <span>{money(receipt.total)}</span>
                 </div>
                 <div className="flex justify-between text-[9px] text-gray-500 pt-0.5">
-                  <span>Payment Mode</span>
+                  <span>{tr("Payment Mode")}</span>
                   <span>{receipt.payment}</span>
                 </div>
               </div>

@@ -37,7 +37,7 @@ export async function POST(request: Request) {
       if (oldError || !old) return NextResponse.json({ error: oldError?.message || "Inventory item not found" }, { status: 404 });
       const { data, error } = await supabase.from("inventory_items").update({
         name, category: String(body.category || "General"), on_hand: onHand, unit: String(body.unit || "unit"),
-        reorder_level: reorder, ...(body.cost !== undefined ? { cost } : {}), ...(body.selling_price !== undefined ? { selling_price: Math.max(0, Number(body.selling_price) || 0) } : {}), supplier_id: body.supplier_id || null, active: body.active !== false
+        reorder_level: reorder, ...(body.cost !== undefined ? { cost } : {}), ...(body.selling_price !== undefined ? { selling_price: Math.max(0, Number(body.selling_price) || 0) } : {}), ...(body.image_url !== undefined ? { image_url: body.image_url || null } : {}), supplier_id: body.supplier_id || null, active: body.active !== false
       }).eq("restaurant_id", restaurantId).eq("id", id).select().single();
       if (error) throw error;
       if (old.on_hand !== onHand) {
@@ -53,7 +53,7 @@ export async function POST(request: Request) {
 
     const { data, error } = await supabase.from("inventory_items").insert({
       restaurant_id: restaurantId, name, category: String(body.category || "General"), on_hand: onHand,
-      unit: String(body.unit || "unit"), reorder_level: reorder, cost, selling_price: Math.max(0, Number(body.selling_price) || 0), supplier_id: body.supplier_id || null
+      unit: String(body.unit || "unit"), reorder_level: reorder, cost, selling_price: Math.max(0, Number(body.selling_price) || 0), image_url: body.image_url || null, supplier_id: body.supplier_id || null
     }).select().single();
     if (error) throw error;
     if (onHand !== 0) {

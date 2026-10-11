@@ -236,3 +236,8 @@
 .produce-stock-hint{font-size:11px;color:var(--text-muted);overflow-wrap:anywhere}
 @media (max-width:1024px){.pos-layout{grid-template-columns:minmax(0,1fr)!important;gap:14px}.order-panel{position:static!important;width:100%;min-width:0}.pos-catalog{min-width:0}.dish-grid{grid-template-columns:repeat(3,minmax(0,1fr))}}
 @media (max-width:767px){.dish-grid{grid-template-columns:repeat(2,minmax(0,1fr))!important;gap:8px}.dish-tile{min-width:0}.dish-body{min-width:0}.dish-price{overflow-wrap:anywhere}.cart-controls input{min-width:0}.inventory-actions{flex-wrap:wrap;white-space:normal}.inventory-action{flex-shrink:0}}
+
+/* Login password field: keep the input and visibility toggle aligned in the same full-width control. */
+.auth-card .login-password-wrap{position:relative;width:100%;display:block;min-width:0}
+.auth-card .login-password-wrap input{display:block;width:100%;box-sizing:border-box;padding-right:44px}
+.auth-card .login-password-wrap button{position:absolute;right:8px;top:50%;transform:translateY(-50%);display:grid;place-items:center;width:28px;height:28px;padding:0;margin:0;line-height:1}

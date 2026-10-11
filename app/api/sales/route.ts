@@ -19,7 +19,7 @@ export async function POST(request: Request) {
   try {
     const body = await request.json();
     const restaurantId = String(body.restaurant_id || "");
-    const { supabase } = await requireRestaurantMember(request, restaurantId);
+    const { supabase, user } = await requireRestaurantMember(request, restaurantId);
     const bill = body.receipt;
     if (!bill?.id || !bill?.items?.length) return NextResponse.json({ error: "A complete receipt is required" }, { status: 400 });
     // Always determine the business type on the server. Produce shops must never
@@ -33,7 +33,7 @@ export async function POST(request: Request) {
         return NextResponse.json({ error: "No inventory items were sent for this produce sale. Please remove the cart items and add them again from Inventory POS." }, { status: 400 });
       }
       const { data: sale, error: retailError } = await supabase.rpc("complete_retail_sale", {
-        p_restaurant_id: restaurantId, p_bill_no: String(bill.id), p_placed_at: body.placed_at || new Date().toISOString(),
+        p_restaurant_id: restaurantId, p_user_id: user.id, p_bill_no: String(bill.id), p_placed_at: body.placed_at || new Date().toISOString(),
         p_order_type: String(bill.type || "Retail"), p_amount: Number(bill.total) || 0, p_status: String(bill.status || "Paid"),
         p_receipt: bill, p_lines: body.retail_lines
       });

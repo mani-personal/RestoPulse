@@ -2875,7 +2875,7 @@ export default function Home() {
             Password
             <div className="login-password-wrap relative">
               <input type={showLoginPassword ? "text" : "password"} autoComplete="current-password" required value={loginPassword} onChange={(e) => setLoginPassword(e.target.value)} className="pr-10" />
-              <button type="button" className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground" aria-label={showLoginPassword ? "Hide password" : "Show password"} onClick={() => setShowLoginPassword(v => !v)}>{showLoginPassword ? <EyeOff size={16}/> : <Eye size={16}/>}</button>
+              <button type="button" className="login-eye-toggle" aria-label={showLoginPassword ? "Hide password" : "Show password"} onClick={() => setShowLoginPassword(v => !v)}>{showLoginPassword ? <EyeOff size={18}/> : <Eye size={18}/>}</button>
             </div>
           </label>
           <button className="primary-btn" disabled={loginBusy}>
@@ -3628,7 +3628,7 @@ export default function Home() {
                   <div className="dish-grid">
                     {isProduceShop ? posCatalog.filter((item) => item.name.toLowerCase().includes(query.toLowerCase())).map((item) => (
                       <button className="dish-tile" key={String(item.id)} onClick={() => addCart(item.id)}>
-                        <span className="dish-photo overflow-hidden flex items-center justify-center"><span>{String(tenantInfo.business_type) === "fruit_shop" ? "🍎" : "🥬"}</span></span>
+                        <span className="dish-photo overflow-hidden flex items-center justify-center">{item.imageUrl ? <img src={item.imageUrl} alt={item.name} className="dish-image-full" onError={(e) => { e.currentTarget.style.display = "none"; }} /> : <span>{String(tenantInfo.business_type) === "fruit_shop" ? "🍎" : "🥬"}</span>}</span>
                         <span className="dish-body"><span className="dish-name">{item.name}</span><span className="dish-price">{money(item.sellingPrice || 0)} / {item.unit} · {item.onHand} {item.unit} left</span></span>
                       </button>
                     )) : displayed.map((d) => (
@@ -5002,23 +5002,32 @@ export default function Home() {
             {isProduceShop && <div className="space-y-2">
               <span className="text-sm font-medium">Fruit / vegetable image</span>
               {invForm.imageUrl ? <div className="flex items-center gap-3"><img src={invForm.imageUrl} alt="Inventory item preview" className="h-20 w-20 rounded-lg object-cover border" /><button type="button" className="quiet-btn" onClick={() => setInvForm(prev => ({ ...prev, imageUrl: "" }))}>Remove image</button></div> : <div className="h-20 w-20 rounded-lg border bg-muted flex items-center justify-center text-2xl">{tenantInfo.business_type === "fruit_shop" ? "🍎" : "🥬"}</div>}
-              <input type="file" accept="image/*" disabled={inventoryImageUploading} className="w-full text-sm" onChange={async (e) => {
-                const input = e.currentTarget; const file = input.files?.[0]; if (!file) return;
-                if (file.size > 5 * 1024 * 1024) { toast.error("Image must be smaller than 5 MB"); input.value = ""; return; }
-                setInventoryImageUploading(true);
-                try {
-                  let url = "";
-                  if (db && tenantId) {
-                    const safeName = file.name.replace(/[^a-zA-Z0-9._-]/g, "_");
-                    const path = `${tenantId}/inventory/${Date.now()}-${safeName}`;
-                    const { error: uploadError } = await db.storage.from("restaurant-media").upload(path, file, { contentType: file.type, upsert: true });
-                    if (!uploadError) url = db.storage.from("restaurant-media").getPublicUrl(path).data.publicUrl;
-                  }
-                  if (!url) url = await new Promise<string>((resolve, reject) => { const reader = new FileReader(); reader.onload = () => resolve(String(reader.result || "")); reader.onerror = () => reject(new Error("Could not read image")); reader.readAsDataURL(file); });
-                  setInvForm(prev => ({ ...prev, imageUrl: url })); toast.success("Image added to inventory item");
-                } catch (err: any) { toast.error(err.message || "Could not upload image"); } finally { setInventoryImageUploading(false); input.value = ""; }
-              }} />
-              <p className="text-xs text-muted-foreground">PNG, JPG or WebP. Maximum 5 MB.</p>
+              <label className="inventory-image-picker">
+                <input type="file" accept="image/png,image/jpeg,image/webp,image/gif" disabled={inventoryImageUploading} onChange={async (e) => {
+                  const input = e.currentTarget; const file = input.files?.[0]; if (!file) return;
+                  if (file.size > 5 * 1024 * 1024) { toast.error("Image must be smaller than 5 MB"); input.value = ""; return; }
+                  setInventoryImageUploading(true);
+                  try {
+                    let url = "";
+                    if (db && tenantId) {
+                      const safeName = file.name.replace(/[^a-zA-Z0-9._-]/g, "_");
+                      const path = `${tenantId}/inventory/${Date.now()}-${safeName}`;
+                      const { error: uploadError } = await db.storage.from("restaurant-media").upload(path, file, { contentType: file.type, upsert: true });
+                      if (!uploadError) url = db.storage.from("restaurant-media").getPublicUrl(path).data.publicUrl;
+                    }
+                    if (!url) url = await new Promise<string>((resolve, reject) => { const reader = new FileReader(); reader.onload = () => resolve(String(reader.result || "")); reader.onerror = () => reject(new Error("Could not read image")); reader.readAsDataURL(file); });
+                    setInvForm(prev => ({ ...prev, imageUrl: url })); toast.success("Image added to inventory item");
+                  } catch (err: any) { toast.error(err.message || "Could not upload image"); } finally { setInventoryImageUploading(false); input.value = ""; }
+                }} />
+                <span className="image-picker-icon">{inventoryImageUploading ? "…" : "＋"}</span>
+                <span className="image-picker-copy"><strong>{inventoryImageUploading ? "Processing image…" : "Choose image file"}</strong><small>PNG, JPG, WebP or GIF · Up to 5 MB</small></span>
+                <span className="image-picker-action">Browse</span>
+              </label>
+              <label className="block space-y-1">
+                <span className="text-xs font-medium text-muted-foreground">Or use an online image address (URL)</span>
+                <input type="url" inputMode="url" placeholder="https://example.com/mango.jpg" value={invForm.imageUrl.startsWith("data:") ? "" : invForm.imageUrl} onChange={(e) => setInvForm(prev => ({ ...prev, imageUrl: e.target.value.trim() }))} className="w-full p-2.5 border rounded-md text-sm bg-transparent" />
+              </label>
+              <p className="text-xs text-muted-foreground">Use a direct, publicly accessible image URL ending in an image file or a URL that serves an image. The preview above updates after you save.</p>
             </div>}
             <div className="grid grid-cols-2 gap-3">
               <label className="block space-y-1">

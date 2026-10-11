@@ -134,6 +134,7 @@ type InventoryItem = {
   reorderLevel: number;
   cost?: number;
   sellingPrice?: number;
+  imageUrl?: string;
 };
 
 type RestaurantApproval = {
@@ -1046,7 +1047,8 @@ export default function Home() {
   const [inventoryTransactions, setInventoryTransactions] = useState<any[]>([]);
   const [saleHistoryOpen, setSaleHistoryOpen] = useState(false);
   const [isDataLoading, setIsDataLoading] = useState(false);
-  const [invForm, setInvForm] = useState({ name: "", category: "Produce", onHand: "", unit: "kg", reorderLevel: "5", cost: "", sellingPrice: "" });
+  const [invForm, setInvForm] = useState({ name: "", category: "Produce", onHand: "", unit: "kg", reorderLevel: "5", cost: "", sellingPrice: "", imageUrl: "" });
+  const [inventoryImageUploading, setInventoryImageUploading] = useState(false);
   const [editingInvId, setEditingInvId] = useState<string | number | null>(null);
   const [stockAdjustItem, setStockAdjustItem] = useState<InventoryItem | null>(null);
   const [stockAdjustMode, setStockAdjustMode] = useState<"add" | "reduce" | "waste">("reduce");
@@ -1868,7 +1870,7 @@ export default function Home() {
         placedAt: s.placed_at, amount: Number(s.amount) || 0, type: s.order_type, status: s.status, bill: s.receipt
       })));
       if (inventoryRes.ok) {
-        setInventoryList((inventoryJson.items || []).map((x: any) => ({ id: x.id, name: x.name, category: x.category, onHand: Number(x.on_hand), unit: x.unit, reorderLevel: Number(x.reorder_level), cost: Number(x.cost || 0), sellingPrice: Number(x.selling_price || 0) })));
+        setInventoryList((inventoryJson.items || []).map((x: any) => ({ id: x.id, name: x.name, category: x.category, onHand: Number(x.on_hand), unit: x.unit, reorderLevel: Number(x.reorder_level), cost: Number(x.cost || 0), sellingPrice: Number(x.selling_price || 0), imageUrl: x.image_url || "" })));
         setInventoryTransactions(inventoryJson.transactions || []);
       }
       if (!menuRes.error) setDishes((menuRes.data || []).map((x: any) => ({ id: x.id, name: x.name, category: x.category, price: Number(x.price), cost: Number(x.cost), stock: x.available, emoji: x.emoji, diet: x.diet, time: x.prep_minutes, imageUrl: x.image_url })));
@@ -1975,6 +1977,7 @@ export default function Home() {
           reorder_level: Number.isFinite(reorder) ? reorder : 5,
           cost: Math.max(0, Number(invForm.cost) || 0),
           selling_price: Math.max(0, Number(invForm.sellingPrice) || 0),
+          image_url: invForm.imageUrl || null,
           transaction_type: editingInvId ? "Adjustment" : "Opening balance",
         }),
       });
@@ -1982,7 +1985,7 @@ export default function Home() {
       if (!res.ok) throw new Error(json.error || "Could not save inventory item");
       await loadRestaurantData(tenantId);
       setModal(null); setEditingInvId(null);
-      setInvForm({ name: "", category: isProduceShop ? (tenantInfo.business_type === "fruit_shop" ? "Fruits" : "Vegetables") : "Grains", onHand: "", unit: isProduceShop ? "kg" : "bags", reorderLevel: "5", cost: "", sellingPrice: "" });
+      setInvForm({ name: "", category: isProduceShop ? (tenantInfo.business_type === "fruit_shop" ? "Fruits" : "Vegetables") : "Grains", onHand: "", unit: isProduceShop ? "kg" : "bags", reorderLevel: "5", cost: "", sellingPrice: "", imageUrl: "" });
       toast.success(editingInvId ? "Inventory item updated successfully!" : "Inventory item added successfully!");
     } catch (e: any) { toast.error(e.message || "Could not save inventory item"); }
   };
@@ -2072,10 +2075,11 @@ export default function Home() {
         reorderLevel: String(item.reorderLevel),
         cost: String(item.cost || 0),
         sellingPrice: String(item.sellingPrice || 0),
+        imageUrl: item.imageUrl || "",
       });
     } else {
       setEditingInvId(null);
-      setInvForm({ name: "", category: isProduceShop ? (tenantInfo.business_type === "fruit_shop" ? "Fruits" : "Vegetables") : "Grains", onHand: "", unit: isProduceShop ? "kg" : "bags", reorderLevel: "5", cost: "", sellingPrice: "" });
+      setInvForm({ name: "", category: isProduceShop ? (tenantInfo.business_type === "fruit_shop" ? "Fruits" : "Vegetables") : "Grains", onHand: "", unit: isProduceShop ? "kg" : "bags", reorderLevel: "5", cost: "", sellingPrice: "", imageUrl: "" });
     }
     setModal("inventory");
   };
@@ -2526,7 +2530,7 @@ export default function Home() {
           const inventoryRes = await authedFetch(`/api/inventory?restaurant_id=${encodeURIComponent(tenantId)}`);
           const inventoryJson = await inventoryRes.json();
           if (!inventoryRes.ok) throw new Error(inventoryJson.error || "Could not refresh inventory");
-          setInventoryList((inventoryJson.items || []).map((x: any) => ({ id: x.id, name: x.name, category: x.category, onHand: Number(x.on_hand), unit: x.unit, reorderLevel: Number(x.reorder_level), cost: Number(x.cost || 0), sellingPrice: Number(x.selling_price || 0) })));
+          setInventoryList((inventoryJson.items || []).map((x: any) => ({ id: x.id, name: x.name, category: x.category, onHand: Number(x.on_hand), unit: x.unit, reorderLevel: Number(x.reorder_level), cost: Number(x.cost || 0), sellingPrice: Number(x.selling_price || 0), imageUrl: x.image_url || "" })));
           setInventoryTransactions(inventoryJson.transactions || []);
         } catch (refreshError) {
           console.error("Inventory refresh after POS sale failed", refreshError);
@@ -2869,7 +2873,7 @@ export default function Home() {
           </label>
           <label>
             Password
-            <div className="relative">
+            <div className="login-password-wrap relative">
               <input type={showLoginPassword ? "text" : "password"} autoComplete="current-password" required value={loginPassword} onChange={(e) => setLoginPassword(e.target.value)} className="pr-10" />
               <button type="button" className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground" aria-label={showLoginPassword ? "Hide password" : "Show password"} onClick={() => setShowLoginPassword(v => !v)}>{showLoginPassword ? <EyeOff size={16}/> : <Eye size={16}/>}</button>
             </div>
@@ -3003,6 +3007,7 @@ export default function Home() {
   const visibleNavTenant = isAdmin
     ? []
     : navTenant.filter((item) => {
+        if (isProduceShop && item.id === "menu") return false;
         // Subscription and Settings must remain visible to restaurant owners.
         if (isOwnerOrAdmin && (item.id === "subscription" || item.id === "settings")) return true;
         if (isOwnerOrAdmin) return true;
@@ -3649,7 +3654,7 @@ export default function Home() {
                       {cart.map((l) => {
                         const dish = dishes.find((x) => x.id === l.id);
                         const stockItem = isProduceShop ? inventoryList.find((x) => x.id === l.id) : undefined;
-                        const d = { name: stockItem?.name || dish?.name || "Item", price: stockItem?.sellingPrice ?? dish?.price ?? 0, emoji: stockItem ? (tenantInfo.business_type === "fruit_shop" ? "🍎" : "🥬") : dish?.emoji || "🍽️", imageUrl: dish?.imageUrl };
+                        const d = { name: stockItem?.name || dish?.name || "Item", price: stockItem?.sellingPrice ?? dish?.price ?? 0, emoji: stockItem ? (tenantInfo.business_type === "fruit_shop" ? "🍎" : "🥬") : dish?.emoji || "🍽️", imageUrl: stockItem?.imageUrl || dish?.imageUrl };
                         return (
                           <div
                             key={l.id}
@@ -3872,7 +3877,7 @@ export default function Home() {
                         const isLow = item.onHand > 0 && item.onHand <= item.reorderLevel;
                         return (
                           <tr key={item.id} className="border-b hover:bg-muted/50">
-                            <td className="p-3 font-semibold">{item.name}</td>
+                            <td className="p-3 font-semibold"><div className="flex items-center gap-3">{isProduceShop && (item.imageUrl ? <img src={item.imageUrl} alt={item.name} className="h-11 w-11 rounded-lg object-cover border" /> : <div className="h-11 w-11 rounded-lg border bg-muted flex items-center justify-center text-xl">{tenantInfo.business_type === "fruit_shop" ? "🍎" : "🥬"}</div>)}<span>{item.name}</span></div></td>
                             <td className="p-3 font-mono font-bold">{item.onHand} {item.unit}</td>
                             {isProduceShop && <><td className="p-3">{money(item.cost || 0)}</td><td className="p-3">{money(item.sellingPrice || 0)}</td></>}
                             <td className="p-3 font-mono text-muted-foreground">{item.reorderLevel} {item.unit}</td>
@@ -4994,6 +4999,27 @@ export default function Home() {
               <span className="text-sm font-medium">{tr("Item Name")}</span>
               <input type="text" value={invForm.name} onChange={(e) => setInvForm({ ...invForm, name: e.target.value })} className="w-full p-2 border rounded-md text-sm bg-transparent" />
             </label>
+            {isProduceShop && <div className="space-y-2">
+              <span className="text-sm font-medium">Fruit / vegetable image</span>
+              {invForm.imageUrl ? <div className="flex items-center gap-3"><img src={invForm.imageUrl} alt="Inventory item preview" className="h-20 w-20 rounded-lg object-cover border" /><button type="button" className="quiet-btn" onClick={() => setInvForm(prev => ({ ...prev, imageUrl: "" }))}>Remove image</button></div> : <div className="h-20 w-20 rounded-lg border bg-muted flex items-center justify-center text-2xl">{tenantInfo.business_type === "fruit_shop" ? "🍎" : "🥬"}</div>}
+              <input type="file" accept="image/*" disabled={inventoryImageUploading} className="w-full text-sm" onChange={async (e) => {
+                const input = e.currentTarget; const file = input.files?.[0]; if (!file) return;
+                if (file.size > 5 * 1024 * 1024) { toast.error("Image must be smaller than 5 MB"); input.value = ""; return; }
+                setInventoryImageUploading(true);
+                try {
+                  let url = "";
+                  if (db && tenantId) {
+                    const safeName = file.name.replace(/[^a-zA-Z0-9._-]/g, "_");
+                    const path = `${tenantId}/inventory/${Date.now()}-${safeName}`;
+                    const { error: uploadError } = await db.storage.from("restaurant-media").upload(path, file, { contentType: file.type, upsert: true });
+                    if (!uploadError) url = db.storage.from("restaurant-media").getPublicUrl(path).data.publicUrl;
+                  }
+                  if (!url) url = await new Promise<string>((resolve, reject) => { const reader = new FileReader(); reader.onload = () => resolve(String(reader.result || "")); reader.onerror = () => reject(new Error("Could not read image")); reader.readAsDataURL(file); });
+                  setInvForm(prev => ({ ...prev, imageUrl: url })); toast.success("Image added to inventory item");
+                } catch (err: any) { toast.error(err.message || "Could not upload image"); } finally { setInventoryImageUploading(false); input.value = ""; }
+              }} />
+              <p className="text-xs text-muted-foreground">PNG, JPG or WebP. Maximum 5 MB.</p>
+            </div>}
             <div className="grid grid-cols-2 gap-3">
               <label className="block space-y-1">
                 <span className="text-sm font-medium">{tr("Quantity On Hand")}</span>

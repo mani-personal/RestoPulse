@@ -280,7 +280,6 @@ const money = (n: number) => "₹" + Math.round(n).toLocaleString("en-IN");
 const navTenant: { id: View; label: string; icon: typeof LayoutDashboard; allowedRoles?: string[] }[] = [
   { id: "dashboard", label: "Overview", icon: LayoutDashboard },
   { id: "pos", label: "POS Terminal", icon: ShoppingBag, allowedRoles: ["owner", "manager", "staff"] },
-  { id: "sales", label: "Sale History", icon: ReceiptText, allowedRoles: ["owner", "manager", "staff", "accountant"] },
   { id: "menu", label: "Menu & dishes", icon: UtensilsCrossed, allowedRoles: ["owner", "manager"] },
   { id: "inventory", label: "Inventory", icon: Package, allowedRoles: ["owner", "manager", "storekeeper"] },
   { id: "staff", label: "Team & payroll", icon: Users, allowedRoles: ["owner", "manager", "accountant"] },
@@ -1192,7 +1191,7 @@ export default function Home() {
           const trialEnd = isTrial && createdAt && !Number.isNaN(createdAt.getTime())
             ? new Date(createdAt.getTime() + 7 * 86400000).toISOString().slice(0, 10)
             : null;
-          setActiveRenewalDate(trialEnd || data.restaurant.renewal_on || "—");
+          setActiveRenewalDate(data.restaurant.renewal_on || trialEnd || "—");
           setTenantInfo((prev) => ({
             ...prev,
             id: data.restaurant.id,
@@ -3297,6 +3296,9 @@ export default function Home() {
                 </>
               ) : (
                 <>
+                  <button onClick={() => nav("sales")}>
+                    <ReceiptText size={17} /> Sale History
+                  </button>
                   <button onClick={() => nav("staff")}>
                     <Users size={17} /> Manage employees
                   </button>

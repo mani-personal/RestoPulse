@@ -83,6 +83,7 @@ import { toast, Toaster } from "sonner";
 type View =
   | "dashboard"
   | "pos"
+  | "sales"
   | "menu"
   | "inventory"
   | "staff"
@@ -279,6 +280,7 @@ const money = (n: number) => "₹" + Math.round(n).toLocaleString("en-IN");
 const navTenant: { id: View; label: string; icon: typeof LayoutDashboard; allowedRoles?: string[] }[] = [
   { id: "dashboard", label: "Overview", icon: LayoutDashboard },
   { id: "pos", label: "POS Terminal", icon: ShoppingBag, allowedRoles: ["owner", "manager", "staff"] },
+  { id: "sales", label: "Sale History", icon: ReceiptText, allowedRoles: ["owner", "manager", "staff", "accountant"] },
   { id: "menu", label: "Menu & dishes", icon: UtensilsCrossed, allowedRoles: ["owner", "manager"] },
   { id: "inventory", label: "Inventory", icon: Package, allowedRoles: ["owner", "manager", "storekeeper"] },
   { id: "staff", label: "Team & payroll", icon: Users, allowedRoles: ["owner", "manager", "accountant"] },
@@ -1045,7 +1047,6 @@ export default function Home() {
 
   const [inventoryList, setInventoryList] = useState<InventoryItem[]>([]);
   const [inventoryTransactions, setInventoryTransactions] = useState<any[]>([]);
-  const [saleHistoryOpen, setSaleHistoryOpen] = useState(false);
   const [isDataLoading, setIsDataLoading] = useState(false);
   const [invForm, setInvForm] = useState({ name: "", category: "Produce", onHand: "", unit: "kg", reorderLevel: "5", cost: "", sellingPrice: "", imageUrl: "" });
   const [inventoryImageUploading, setInventoryImageUploading] = useState(false);
@@ -2814,11 +2815,26 @@ export default function Home() {
 
   const viewPath = (v: View) => {
     const adminPaths: Record<string, string> = { dashboard: "/admin", restaurants: "/admin/restaurants", approvals: "/admin/approvals", pricing: "/admin/pricing", settings: "/admin/settings", admins: "/admin/admins", support: "/admin/support" };
-    const restaurantPaths: Record<string, string> = { dashboard: "/dashboard", pos: "/pos", menu: "/menu", inventory: "/inventory", staff: "/staff", expenses: "/expenses", suppliers: "/suppliers", subscription: "/subscription", settings: "/settings", support: "/support" };
+    const restaurantPaths: Record<string, string> = { dashboard: "/dashboard", pos: "/pos", sales: "/sales-history", menu: "/menu", inventory: "/inventory", staff: "/staff", expenses: "/expenses", suppliers: "/suppliers", subscription: "/subscription", settings: "/settings", support: "/support" };
     return (isAdmin ? adminPaths : restaurantPaths)[v] || (isAdmin ? "/admin" : "/dashboard");
   };
 
-  const nav = (v: View, replace = false) => {
+  const nav = (requestedView: View, replace = false) => {
+    let v = requestedView;
+    const normalized = String(currentUserRole || "").toLowerCase();
+    const owner = normalized === "owner" || normalized === "admin" || normalized === "restaurant owner" || normalized === "restaurant_owner" || normalized === "restaurant-owner" || !normalized;
+    if (!isAdmin && !owner && v !== "dashboard" && currentUserPermissions[v] !== true) {
+      toast.error("You do not have access to this section.");
+      return;
+    }
+    if (!isAdmin && !owner && v === "dashboard" && currentUserPermissions.overview !== true) {
+      const firstAllowed = navTenant.find((item) => currentUserPermissions[item.id === "dashboard" ? "overview" : item.id] === true && (!isProduceShop || item.id !== "menu"));
+      if (!firstAllowed) {
+        toast.error("No sections have been assigned to your account. Contact your restaurant owner.");
+        return;
+      }
+      v = firstAllowed.id;
+    }
     setView(v);
     setMobileNav(false);
     setProfileMenu(false);
@@ -2835,7 +2851,7 @@ export default function Home() {
     if (typeof window === "undefined") return;
     const pathToView = (path: string): View => {
       const map: Record<string, View> = {
-        "/": "dashboard", "/dashboard": "dashboard", "/pos": "pos", "/menu": "menu", "/inventory": "inventory", "/staff": "staff", "/expenses": "expenses", "/suppliers": "suppliers", "/subscription": "subscription", "/settings": "settings", "/support": "support",
+        "/": "dashboard", "/dashboard": "dashboard", "/pos": "pos", "/sales-history": "sales", "/menu": "menu", "/inventory": "inventory", "/staff": "staff", "/expenses": "expenses", "/suppliers": "suppliers", "/subscription": "subscription", "/settings": "settings", "/support": "support",
         "/admin": "dashboard", "/admin/restaurants": "restaurants", "/admin/approvals": "approvals", "/admin/pricing": "pricing", "/admin/settings": "settings", "/admin/admins": "admins", "/admin/support": "support"
       };
       return map[path] || "dashboard";
@@ -3008,13 +3024,18 @@ export default function Home() {
     ? []
     : navTenant.filter((item) => {
         if (isProduceShop && item.id === "menu") return false;
-        // Subscription and Settings must remain visible to restaurant owners.
-        if (isOwnerOrAdmin && (item.id === "subscription" || item.id === "settings")) return true;
         if (isOwnerOrAdmin) return true;
-        if (item.id === "dashboard") return true;
-        if (item.id === "support") return currentUserPermissions.support !== false;
-        return currentUserPermissions[item.id] === true;
+        return currentUserPermissions[item.id === "dashboard" ? "overview" : item.id] === true;
       });
+
+  useEffect(() => {
+    if (authLoading || tenantHydrating || !authUser || isAdmin || isOwnerOrAdmin) return;
+    const requested = view === "dashboard" ? "overview" : view;
+    if (currentUserPermissions[requested] === true && !(isProduceShop && view === "menu")) return;
+    const fallback = navTenant.find((item) => currentUserPermissions[item.id === "dashboard" ? "overview" : item.id] === true && !(isProduceShop && item.id === "menu"));
+    if (fallback) nav(fallback.id, true);
+    else toast.error("No sections have been assigned to your account. Contact your restaurant owner.");
+  }, [authLoading, tenantHydrating, authUser, isAdmin, isOwnerOrAdmin, view, currentUserPermissions, isProduceShop]);
 
   return (
     <div className="app-shell">
@@ -3608,7 +3629,7 @@ export default function Home() {
                   <button className="quiet-btn" onClick={() => setSound(!sound)}>
                     {sound ? <Volume2 size={17} /> : <VolumeX size={17} />} Sound {sound ? "on" : "off"}
                   </button>
-                  <button className="quiet-btn flex items-center gap-1.5" onClick={() => setSaleHistoryOpen(true)}>
+                  <button className="quiet-btn flex items-center gap-1.5" onClick={() => nav("sales")}>
                     <ReceiptText size={17} /> Sale history
                   </button>
                 </div>
@@ -3747,6 +3768,46 @@ export default function Home() {
                 </aside>
               </div>
             </>
+          )}
+
+          {/* SALE HISTORY — dedicated page, not a popup */}
+          {view === "sales" && (
+            <section className="sales-history-page space-y-4">
+              <div className="page-head">
+                <div>
+                  <div className="eyebrow">{tr("TRANSACTIONS")}</div>
+                  <h1>{tr("Sale History")}</h1>
+                  <p className="text-sm text-muted-foreground mt-1">{tr("Review completed sales and open receipts for this workspace.")}</p>
+                </div>
+                <div className="head-actions">
+                  <button className="quiet-btn" onClick={() => nav("pos")}>{tr("Back to POS")}</button>
+                </div>
+              </div>
+              <div className="kpi-grid sales-history-summary">
+                <div className="kpi-card"><div className="kpi-top">{tr("Completed sales")}</div><strong>{orders.length}</strong></div>
+                <div className="kpi-card"><div className="kpi-top">{tr("Total sales value")}</div><strong>{money(orders.reduce((sum, sale) => sum + Number(sale.bill.total || 0), 0))}</strong></div>
+              </div>
+              <div className="panel sales-history-panel">
+                <div className="table-wrap">
+                  <table className="w-full text-sm sales-history-table">
+                    <thead><tr className="border-b"><th className="text-left p-3">{tr("Receipt")}</th><th className="text-left p-3">{tr("Date & time")}</th><th className="text-left p-3">{tr("Items")}</th><th className="text-left p-3">{tr("Payment")}</th><th className="text-right p-3">{tr("Total")}</th><th className="text-right p-3">{tr("Action")}</th></tr></thead>
+                    <tbody>
+                      {[...orders].reverse().map((sale) => (
+                        <tr key={sale.id} className="border-b">
+                          <td className="p-3 font-mono">{sale.bill.id}</td>
+                          <td className="p-3">{sale.bill.issuedAt}</td>
+                          <td className="p-3">{sale.bill.items.reduce((n, x) => n + x.qty, 0)} item(s)</td>
+                          <td className="p-3">{sale.bill.payment}</td>
+                          <td className="p-3 text-right font-bold">{money(sale.bill.total)}</td>
+                          <td className="p-3 text-right"><button className="quiet-btn text-xs" onClick={() => setReceipt(sale.bill)}>{tr("View receipt")}</button></td>
+                        </tr>
+                      ))}
+                      {!orders.length && <tr><td colSpan={6} className="p-10 text-center text-muted-foreground">{tr("No completed sales yet.")}</td></tr>}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            </section>
           )}
 
           {/* 3. MENU & DISHES */}
@@ -5170,7 +5231,7 @@ export default function Home() {
               <div className="text-xs font-bold">{tr("Required access")}</div>
               <p className="text-[11px] text-muted-foreground">{tr("Select only the modules this employee needs. Owner retains full access.")}</p>
               <div className="grid grid-cols-2 gap-2">
-                {([["overview","Overview"],["pos","POS"],["menu","Menu"],["inventory","Inventory"],["staff","Team & payroll"],["expenses","Expenses"],["suppliers","Suppliers"],["subscription","Subscription"],["settings","Settings"]] as const).map(([key,label]) => {
+                {([["overview","Overview"],["pos","POS"],["sales","Sale History"],["menu","Menu"],["inventory","Inventory"],["staff","Team & payroll"],["expenses","Expenses"],["suppliers","Suppliers"],["subscription","Subscription"],["settings","Settings"]] as const).map(([key,label]) => {
                   const perms = (() => { try { const p = form.permissions ? JSON.parse(form.permissions) : {}; return p && typeof p === "object" ? p : {}; } catch { return {}; } })();
                   return <label key={key} className="flex items-center gap-2 text-xs"><input type="checkbox" checked={perms[key] === true} onChange={e => setForm({ ...form, permissions: JSON.stringify({ ...perms, [key]: e.target.checked }) })} />{label}</label>;
                 })}
@@ -5429,33 +5490,6 @@ export default function Home() {
           )}
         </SheetContent>
       </Sheet>
-
-      <Dialog open={saleHistoryOpen} onOpenChange={setSaleHistoryOpen}>
-        <DialogContent className="max-w-3xl">
-          <DialogHeader>
-            <DialogTitle>{tr("Sale History")}</DialogTitle>
-            <DialogDescription>{tr("Completed sales for the currently signed-in restaurant.")}</DialogDescription>
-          </DialogHeader>
-          <div className="max-h-[60vh] overflow-auto">
-            <table className="w-full text-sm">
-              <thead><tr className="border-b"><th className="text-left p-2">{tr("Receipt")}</th><th className="text-left p-2">{tr("Date & time")}</th><th className="text-left p-2">{tr("Items")}</th><th className="text-left p-2">{tr("Payment")}</th><th className="text-right p-2">{tr("Total")}</th><th /></tr></thead>
-              <tbody>
-                {orders.map((sale) => (
-                  <tr key={sale.id} className="border-b">
-                    <td className="p-2 font-mono">{sale.bill.id}</td>
-                    <td className="p-2">{sale.bill.issuedAt}</td>
-                    <td className="p-2">{sale.bill.items.reduce((n, x) => n + x.qty, 0)} item(s)</td>
-                    <td className="p-2">{sale.bill.payment}</td>
-                    <td className="p-2 text-right font-bold">{money(sale.bill.total)}</td>
-                    <td className="p-2 text-right"><button className="quiet-btn text-xs" onClick={() => setReceipt(sale.bill)}>{tr("View receipt")}</button></td>
-                  </tr>
-                ))}
-                {!orders.length && <tr><td colSpan={6} className="p-8 text-center text-muted-foreground">{tr("No completed sales yet.")}</td></tr>}
-              </tbody>
-            </table>
-          </div>
-        </DialogContent>
-      </Dialog>
 
       {/* PRINTABLE THERMAL RECEIPT DIALOG */}
       <Dialog open={!!receipt} onOpenChange={(v) => !v && setReceipt(null)}>

@@ -2862,49 +2862,6 @@ export default function Home() {
     return () => window.removeEventListener("popstate", syncFromUrl);
   }, []);
 
-  if (!db)
-    return (
-      <div className="auth-page">
-        <div className="auth-card">
-          <h1>{tr("RestoPulse configuration needed")}</h1>
-          <p>{tr("Add the Supabase URL and publishable key in Vercel environment variables, then redeploy.")}</p>
-        </div>
-      </div>
-    );
-
-  if (authLoading) return <div className="auth-page">{tr("Loading RestoPulse…")}</div>;
-
-  if (authUser && !roleHydrated) return <div className="auth-page">{tr("Loading workspace…")}</div>;
-
-  if (!authUser)
-    return (
-      <div className="auth-page">
-        <form className="auth-card" onSubmit={login}>
-          <div className="brand-symbol">✳</div>
-          <h1>{tr("Welcome to RestoPulse")}</h1>
-          <p>{tr("Sign in to your restaurant or platform account.")}</p>
-          <label>
-            Email
-            <input type="email" autoComplete="username" required value={loginEmail} onChange={(e) => setLoginEmail(e.target.value)} />
-          </label>
-          <label>
-            Password
-            <div className="login-password-wrap relative">
-              <input type={showLoginPassword ? "text" : "password"} autoComplete="current-password" required value={loginPassword} onChange={(e) => setLoginPassword(e.target.value)} className="pr-10" />
-              <button type="button" className="login-eye-toggle" aria-label={showLoginPassword ? "Hide password" : "Show password"} onClick={() => setShowLoginPassword(v => !v)}>{showLoginPassword ? <EyeOff size={18}/> : <Eye size={18}/>}</button>
-            </div>
-          </label>
-          <button className="primary-btn" disabled={loginBusy}>
-            {loginBusy ? "Signing in…" : "Sign in"}
-          </button>
-        </form>
-        <Toaster richColors />
-      </div>
-    );
-
-  if (tenantHydrating)
-    return <div className="auth-page">{tr("Loading workspace…")}</div>;
-
   const openUpiApp = (provider: "gpay" | "phonepe" | "upi") => {
     const params = `pa=${encodeURIComponent(subscriptionUpiId)}&pn=${encodeURIComponent("RestoPulse")}&am=${encodeURIComponent(activePlanPrice.toFixed(2))}&cu=INR&tn=${encodeURIComponent(`${activeRestaurantName} ${activeInlinePlan?.name || "Subscription"}`)}`;
     const urls = {
@@ -3036,6 +2993,49 @@ export default function Home() {
     if (fallback) nav(fallback.id, true);
     else toast.error("No sections have been assigned to your account. Contact your restaurant owner.");
   }, [authLoading, tenantHydrating, authUser, isAdmin, isOwnerOrAdmin, view, currentUserPermissions, isProduceShop]);
+
+  if (!db)
+    return (
+      <div className="auth-page">
+        <div className="auth-card">
+          <h1>{tr("RestoPulse configuration needed")}</h1>
+          <p>{tr("Add the Supabase URL and publishable key in Vercel environment variables, then redeploy.")}</p>
+        </div>
+      </div>
+    );
+
+  if (authLoading) return <div className="auth-page">{tr("Loading RestoPulse…")}</div>;
+
+  if (authUser && !roleHydrated) return <div className="auth-page">{tr("Loading workspace…")}</div>;
+
+  if (!authUser)
+    return (
+      <div className="auth-page">
+        <form className="auth-card" onSubmit={login}>
+          <div className="brand-symbol">✳</div>
+          <h1>{tr("Welcome to RestoPulse")}</h1>
+          <p>{tr("Sign in to your restaurant or platform account.")}</p>
+          <label>
+            Email
+            <input type="email" autoComplete="username" required value={loginEmail} onChange={(e) => setLoginEmail(e.target.value)} />
+          </label>
+          <label>
+            Password
+            <div className="login-password-wrap relative">
+              <input type={showLoginPassword ? "text" : "password"} autoComplete="current-password" required value={loginPassword} onChange={(e) => setLoginPassword(e.target.value)} className="pr-10" />
+              <button type="button" className="login-eye-toggle" aria-label={showLoginPassword ? "Hide password" : "Show password"} onClick={() => setShowLoginPassword(v => !v)}>{showLoginPassword ? <EyeOff size={18}/> : <Eye size={18}/>}</button>
+            </div>
+          </label>
+          <button className="primary-btn" disabled={loginBusy}>
+            {loginBusy ? "Signing in…" : "Sign in"}
+          </button>
+        </form>
+        <Toaster richColors />
+      </div>
+    );
+
+  if (tenantHydrating)
+    return <div className="auth-page">{tr("Loading workspace…")}</div>;
 
   return (
     <div className="app-shell">

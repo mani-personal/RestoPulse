@@ -310,3 +310,22 @@
   .subscription-renewal-copy span{font-size:13px}
   .subscription-renewal-reminder .primary-btn{width:100%}
 }
+
+/* Fixed, consistent POS product cards on mobile and desktop. */
+.pos-catalog .dish-grid{grid-template-columns:repeat(auto-fill,minmax(126px,1fr));align-items:stretch}
+.pos-catalog .dish-tile{width:100%;min-width:0;max-width:100%;height:100%;overflow:hidden}
+.pos-catalog .dish-photo{height:84px;min-height:84px;flex:0 0 84px;display:flex;align-items:center;justify-content:center;box-sizing:border-box}
+.pos-catalog .dish-photo img,.pos-catalog .dish-photo .dish-image-full{width:100%;height:100%;max-width:100%;max-height:100%;object-fit:contain;object-position:center}
+.pos-catalog .dish-body{min-width:0;overflow:hidden}
+.pos-catalog .dish-name{display:-webkit-box;-webkit-box-orient:vertical;-webkit-line-clamp:2;overflow:hidden;overflow-wrap:anywhere;min-height:2.5em}
+.pos-quantity-input{width:72px;min-width:64px;max-width:88px;padding-left:3px;padding-right:3px;font-variant-numeric:tabular-nums}
+@media(max-width:767px){
+ .pos-catalog .dish-grid{grid-template-columns:repeat(2,minmax(0,1fr))!important;gap:8px!important}
+ .pos-catalog .dish-tile{min-width:0!important;width:100%!important}
+ .pos-catalog .dish-photo{height:88px;min-height:88px;flex-basis:88px;padding:5px}
+ .pos-catalog .dish-body{padding:8px;gap:4px}
+ .pos-catalog .dish-name{font-size:12px;line-height:1.25;min-height:2.5em}
+ .pos-catalog .dish-price{font-size:11px;line-height:1.25;white-space:normal;overflow-wrap:anywhere}
+ .pos-quantity-input{width:76px;min-width:68px;font-size:14px}
+}
+@media(max-width:360px){.pos-catalog .dish-photo{height:76px;min-height:76px;flex-basis:76px}.pos-catalog .dish-body{padding:6px}.pos-catalog .dish-name{font-size:11px}}

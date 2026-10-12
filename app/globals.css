@@ -256,3 +256,34 @@
 .inventory-image-picker .image-picker-copy small{font-size:11px;color:var(--text-muted);overflow-wrap:anywhere}
 .inventory-image-picker .image-picker-action{flex:0 0 auto;padding:7px 11px;border-radius:8px;background:var(--primary);color:white;font-size:12px;font-weight:700}
 .dish-tile .dish-photo img.dish-image-full{display:block;width:100%;height:100%;min-height:0;object-fit:cover}
+
+/* Final usability pass: compact POS product tiles and consistent responsive page surfaces. */
+.dish-photo{height:88px;min-height:88px;aspect-ratio:auto;padding:5px}
+.dish-photo .dish-image-full{width:100%;height:100%;object-fit:contain}
+.dish-tile{min-width:0;overflow:hidden;border-radius:12px}
+.dish-body{min-width:0;gap:4px}
+.dish-name{display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;line-height:1.3}
+.dish-price{font-size:11px;line-height:1.35;overflow-wrap:anywhere}
+.sales-history-page{min-width:0}
+.sales-history-summary{grid-template-columns:repeat(2,minmax(0,1fr));max-width:680px}
+.sales-history-panel{min-width:0;overflow:hidden}
+.sales-history-table{border-collapse:collapse}
+.sales-history-table th{font-size:11px;color:var(--text-muted);font-weight:800;white-space:nowrap;background:var(--soft)}
+.sales-history-table td{vertical-align:middle}
+.sales-history-table tbody tr:hover{background:var(--soft)}
+@media(max-width:767px){
+  .dish-photo{height:76px;min-height:76px;padding:4px}
+  .sales-history-summary{grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}
+  .sales-history-summary .kpi-card{min-height:96px;padding:12px}
+  .sales-history-page .page-head{gap:12px}
+  .sales-history-page .head-actions{justify-content:flex-start}
+  .sales-history-panel .table-wrap{overflow-x:auto;-webkit-overflow-scrolling:touch}
+  .sales-history-table{min-width:690px}
+}
+@media(max-width:420px){
+  .dish-photo{height:68px;min-height:68px}
+  .dish-body{padding:8px}
+  .dish-name{font-size:11px}
+  .dish-price{font-size:10px}
+  .sales-history-summary .kpi-card>strong{font-size:16px}
+}

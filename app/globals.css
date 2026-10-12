@@ -287,3 +287,26 @@
   .dish-price{font-size:10px}
   .sales-history-summary .kpi-card>strong{font-size:16px}
 }
+
+/* Compact POS cards for both restaurant dishes and fruit/vegetable inventory. */
+.pos-catalog .dish-grid{grid-template-columns:repeat(auto-fill,minmax(118px,1fr));gap:10px;align-items:stretch}
+.pos-catalog .dish-tile{display:flex;flex-direction:column;min-width:0;height:100%}
+.pos-catalog .dish-photo{height:76px;min-height:76px;width:100%;padding:5px;background:var(--soft);overflow:hidden}
+.pos-catalog .dish-photo .dish-image-full{display:block;width:100%;height:100%;object-fit:contain;object-position:center}
+.pos-catalog .dish-body{display:flex;flex:1;flex-direction:column;gap:4px;padding:8px;min-width:0}
+.pos-catalog .dish-name{font-size:11px;line-height:1.25;min-height:2.5em}
+.pos-catalog .dish-price{font-size:10px;line-height:1.3;overflow-wrap:anywhere}
+.subscription-renewal-reminder{display:flex;align-items:center;gap:16px;margin:0 0 20px;padding:18px 20px;border:2px solid #e6a008;border-radius:14px;background:#fff7df;color:#713f12;box-shadow:0 6px 20px #a66b121c}
+.subscription-renewal-copy{display:flex;flex:1;min-width:0;flex-direction:column;gap:5px}
+.subscription-renewal-copy strong{font-size:clamp(17px,2vw,23px);font-weight:900;line-height:1.2;letter-spacing:.01em}
+.subscription-renewal-copy span{font-size:14px;font-weight:650;line-height:1.45}
+.subscription-renewal-reminder .primary-btn{min-height:42px}
+@media(max-width:767px){
+  .pos-catalog .dish-grid{grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}
+  .pos-catalog .dish-photo{height:72px;min-height:72px}
+  .subscription-renewal-reminder{align-items:flex-start;flex-wrap:wrap;gap:10px;padding:14px}
+  .subscription-renewal-copy{flex-basis:calc(100% - 44px)}
+  .subscription-renewal-copy strong{font-size:18px}
+  .subscription-renewal-copy span{font-size:13px}
+  .subscription-renewal-reminder .primary-btn{width:100%}
+}

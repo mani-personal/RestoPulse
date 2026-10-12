@@ -2886,6 +2886,10 @@ export default function Home() {
   const nowForMetrics = liveDate;
   const activeRenewalTime = activeRenewalDate && activeRenewalDate !== "—" ? new Date(`${activeRenewalDate}T23:59:59`).getTime() : NaN;
   const subscriptionExpired = !isAdmin && Number.isFinite(activeRenewalTime) && activeRenewalTime < nowForMetrics.getTime();
+  const renewalDaysRemaining = Number.isFinite(activeRenewalTime)
+    ? Math.ceil((new Date(`${activeRenewalDate}T00:00:00`).getTime() - new Date(nowForMetrics.getFullYear(), nowForMetrics.getMonth(), nowForMetrics.getDate()).getTime()) / 86400000)
+    : null;
+  const subscriptionRenewalDueSoon = !isAdmin && renewalDaysRemaining !== null && renewalDaysRemaining >= 0 && renewalDaysRemaining <= 7;
   const dayStart = new Date(nowForMetrics); dayStart.setHours(0, 0, 0, 0);
   const weekStart = new Date(dayStart); weekStart.setDate(weekStart.getDate() - ((weekStart.getDay() + 6) % 7));
   const monthStart = new Date(nowForMetrics.getFullYear(), nowForMetrics.getMonth(), 1);
@@ -3483,6 +3487,18 @@ export default function Home() {
                       </button>
                     </div>
                   </div>
+
+                  {/* Prominent renewal reminder during the seven days before expiry */}
+                  {subscriptionRenewalDueSoon && !subscriptionExpired && (
+                    <div className="subscription-renewal-reminder" role="alert">
+                      <AlertTriangle size={28} className="shrink-0" />
+                      <div className="subscription-renewal-copy">
+                        <strong>{renewalDaysRemaining === 0 ? "SUBSCRIPTION RENEWS TODAY — PLEASE PAY NOW" : `SUBSCRIPTION RENEWAL DUE IN ${renewalDaysRemaining} DAY${renewalDaysRemaining === 1 ? "" : "S"}`}</strong>
+                        <span>Please make your payment before {new Date(`${activeRenewalDate}T00:00:00`).toLocaleDateString("en-IN")} to avoid interruption to your shop operations.</span>
+                      </div>
+                      <button className="primary-btn" onClick={() => nav("subscription")}>Pay / Renew Now</button>
+                    </div>
+                  )}
 
                   {/* Expired Subscription Banner if active */}
                   {subscriptionExpired && (

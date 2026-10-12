@@ -2159,7 +2159,7 @@ export default function Home() {
   const lineDiscount = cart.reduce((sum, l) => sum + l.discount * l.qty, 0);
   const totalDiscount = Math.min(subtotal, lineDiscount + orderDiscount);
   
-  const effectiveGst = tenantInfo.gst_percent || 5;
+  const effectiveGst = tenantInfo.gst_percent ?? 5;
   const tax = Math.round((subtotal - totalDiscount) * (effectiveGst / 100));
   const cgstAmount = Math.round(tax / 2);
   const sgstAmount = tax - cgstAmount;
@@ -2724,9 +2724,9 @@ export default function Home() {
         phone: storeForm.phone.trim(),
         address: storeForm.address.trim(),
         gstin: storeForm.gstin.trim(),
-        gst_percent: Number(storeForm.gst_percent) || 5,
-        cgst_percent: Number(storeForm.cgst_percent) || 2.5,
-        sgst_percent: Number(storeForm.sgst_percent) || 2.5,
+        gst_percent: storeForm.gst_percent === "" ? 5 : Number(storeForm.gst_percent),
+        cgst_percent: storeForm.cgst_percent === "" ? 2.5 : Number(storeForm.cgst_percent),
+        sgst_percent: storeForm.sgst_percent === "" ? 2.5 : Number(storeForm.sgst_percent),
       };
 
       const res = await authedFetch("/api/restaurant", {
@@ -4375,20 +4375,30 @@ export default function Home() {
                       <div className="grid grid-cols-3 gap-2">
                         <label className="block space-y-1">
                           <span className="text-xs font-medium text-muted-foreground">{tr("GST Total %")}</span>
-                          <input
-                            type="number"
+                          <select
                             value={storeForm.gst_percent}
-                            onChange={(e) => setStoreForm({ ...storeForm, gst_percent: e.target.value })}
+                            onChange={(e) => {
+                              const gst = Number(e.target.value);
+                              const half = gst / 2;
+                              setStoreForm({ ...storeForm, gst_percent: e.target.value, cgst_percent: String(half), sgst_percent: String(half) });
+                            }}
                             className="w-full p-2 border rounded-lg text-xs bg-background"
-                          />
+                          >
+                            <option value="0">None</option>
+                            <option value="5">5%</option>
+                            <option value="12">12%</option>
+                            <option value="18">18%</option>
+                            <option value="28">28%</option>
+                          </select>
                         </label>
                         <label className="block space-y-1">
                           <span className="text-xs font-medium text-muted-foreground">{tr("CGST %")}</span>
                           <input
                             type="number"
                             value={storeForm.cgst_percent}
-                            onChange={(e) => setStoreForm({ ...storeForm, cgst_percent: e.target.value })}
-                            className="w-full p-2 border rounded-lg text-xs bg-background"
+                            readOnly
+                            aria-label="CGST percentage (half of GST)"
+                            className="w-full p-2 border rounded-lg text-xs bg-muted"
                           />
                         </label>
                         <label className="block space-y-1">
@@ -4396,8 +4406,9 @@ export default function Home() {
                           <input
                             type="number"
                             value={storeForm.sgst_percent}
-                            onChange={(e) => setStoreForm({ ...storeForm, sgst_percent: e.target.value })}
-                            className="w-full p-2 border rounded-lg text-xs bg-background"
+                            readOnly
+                            aria-label="SGST percentage (half of GST)"
+                            className="w-full p-2 border rounded-lg text-xs bg-muted"
                           />
                         </label>
                       </div>

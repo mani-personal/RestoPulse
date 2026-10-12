@@ -1722,6 +1722,7 @@ export default function Home() {
     setCurrentUserPermissions({});
     setTenantId(null);
     setView("dashboard");
+    setProfileMenu(false);
     setActiveRestaurantName("Loading workspace…");
     setActivePlanName("Free trial");
     setActiveRenewalDate("—");
@@ -3600,10 +3601,10 @@ export default function Home() {
                     <section className="panel top-dishes">
                       <div className="panel-header">
                         <div>
-                          <h2>{tr("Top performing dishes")}</h2>
-                          <p>{tr("Popular catalog items")}</p>
+                          <h2>{isProduceShop ? (normalizedBusinessType === "fruit_shop" || normalizedBusinessType === "fruit" || normalizedBusinessType === "fruits" ? "Fruit shop" : "Shop overview") : tr("Top performing dishes")}</h2>
+                          <p>{isProduceShop ? "Products and sales overview" : tr("Popular catalog items")}</p>
                         </div>
-                        <button className="quiet-btn text-xs" onClick={() => nav("menu")}>{tr("View menu")}</button>
+                        {!isProduceShop && <button className="quiet-btn text-xs" onClick={() => nav("menu")}>{tr("View menu")}</button>}
                       </div>
                       <div className="space-y-2 mt-2">
                         {dishes.slice(0, 4).map((d, i) => (
@@ -3740,7 +3741,7 @@ export default function Home() {
                                 >
                                   <Minus size={11} />
                                 </button>
-                                {isProduceShop ? <input aria-label={`Quantity of ${d.name}`} type="number" min="0.001" step="0.001" value={l.qty} onChange={(e) => { const next = Number(e.target.value); if (Number.isFinite(next) && next > 0) setCart((old) => old.map((line) => line.id === l.id ? { ...line, qty: next } : line)); }} className="w-16 px-1 text-xs font-bold font-mono text-center bg-transparent" /> : <span className="px-2.5 text-xs font-bold font-mono min-w-[20px] text-center">{l.qty}</span>}
+                                {isProduceShop ? <input aria-label={`Quantity of ${d.name}`} type="number" inputMode="decimal" min="0.001" step="any" value={l.qty} onChange={(e) => { const raw = e.target.value; if (raw === "") return; const next = Number(raw); if (Number.isFinite(next) && next > 0) setCart((old) => old.map((line) => line.id === l.id ? { ...line, qty: next } : line)); }} className="pos-quantity-input w-16 px-1 text-xs font-bold font-mono text-center bg-transparent" /> : <span className="px-2.5 text-xs font-bold font-mono min-w-[20px] text-center">{l.qty}</span>}
                                 <button
                                   className="px-2.5 py-1 hover:bg-secondary rounded-r transition-colors"
                                   onClick={() => qty(l.id, isProduceShop ? 0.5 : 1)}

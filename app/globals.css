@@ -329,3 +329,22 @@
  .pos-quantity-input{width:76px;min-width:68px;font-size:14px}
 }
 @media(max-width:360px){.pos-catalog .dish-photo{height:76px;min-height:76px;flex-basis:76px}.pos-catalog .dish-body{padding:6px}.pos-catalog .dish-name{font-size:11px}}
+
+
+/* Inventory management mobile layout: keep cards within viewport and allow wide tables to scroll. */
+.inventory-page,.inventory-section{min-width:0;max-width:100%;}
+.inventory-table-wrapper{width:100%;max-width:100%;overflow-x:auto;-webkit-overflow-scrolling:touch;}
+.inventory-table{width:100%;border-collapse:collapse;}
+.inventory-table th,.inventory-table td{vertical-align:middle;overflow-wrap:anywhere;}
+.inventory-actions{display:flex;align-items:center;justify-content:flex-end;flex-wrap:wrap;gap:5px;white-space:normal;}
+@media(max-width:767px){
+ .inventory-page{padding:12px!important;}
+ .inventory-page .inventory-table-wrapper{margin:0;width:100%;}
+ .inventory-table{min-width:650px;}
+ .inventory-actions{flex-wrap:nowrap;gap:4px;}
+ .inventory-actions .inventory-action{flex-shrink:0;}
+ .page-head{gap:10px;align-items:flex-start;flex-wrap:wrap;}
+ .page-head h1{overflow-wrap:anywhere;}
+ .kpi-grid{grid-template-columns:repeat(2,minmax(0,1fr));}
+}
+@media(max-width:380px){.inventory-page{padding:8px!important}.inventory-table{min-width:620px}.kpi-grid{grid-template-columns:minmax(0,1fr);}}

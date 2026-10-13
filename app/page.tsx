@@ -4002,6 +4002,7 @@ export default function Home() {
                         <th className="p-3">{tr("ITEM NAME")}</th>
                         <th className="p-3">{tr("ON HAND")}</th>
                         {isProduceShop && <><th className="p-3">{tr("COST / UNIT")}</th><th className="p-3">{tr("SELL / UNIT")}</th></>}
+                        {(normalizedBusinessType === "fruit_shop" || normalizedBusinessType === "fruit" || normalizedBusinessType === "fruits") && <th className="p-3">MARGIN / UNIT</th>}
                         <th className="p-3">{tr("REORDER LEVEL")}</th>
                         <th className="p-3">{tr("STATUS ALERT")}</th>
                         <th className="p-3 text-right">{tr("ACTIONS")}</th>
@@ -4016,6 +4017,7 @@ export default function Home() {
                             <td className="p-3 font-semibold"><div className="flex items-center gap-3">{isProduceShop && (item.imageUrl ? <img src={item.imageUrl} alt={item.name} className="h-11 w-11 rounded-lg object-cover border" /> : <div className="h-11 w-11 rounded-lg border bg-muted flex items-center justify-center text-xl">{tenantInfo.business_type === "fruit_shop" ? "🍎" : "🥬"}</div>)}<span>{item.name}</span></div></td>
                             <td className="p-3 font-mono font-bold">{item.onHand} {item.unit}</td>
                             {isProduceShop && <><td className="p-3">{money(item.cost || 0)}</td><td className="p-3">{money(item.sellingPrice || 0)}</td></>}
+                            {(normalizedBusinessType === "fruit_shop" || normalizedBusinessType === "fruit" || normalizedBusinessType === "fruits") && <td className={`p-3 font-semibold ${(Number(item.sellingPrice || 0) - Number(item.cost || 0)) < 0 ? "text-red-600" : "text-green-700"}`}>{money(Number(item.sellingPrice || 0) - Number(item.cost || 0))}</td>}
                             <td className="p-3 font-mono text-muted-foreground">{item.reorderLevel} {item.unit}</td>
                             <td className="p-3">
                               {isOut ? (
@@ -4040,7 +4042,7 @@ export default function Home() {
                       })}
                       {!inventoryList.length && (
                         <tr>
-                          <td colSpan={isProduceShop ? 7 : 5} className="text-center py-6 text-muted-foreground text-xs">
+                          <td colSpan={(normalizedBusinessType === "fruit_shop" || normalizedBusinessType === "fruit" || normalizedBusinessType === "fruits") ? 8 : isProduceShop ? 7 : 5} className="text-center py-6 text-muted-foreground text-xs">
                             No inventory items found. Add items to track stock.
                           </td>
                         </tr>

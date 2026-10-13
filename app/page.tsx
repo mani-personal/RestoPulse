@@ -136,6 +136,7 @@ type InventoryItem = {
   cost?: number;
   sellingPrice?: number;
   imageUrl?: string;
+  supplierId?: string | null;
 };
 
 type RestaurantApproval = {
@@ -1047,7 +1048,7 @@ export default function Home() {
   const [inventoryList, setInventoryList] = useState<InventoryItem[]>([]);
   const [inventoryTransactions, setInventoryTransactions] = useState<any[]>([]);
   const [isDataLoading, setIsDataLoading] = useState(false);
-  const [invForm, setInvForm] = useState({ name: "", category: "Produce", onHand: "", unit: "kg", reorderLevel: "5", cost: "", sellingPrice: "", imageUrl: "" });
+  const [invForm, setInvForm] = useState({ name: "", category: "Produce", onHand: "", unit: "kg", reorderLevel: "5", cost: "", sellingPrice: "", imageUrl: "", supplierId: "" });
   const [inventoryImageUploading, setInventoryImageUploading] = useState(false);
   const [editingInvId, setEditingInvId] = useState<string | number | null>(null);
   const [stockAdjustItem, setStockAdjustItem] = useState<InventoryItem | null>(null);
@@ -1871,7 +1872,7 @@ export default function Home() {
         placedAt: s.placed_at, amount: Number(s.amount) || 0, type: s.order_type, status: s.status, bill: s.receipt
       })));
       if (inventoryRes.ok) {
-        setInventoryList((inventoryJson.items || []).map((x: any) => ({ id: x.id, name: x.name, category: x.category, onHand: Number(x.on_hand), unit: x.unit, reorderLevel: Number(x.reorder_level), cost: Number(x.cost || 0), sellingPrice: Number(x.selling_price || 0), imageUrl: x.image_url || "" })));
+        setInventoryList((inventoryJson.items || []).map((x: any) => ({ id: x.id, name: x.name, category: x.category, onHand: Number(x.on_hand), unit: x.unit, reorderLevel: Number(x.reorder_level), cost: Number(x.cost || 0), sellingPrice: Number(x.selling_price || 0), imageUrl: x.image_url || "", supplierId: x.supplier_id || null })));
         setInventoryTransactions(inventoryJson.transactions || []);
       }
       if (!menuRes.error) setDishes((menuRes.data || []).map((x: any) => ({ id: x.id, name: x.name, category: x.category, price: Number(x.price), cost: Number(x.cost), stock: x.available, emoji: x.emoji, diet: x.diet, time: x.prep_minutes, imageUrl: x.image_url })));
@@ -1979,14 +1980,33 @@ export default function Home() {
           cost: Math.max(0, Number(invForm.cost) || 0),
           selling_price: Math.max(0, Number(invForm.sellingPrice) || 0),
           image_url: invForm.imageUrl || null,
+          supplier_id: invForm.supplierId || null,
           transaction_type: editingInvId ? "Adjustment" : "Opening balance",
         }),
       });
       const json = await res.json();
       if (!res.ok) throw new Error(json.error || "Could not save inventory item");
+      // Record an initial stock purchase in the existing supplier ledger when a supplier is selected.
+      // The supplier page already derives purchase history from expenses, so no schema change is needed.
+      if (!editingInvId && invForm.supplierId && qty > 0) {
+        const supplier = suppliers.find((x) => x.id === invForm.supplierId);
+        const purchaseAmount = qty * Math.max(0, Number(invForm.cost) || 0);
+        if (supplier && purchaseAmount > 0) {
+          const { error: supplierTxError } = await db.from("expenses").insert({
+            restaurant_id: tenantId,
+            supplier_id: supplier.id,
+            name: `Inventory purchase: ${invForm.name.trim()} (${qty} ${invForm.unit})`,
+            category: "Inventory",
+            vendor: supplier.name,
+            amount: purchaseAmount,
+            incurred_on: new Date().toISOString().slice(0, 10),
+          });
+          if (supplierTxError) throw new Error(`Inventory saved, but supplier transaction could not be recorded: ${supplierTxError.message}`);
+        }
+      }
       await loadRestaurantData(tenantId);
       setModal(null); setEditingInvId(null);
-      setInvForm({ name: "", category: isProduceShop ? (tenantInfo.business_type === "fruit_shop" ? "Fruits" : "Vegetables") : "Grains", onHand: "", unit: isProduceShop ? "kg" : "bags", reorderLevel: "5", cost: "", sellingPrice: "", imageUrl: "" });
+      setInvForm({ name: "", category: isProduceShop ? (tenantInfo.business_type === "fruit_shop" ? "Fruits" : "Vegetables") : "Grains", onHand: "", unit: isProduceShop ? "kg" : "bags", reorderLevel: "5", cost: "", sellingPrice: "", imageUrl: "", supplierId: "" });
       toast.success(editingInvId ? "Inventory item updated successfully!" : "Inventory item added successfully!");
     } catch (e: any) { toast.error(e.message || "Could not save inventory item"); }
   };
@@ -2077,10 +2097,11 @@ export default function Home() {
         cost: String(item.cost || 0),
         sellingPrice: String(item.sellingPrice || 0),
         imageUrl: item.imageUrl || "",
+        supplierId: item.supplierId || "",
       });
     } else {
       setEditingInvId(null);
-      setInvForm({ name: "", category: isProduceShop ? (tenantInfo.business_type === "fruit_shop" ? "Fruits" : "Vegetables") : "Grains", onHand: "", unit: isProduceShop ? "kg" : "bags", reorderLevel: "5", cost: "", sellingPrice: "", imageUrl: "" });
+      setInvForm({ name: "", category: isProduceShop ? (tenantInfo.business_type === "fruit_shop" ? "Fruits" : "Vegetables") : "Grains", onHand: "", unit: isProduceShop ? "kg" : "bags", reorderLevel: "5", cost: "", sellingPrice: "", imageUrl: "", supplierId: "" });
     }
     setModal("inventory");
   };
@@ -2531,7 +2552,7 @@ export default function Home() {
           const inventoryRes = await authedFetch(`/api/inventory?restaurant_id=${encodeURIComponent(tenantId)}`);
           const inventoryJson = await inventoryRes.json();
           if (!inventoryRes.ok) throw new Error(inventoryJson.error || "Could not refresh inventory");
-          setInventoryList((inventoryJson.items || []).map((x: any) => ({ id: x.id, name: x.name, category: x.category, onHand: Number(x.on_hand), unit: x.unit, reorderLevel: Number(x.reorder_level), cost: Number(x.cost || 0), sellingPrice: Number(x.selling_price || 0), imageUrl: x.image_url || "" })));
+          setInventoryList((inventoryJson.items || []).map((x: any) => ({ id: x.id, name: x.name, category: x.category, onHand: Number(x.on_hand), unit: x.unit, reorderLevel: Number(x.reorder_level), cost: Number(x.cost || 0), sellingPrice: Number(x.selling_price || 0), imageUrl: x.image_url || "", supplierId: x.supplier_id || null })));
           setInventoryTransactions(inventoryJson.transactions || []);
         } catch (refreshError) {
           console.error("Inventory refresh after POS sale failed", refreshError);
@@ -3938,9 +3959,9 @@ export default function Home() {
                   ["Out of stock", inventoryList.filter(x => x.onHand === 0).length, "needs replenishment"],
                 ].map(([label, value, note]) => <div className="kpi-card" key={String(label)}><div className="kpi-top"><span>{label}</span><span className="kpi-icon teal"><Package size={19}/></span></div><strong>{String(value)}</strong><div className="kpi-foot"><span>{note}</span></div></div>)}
               </div>
-              <div className="panel management-panel bg-card border rounded-xl p-6 mt-4">
-                <div className="table-scroll overflow-x-auto">
-                  <table className="w-full text-left border-collapse">
+              <div className="panel management-panel inventory-page bg-card border rounded-xl p-6 mt-4">
+                <div className="table-scroll inventory-table-wrapper overflow-x-auto">
+                  <table className="inventory-table w-full text-left border-collapse">
                     <thead>
                       <tr className="border-b text-sm text-muted-foreground">
                         <th className="p-3">{tr("ITEM NAME")}</th>
@@ -5137,11 +5158,19 @@ export default function Home() {
                 <span className="text-sm font-medium">{tr("Cost Price (per unit)")}</span>
                 <input type="number" min="0" step="0.01" value={invForm.cost} onChange={(e) => setInvForm({ ...invForm, cost: e.target.value })} className="w-full p-2 border rounded-md text-sm bg-transparent" />
               </label>
-              <label className="block space-y-1">
+              {isProduceShop && <label className="block space-y-1">
                 <span className="text-sm font-medium">{tr("Selling Price (per unit)")}</span>
                 <input type="number" min="0" step="0.01" value={invForm.sellingPrice} onChange={(e) => setInvForm({ ...invForm, sellingPrice: e.target.value })} className="w-full p-2 border rounded-md text-sm bg-transparent" />
-              </label>
+              </label>}
             </div>
+            <label className="block space-y-1">
+              <span className="text-sm font-medium">Supplier</span>
+              <select value={invForm.supplierId} onChange={(e) => setInvForm({ ...invForm, supplierId: e.target.value })} className="w-full p-2 border rounded-md text-sm bg-background">
+                <option value="">No supplier selected</option>
+                {suppliers.map((supplier) => <option key={supplier.id} value={supplier.id}>{supplier.name}</option>)}
+              </select>
+              <span className="text-xs text-muted-foreground">For new stock, the initial purchase will be added to this supplier’s transaction history when a cost is entered.</span>
+            </label>
             <label className="block space-y-1">
               <span className="text-sm font-medium">{tr("Reorder Threshold")}</span>
               <input type="number" min="0" value={invForm.reorderLevel} onChange={(e) => setInvForm({ ...invForm, reorderLevel: e.target.value })} className="w-full p-2 border rounded-md text-sm bg-transparent" />

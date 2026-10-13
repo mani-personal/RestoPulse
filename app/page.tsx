@@ -1055,6 +1055,8 @@ export default function Home() {
   const [stockAdjustMode, setStockAdjustMode] = useState<"add" | "reduce" | "waste">("reduce");
   const [stockAdjustQty, setStockAdjustQty] = useState("");
   const [stockAdjustNote, setStockAdjustNote] = useState("");
+  const [stockAdjustSupplierId, setStockAdjustSupplierId] = useState("");
+  const [stockAdjustPurchaseAmount, setStockAdjustPurchaseAmount] = useState("");
 
   const [adminUpiId, setAdminUpiId] = useState<string>("admin-restopulse@upi");
   const [adminUpiBusy, setAdminUpiBusy] = useState(false);
@@ -2054,6 +2056,8 @@ export default function Home() {
     setStockAdjustMode(mode);
     setStockAdjustQty("");
     setStockAdjustNote("");
+    setStockAdjustSupplierId(item.supplierId || "");
+    setStockAdjustPurchaseAmount("");
     setModal("stockAdjust");
   };
 
@@ -2076,12 +2080,43 @@ export default function Home() {
     const defaultNote = stockAdjustMode === "add"
       ? `Purchase received: ${qty} ${stockAdjustItem.unit}`
       : stockAdjustMode === "waste" ? `Spoiled / damaged produce: ${qty} ${stockAdjustItem.unit}` : `Manual stock reduction of ${qty} ${stockAdjustItem.unit}`;
+    // For fruit/produce stock purchases, capture supplier and the actual total amount paid.
+    const recordSupplierPurchase = stockAdjustMode === "add" && isProduceShop && Boolean(stockAdjustSupplierId);
+    const purchaseAmount = Number(stockAdjustPurchaseAmount);
+    if (recordSupplierPurchase && (!Number.isFinite(purchaseAmount) || purchaseAmount <= 0)) {
+      toast.error("Enter the total amount paid for this stock purchase");
+      return;
+    }
     const ok = await adjustInventory(stockAdjustItem, delta, type, stockAdjustNote.trim() || defaultNote);
     if (ok) {
+      if (recordSupplierPurchase && tenantId) {
+        const supplier = suppliers.find((x) => x.id === stockAdjustSupplierId);
+        if (!supplier) {
+          toast.error("Stock was updated, but the selected supplier could not be found");
+          return;
+        }
+        const { error: supplierTxError } = await db.from("expenses").insert({
+          restaurant_id: tenantId,
+          supplier_id: supplier.id,
+          name: `Stock purchase: ${stockAdjustItem.name} (${qty} ${stockAdjustItem.unit})`,
+          category: "Inventory",
+          vendor: supplier.name,
+          amount: purchaseAmount,
+          incurred_on: new Date().toISOString().slice(0, 10),
+        });
+        if (supplierTxError) {
+          toast.error(`Stock was updated, but the supplier transaction could not be saved: ${supplierTxError.message}`);
+          return;
+        }
+        await loadRestaurantData(tenantId);
+        toast.success(`Purchase of ${money(purchaseAmount)} recorded for ${supplier.name}`);
+      }
       setModal(null);
       setStockAdjustItem(null);
       setStockAdjustQty("");
       setStockAdjustNote("");
+      setStockAdjustSupplierId("");
+      setStockAdjustPurchaseAmount("");
     }
   };
 
@@ -5191,6 +5226,8 @@ export default function Home() {
           setStockAdjustMode("reduce");
           setStockAdjustQty("");
           setStockAdjustNote("");
+          setStockAdjustSupplierId("");
+          setStockAdjustPurchaseAmount("");
         }
       }}>
         <DialogContent className="max-w-md">
@@ -5223,6 +5260,24 @@ export default function Home() {
                   <span className="text-xs text-muted-foreground">{tr("No fixed maximum")}</span>
                 )}
               </label>
+              {stockAdjustMode === "add" && isProduceShop && (
+                <>
+                  <label className="block space-y-1">
+                    <span className="text-sm font-medium">Supplier</span>
+                    <select value={stockAdjustSupplierId} onChange={(e) => setStockAdjustSupplierId(e.target.value)} className="w-full p-2.5 border rounded-md text-sm bg-background">
+                      <option value="">No supplier / personal stock</option>
+                      {suppliers.map((supplier) => <option key={supplier.id} value={supplier.id}>{supplier.name}</option>)}
+                    </select>
+                  </label>
+                  {stockAdjustSupplierId && (
+                    <label className="block space-y-1">
+                      <span className="text-sm font-medium">Total purchase amount paid (₹)</span>
+                      <input type="number" min="0.01" step="0.01" value={stockAdjustPurchaseAmount} onChange={(e) => setStockAdjustPurchaseAmount(e.target.value)} placeholder="Enter total amount for this stock" className="w-full p-2.5 border rounded-md text-sm bg-transparent" />
+                      <span className="text-xs text-muted-foreground">This amount will appear in the selected supplier's transaction history.</span>
+                    </label>
+                  )}
+                </>
+              )}
               <label className="block space-y-1">
                 <span className="text-sm font-medium">{tr("Reason")} <span className="text-muted-foreground font-normal">{tr("(optional)")}</span></span>
                 <input

@@ -114,6 +114,7 @@ type Plan = {
   id: number;
   name: string;
   price: number;
+  discountedPrice?: number;
   period: string;
   features: string;
   active: boolean;
@@ -2254,6 +2255,7 @@ export default function Home() {
           setForm({
             name: p.name,
             price: String(p.price),
+            discountedPrice: p.discountedPrice == null ? "" : String(p.discountedPrice),
             period: p.period,
             features: p.features || "",
           });
@@ -2262,6 +2264,7 @@ export default function Home() {
         setForm({
           name: "",
           price: "",
+          discountedPrice: "",
           period: "30 days",
           features: "",
         });
@@ -2382,10 +2385,16 @@ export default function Home() {
         toast.error("Enter a valid plan name and price");
         return;
       }
+      const originalPrice = Number(form.price);
+      const discountedPrice = form.discountedPrice === "" || form.discountedPrice == null ? undefined : Number(form.discountedPrice);
+      if (discountedPrice !== undefined && (!Number.isFinite(discountedPrice) || discountedPrice < 0 || discountedPrice > originalPrice)) {
+        toast.error("Discounted price must be between ₹0 and the actual price"); return;
+      }
       const p: Plan = {
         id: editing !== null ? Number(editing) : Date.now(),
         name: form.name.trim(),
-        price: Number(form.price),
+        price: originalPrice,
+        ...(discountedPrice !== undefined && discountedPrice < originalPrice ? { discountedPrice } : {}),
         period: form.period || "30 days",
         features: form.features || "",
         active: true,
@@ -2666,7 +2675,7 @@ export default function Home() {
         owner_name: activeRestaurantName,
         owner_email: loginEmail || "owner@example.com",
         plan: planName,
-        amount: Number(activeInlinePlan.price) || 0,
+        amount: Number(activeInlinePlan.discountedPrice ?? activeInlinePlan.price) || 0,
         upi_id: subscriptionUpiId,
         screenshot_url: screenshotUrl,
         reference_id: inlineRefId.trim(),
@@ -2936,7 +2945,7 @@ export default function Home() {
     }
   };
 
-  const activePlanPrice = activeInlinePlan ? Number(activeInlinePlan.price) || 0 : 0;
+  const activePlanPrice = activeInlinePlan ? Number(activeInlinePlan.discountedPrice ?? activeInlinePlan.price) || 0 : 0;
   const inlineUpiPayUri = `upi://pay?pa=${encodeURIComponent(subscriptionUpiId)}&pn=${encodeURIComponent("RestoPulse")}&am=${encodeURIComponent(activePlanPrice.toFixed(2))}&cu=INR&tn=${encodeURIComponent(`${activeRestaurantName} ${activeInlinePlan?.name || 'Subscription'}`)}`;
   const inlineQrImageUrl = `https://api.qrserver.com/v1/create-qr-code/?size=240x240&data=${encodeURIComponent(inlineUpiPayUri)}`;
 
@@ -3373,9 +3382,6 @@ export default function Home() {
                 </>
               ) : (
                 <>
-                  <button onClick={() => nav("sales")}>
-                    <ReceiptText size={17} /> Sale History
-                  </button>
                   <button onClick={() => nav("staff")}>
                     <Users size={17} /> Manage employees
                   </button>
@@ -4392,8 +4398,8 @@ export default function Home() {
                             </span>
                           )}
                         </div>
-                        <div className="text-3xl font-extrabold text-foreground mt-4 mb-2">
-                          {p.price === 0 ? "₹0" : money(p.price)}
+                        <div className="mt-4 mb-2">
+                          {p.discountedPrice != null && p.discountedPrice < p.price ? <><div className="text-sm text-muted-foreground line-through">{money(p.price)}</div><div className="text-3xl font-extrabold text-emerald-600">{money(p.discountedPrice)}</div><span className="inline-flex mt-1 rounded-full bg-emerald-100 text-emerald-800 px-2 py-0.5 text-[10px] font-bold">Save {money(p.price - p.discountedPrice)}</span></> : <div className="text-3xl font-extrabold text-foreground">{p.price === 0 ? "₹0" : money(p.price)}</div>}
                         </div>
                         <div className="text-xs text-muted-foreground font-medium mb-3">{p.period}</div>
                         <p className="text-xs text-muted-foreground leading-relaxed mb-6">{p.features}</p>
@@ -4420,7 +4426,7 @@ export default function Home() {
               {activeInlinePlan && activeInlinePlan.price > 0 && (
                 <div className="panel max-w-md mx-auto rounded-2xl p-6 border text-center shadow-lg my-8">
                   <div className="text-sm font-bold text-foreground mb-4">
-                    Pay {money(activeInlinePlan.price)}
+                    Pay {money(activeInlinePlan.discountedPrice ?? activeInlinePlan.price)}
                   </div>
 
                   <div className="bg-white p-3 rounded-2xl inline-block mx-auto mb-4 border border-gray-200">
@@ -4483,11 +4489,12 @@ export default function Home() {
 
           {/* SUPPORT & HELP */}
           {view === "support" && !isAdmin && (
-            <div className="page-head">
-              <div className="eyebrow">{tr("HELP & SUPPORT")}</div>
-              <h1>{tr("Support & Help")}</h1>
-              <p>{tr("Contact the RestoPulse support team for billing, technical, and restaurant operations assistance.")}</p>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-5 mt-6">
+            <div className="space-y-6">
+              <div className="page-head"><div><div className="eyebrow">{tr("HELP & SUPPORT")}</div><h1>{tr("Support & Help")}</h1><p>{tr("Contact the RestoPulse support team for billing, technical, and restaurant operations assistance.")}</p></div></div>
+              <section className="panel p-5 sm:p-6 rounded-2xl border bg-gradient-to-r from-amber-50 to-white dark:from-slate-900 dark:to-slate-950">
+                <div className="flex items-start gap-3"><span className="w-11 h-11 rounded-xl bg-amber-100 text-amber-700 flex items-center justify-center shrink-0"><LifeBuoy size={23}/></span><div><h2 className="text-base font-bold">How can we help your business?</h2><p className="text-sm text-muted-foreground mt-1">Choose a contact option below for help with subscriptions, billing, POS, inventory, or account access. Include your restaurant name and a short description of the issue for faster assistance.</p></div></div>
+              </section>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
                 {(supportSections.filter((x: any) => x.active !== false).length ? supportSections.filter((x: any) => x.active !== false) : [{ id: "default-support", title: "RestoPulse Support & Help", description: "Contact us for billing, technical, and restaurant operations assistance.", phone: "8122187039", whatsapp: "8122187039", email: "hosurwebservices@gmail.com", active: true }]).map((section: any) => (
                   <section key={section.id} className="panel p-6 border rounded-2xl bg-card space-y-4">
                     <h2 className="text-lg font-bold">{section.title || "Support & Help"}</h2>
@@ -4498,6 +4505,8 @@ export default function Home() {
                   </section>
                 ))}
                 {!supportSections.filter((x: any) => x.active !== false).length && <div className="panel p-6 border rounded-2xl text-sm text-muted-foreground">{tr("Support contact information is not configured yet.")}</div>}
+              </div>
+              <p className="text-xs text-muted-foreground text-center">For faster assistance, share the page or feature you were using, what you expected to happen, and any error message shown. Do not send passwords or payment PINs.</p>
               </div>
             </div>
           )}
@@ -4884,8 +4893,8 @@ export default function Home() {
                           {p.period}
                         </span>
                       </div>
-                      <div className="text-2xl font-black mt-2">
-                        {money(p.price)} <small className="text-xs font-normal text-muted-foreground">/{p.period}</small>
+                      <div className="mt-2">
+                        {p.discountedPrice != null && p.discountedPrice < p.price ? <><div className="text-sm text-muted-foreground line-through">{money(p.price)}</div><div className="text-2xl font-black text-emerald-600">{money(p.discountedPrice)} <small className="text-xs font-normal text-muted-foreground">/{p.period}</small></div></> : <div className="text-2xl font-black">{money(p.price)} <small className="text-xs font-normal text-muted-foreground">/{p.period}</small></div>}
                       </div>
                       <p className="text-xs text-muted-foreground mt-2 leading-relaxed">{p.features}</p>
                     </div>
@@ -4984,6 +4993,19 @@ export default function Home() {
                 placeholder="2999"
                 className="w-full p-2 border rounded-lg bg-background text-sm"
               />
+            </label>
+            <label className="block space-y-1">
+              <span className="font-semibold text-muted-foreground">Discounted Price (₹) — optional</span>
+              <input
+                type="number"
+                min="0"
+                max={Number(form.price) || undefined}
+                value={form.discountedPrice ?? ""}
+                onChange={(e) => setForm({ ...form, discountedPrice: e.target.value })}
+                placeholder="e.g. 399 (actual price ₹499)"
+                className="w-full p-2 border rounded-lg bg-background text-sm"
+              />
+              <span className="text-[11px] text-muted-foreground">Leave blank to charge the actual price. The discounted price must not exceed the actual price.</span>
             </label>
             <label className="block space-y-1">
               <span className="font-semibold text-muted-foreground">{tr("Duration / Period Label")}</span>

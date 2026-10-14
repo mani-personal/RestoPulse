@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
-import { requireAdmin } from "@/lib/serverAuth";
+import { requireAdminPermission } from "@/lib/serverAuth";
 
 function getAdminClient() {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
@@ -50,7 +50,7 @@ export async function GET() {
 
 export async function POST(request: Request) {
   try {
-    await requireAdmin(request);
+    await requireAdminPermission(request, "pricing");
     const supabase = getAdminClient();
     const body = await request.json();
     const { plans } = body;

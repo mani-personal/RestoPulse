@@ -1033,6 +1033,10 @@ export default function Home() {
   const [menuCategoryFilter, setMenuCategoryFilter] = useState("All categories");
   const [inventorySearch, setInventorySearch] = useState("");
   const [inventoryStatusFilter, setInventoryStatusFilter] = useState("All stock");
+  const [inventoryHistorySearch, setInventoryHistorySearch] = useState("");
+  const [inventoryHistoryTypeFilter, setInventoryHistoryTypeFilter] = useState("All transactions");
+  const [inventoryHistoryStart, setInventoryHistoryStart] = useState("");
+  const [inventoryHistoryEnd, setInventoryHistoryEnd] = useState("");
   const [staffSearch, setStaffSearch] = useState("");
   const [adminRestaurantSearch, setAdminRestaurantSearch] = useState("");
   const [staffPayFilter, setStaffPayFilter] = useState("All pay types");
@@ -4186,12 +4190,19 @@ export default function Home() {
                 </div>
               </div>
               <div className="panel management-panel inventory-history-panel bg-card border rounded-xl p-6 mt-4">
-                <div className="panel-header border-b pb-3 mb-3"><h2 className="text-base font-bold">{tr("Inventory history")}</h2><span className="text-xs text-muted-foreground">{tr("Latest stock movements")}</span></div>
+                <div className="panel-header border-b pb-3 mb-3"><h2 className="text-base font-bold">{tr("Inventory history")}</h2><span className="text-xs text-muted-foreground">{tr("Stock movements with search, transaction type and date filters")}</span></div>
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2 mb-4">
+                  <input value={inventoryHistorySearch} onChange={e => setInventoryHistorySearch(e.target.value)} placeholder={tr("Search item or transaction")} className="w-full p-2 border rounded-lg bg-background text-xs" />
+                  <select value={inventoryHistoryTypeFilter} onChange={e => setInventoryHistoryTypeFilter(e.target.value)} className="w-full p-2 border rounded-lg bg-background text-xs"><option>All transactions</option>{Array.from(new Set(inventoryTransactions.map((tx: any) => String(tx.transaction_type || "Other")))).sort().map(type => <option key={type}>{type}</option>)}</select>
+                  <label className="text-xs text-muted-foreground">{tr("From date")}<input type="date" value={inventoryHistoryStart} max={inventoryHistoryEnd || undefined} onChange={e => setInventoryHistoryStart(e.target.value)} className="mt-1 w-full p-2 border rounded-lg bg-background text-xs" /></label>
+                  <label className="text-xs text-muted-foreground">{tr("To date")}<input type="date" value={inventoryHistoryEnd} min={inventoryHistoryStart || undefined} onChange={e => setInventoryHistoryEnd(e.target.value)} className="mt-1 w-full p-2 border rounded-lg bg-background text-xs" /></label>
+                </div>
+                <div className="flex justify-between items-center text-xs text-muted-foreground mb-2"><span>{inventoryTransactions.filter((tx: any) => { const itemName = inventoryList.find(i => i.id === tx.inventory_item_id)?.name || "Inventory item"; const q = inventoryHistorySearch.trim().toLowerCase(); const textMatch = !q || `${itemName} ${tx.transaction_type || ""}`.toLowerCase().includes(q); const typeMatch = inventoryHistoryTypeFilter === "All transactions" || String(tx.transaction_type || "Other") === inventoryHistoryTypeFilter; const date = String(tx.created_at || "").slice(0, 10); return textMatch && typeMatch && (!inventoryHistoryStart || date >= inventoryHistoryStart) && (!inventoryHistoryEnd || date <= inventoryHistoryEnd); }).length} {tr("records")}</span><button type="button" className="quiet-btn text-xs" onClick={() => { setInventoryHistorySearch(""); setInventoryHistoryTypeFilter("All transactions"); setInventoryHistoryStart(""); setInventoryHistoryEnd(""); }}>{tr("Clear filters")}</button></div>
                 <div className="table-scroll inventory-history-table-wrap">
                   <table className="inventory-history-table">
                     <thead><tr><th>{tr("DATE & TIME")}</th><th>{tr("ITEM")}</th><th>{tr("TRANSACTION")}</th><th className="text-right">{tr("CHANGE")}</th><th className="text-right">{tr("STOCK")}</th></tr></thead>
                     <tbody>
-                      {inventoryTransactions.map((tx: any) => {
+                      {inventoryTransactions.filter((tx: any) => { const itemName = inventoryList.find(i => i.id === tx.inventory_item_id)?.name || "Inventory item"; const q = inventoryHistorySearch.trim().toLowerCase(); const textMatch = !q || `${itemName} ${tx.transaction_type || ""}`.toLowerCase().includes(q); const typeMatch = inventoryHistoryTypeFilter === "All transactions" || String(tx.transaction_type || "Other") === inventoryHistoryTypeFilter; const date = String(tx.created_at || "").slice(0, 10); return textMatch && typeMatch && (!inventoryHistoryStart || date >= inventoryHistoryStart) && (!inventoryHistoryEnd || date <= inventoryHistoryEnd); }).map((tx: any) => {
                         const change = Number(tx.change_quantity || 0);
                         return <tr key={tx.id}>
                           <td className="text-xs text-muted-foreground">{new Date(tx.created_at).toLocaleString("en-IN", { day: "2-digit", month: "short", year: "numeric", hour: "numeric", minute: "2-digit" })}</td>
@@ -4201,7 +4212,7 @@ export default function Home() {
                           <td className="text-right text-xs font-semibold">{tx.previous_quantity} → {tx.new_quantity} {inventoryList.find(i => i.id === tx.inventory_item_id)?.unit || ""}</td>
                         </tr>
                       })}
-                      {!inventoryTransactions.length && <tr><td colSpan={5} className="text-center py-8 text-xs text-muted-foreground">{tr("No inventory movements recorded yet.")}</td></tr>}
+                      {!inventoryTransactions.filter((tx: any) => { const itemName = inventoryList.find(i => i.id === tx.inventory_item_id)?.name || "Inventory item"; const q = inventoryHistorySearch.trim().toLowerCase(); const textMatch = !q || `${itemName} ${tx.transaction_type || ""}`.toLowerCase().includes(q); const typeMatch = inventoryHistoryTypeFilter === "All transactions" || String(tx.transaction_type || "Other") === inventoryHistoryTypeFilter; const date = String(tx.created_at || "").slice(0, 10); return textMatch && typeMatch && (!inventoryHistoryStart || date >= inventoryHistoryStart) && (!inventoryHistoryEnd || date <= inventoryHistoryEnd); }).length && <tr><td colSpan={5} className="text-center py-8 text-xs text-muted-foreground">{inventoryTransactions.length ? tr("No inventory movements match these filters.") : tr("No inventory movements recorded yet.")}</td></tr>}
                     </tbody>
                   </table>
                 </div>
@@ -4574,7 +4585,13 @@ export default function Home() {
             </>
           )}
 
-          {/* SUPPORT & HELP */}
+          {/* SUPPORT & HELP — restore the management workspace in the admin console */}
+          {view === "support" && isAdmin && (
+            <div className="space-y-4">
+              <div className="page-head"><div><div className="eyebrow">{tr("PLATFORM SUPPORT")}</div><h1>{tr("Support & Help")}</h1><p>{tr("Manage the phone, WhatsApp, email and guidance shown to restaurant owners.")}</p></div></div>
+              <AdminSettingsPanel />
+            </div>
+          )}
           {view === "support" && !isAdmin && (
             <div className="space-y-6">
               <div className="page-head"><div><div className="eyebrow">{tr("HELP & SUPPORT")}</div><h1>{tr("Support & Help")}</h1><p>{tr("Contact the RestoPulse support team for billing, technical, and restaurant operations assistance.")}</p></div></div>

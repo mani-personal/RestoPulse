@@ -1086,7 +1086,7 @@ export default function Home() {
   const dishImageInputRef = useRef<HTMLInputElement>(null);
   const [dishImageUploading, setDishImageUploading] = useState(false);
 
-  const [printPaperSize, setPrintPaperSize] = useState<"58mm" | "85mm" | "A4">("85mm");
+  const [printPaperSize, setPrintPaperSize] = useState<"58mm" | "80mm" | "A4">("80mm");
   const [newPassword, setNewPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [pwdBusy, setPwdBusy] = useState(false);
@@ -3121,7 +3121,7 @@ export default function Home() {
       <style jsx global>{`
         @media print {
           @page {
-            size: ${printPaperSize === "A4" ? "A4" : printPaperSize === "58mm" ? "58mm auto" : "85mm auto"};
+            size: ${printPaperSize === "A4" ? "A4" : printPaperSize === "58mm" ? "58mm auto" : "80mm auto"};
             margin: ${printPaperSize === "A4" ? "10mm" : "0"};
           }
           html, body {
@@ -3154,12 +3154,12 @@ export default function Home() {
             font-family: ui-monospace, SFMono-Regular, Consolas, "Courier New", monospace !important;
           }
           #printable-receipt-card.format-58mm { width: 58mm !important; max-width: 58mm !important; padding: 2mm !important; font-size: 9px !important; }
-          #printable-receipt-card.format-85mm { width: 85mm !important; max-width: 85mm !important; padding: 3mm !important; font-size: 10px !important; }
+          #printable-receipt-card.format-80mm { width: 80mm !important; max-width: 80mm !important; padding: 3mm !important; font-size: 10px !important; }
           #printable-receipt-card.format-A4 { width: 190mm !important; max-width: 190mm !important; padding: 8mm !important; font-size: 12px !important; }
           #printable-receipt-card table { width: 100% !important; table-layout: fixed !important; border-collapse: collapse !important; }
           #printable-receipt-card th, #printable-receipt-card td { overflow-wrap: anywhere !important; word-break: break-word !important; }
           #printable-receipt-card.format-58mm .receipt-line { grid-template-columns: minmax(0,1fr) 20px 48px !important; }
-          #printable-receipt-card.format-85mm .receipt-line { grid-template-columns: minmax(0,1fr) 28px 62px !important; }
+          #printable-receipt-card.format-80mm .receipt-line { grid-template-columns: minmax(0,1fr) 28px 62px !important; }
           #printable-receipt-card.format-A4 .receipt-line { grid-template-columns: minmax(0,1fr) 50px 100px !important; }
           .no-print { display: none !important; }
         }
@@ -3625,14 +3625,16 @@ export default function Home() {
                       <strong>{money(totalExpenses + paidWages)}</strong>
                       <div className="kpi-foot"><span>{tr("Expenses + paid wages")}</span></div>
                     </div>
-                    <div className="kpi-card">
-                      <div className="kpi-top">
-                        <span>{tr("Real net profit")}</span>
-                        <span className="kpi-icon green"><ArrowUpRight size={19} /></span>
+                    {!isProduceShop && (
+                      <div className="kpi-card">
+                        <div className="kpi-top">
+                          <span>{tr("Real net profit")}</span>
+                          <span className="kpi-icon green"><ArrowUpRight size={19} /></span>
+                        </div>
+                        <strong>{money(netSales - totalExpenses - paidWages)}</strong>
+                        <div className="kpi-foot"><span>{tr("Net sales − operating costs")}</span></div>
                       </div>
-                      <strong>{money(netSales - totalExpenses - paidWages)}</strong>
-                      <div className="kpi-foot"><span>{tr("Net sales − operating costs")}</span></div>
-                    </div>
+                    )}
                   </div>
 
                   {/* Operational Summary Strip */}
@@ -3866,7 +3868,7 @@ export default function Home() {
                     <div className="print-format no-print">
                       <span>{tr("Receipt format")}</span>
                       <div className="print-format-options">
-                        {(["58mm", "85mm", "A4"] as const).map((sz) => (
+                        {(["58mm", "80mm", "A4"] as const).map((sz) => (
                           <button type="button" key={sz} onClick={() => setPrintPaperSize(sz)} className={printPaperSize === sz ? "selected" : ""}>{sz}</button>
                         ))}
                       </div>
@@ -5650,11 +5652,11 @@ export default function Home() {
             </DialogDescription>
           </DialogHeader>
 
-          {/* Paper Size Format Selector (58mm, 85mm, A4) */}
+          {/* Paper Size Format Selector (58mm, 80mm, A4) */}
           <div className="no-print flex items-center justify-between p-2.5 mb-2 rounded-xl bg-slate-800 border border-slate-700 text-xs">
             <span className="font-semibold text-gray-300">{tr("Format:")}</span>
             <div className="flex gap-1.5">
-              {(["58mm", "85mm", "A4"] as const).map((sz) => (
+              {(["58mm", "80mm", "A4"] as const).map((sz) => (
                 <button
                   key={sz}
                   onClick={() => setPrintPaperSize(sz)}

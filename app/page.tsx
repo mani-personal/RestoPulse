@@ -2975,6 +2975,22 @@ export default function Home() {
     return !Number.isNaN(d.getTime()) && d >= selectedStart && d < selectedEnd;
   };
   const selectedOrders = paidOrders.filter(o => inSelectedRange(o.placedAt));
+  // Fruit-shop gross margin is sales revenue less the recorded cost of sold inventory.
+  const fruitShopProfitMargin = selectedOrders.reduce((total, order) => total + (order.bill?.items || []).reduce((lineTotal, line) => {
+    const item = inventoryList.find((x) => x.name.trim().toLowerCase() === String(line.name || "").trim().toLowerCase());
+    return lineTotal + ((Number(line.unitPrice) - Number(item?.cost || 0)) * Number(line.qty || 0) - Number(line.discount || 0));
+  }, 0), 0);
+  const topSellingProducts = (() => {
+    const totals = new Map<string, { name: string; quantity: number; revenue: number }>();
+    selectedOrders.forEach((order) => (order.bill?.items || []).forEach((line) => {
+      const name = String(line.name || "Product");
+      const current = totals.get(name) || { name, quantity: 0, revenue: 0 };
+      current.quantity += Number(line.qty || 0);
+      current.revenue += Number(line.unitPrice || 0) * Number(line.qty || 0) - Number(line.discount || 0);
+      totals.set(name, current);
+    }));
+    return [...totals.values()].sort((a, b) => b.quantity - a.quantity).slice(0, 4);
+  })();
   const selectedExpenses = expenses.filter(e => inSelectedRange(`${e.date}T12:00:00`));
   const selectedWages = wages.filter(w => w.status === "Paid" && inSelectedRange(`${w.date}T12:00:00`));
   const netSales = selectedOrders.reduce((n, o) => n + (Number(o.bill?.subtotal) || 0) - (Number(o.bill?.discount) || 0), 0);
@@ -3583,6 +3599,16 @@ export default function Home() {
                       <strong>{money(selectedOrders.reduce((n, o) => n + Number(o.bill?.subtotal || 0), 0))}</strong>
                       <div className="kpi-foot"><span>{dateRange} registered sales</span></div>
                     </div>
+                    {isProduceShop && (
+                      <div className="kpi-card">
+                        <div className="kpi-top">
+                          <span>Profit margin</span>
+                          <span className="kpi-icon green"><ArrowUpRight size={19} /></span>
+                        </div>
+                        <strong className={fruitShopProfitMargin < 0 ? "text-red-600" : "text-emerald-600"}>{money(fruitShopProfitMargin)}</strong>
+                        <div className="kpi-foot"><span>Sales less recorded inventory cost</span></div>
+                      </div>
+                    )}
                     <div className="kpi-card">
                       <div className="kpi-top">
                         <span>{tr("Net revenue")}</span>
@@ -3663,7 +3689,22 @@ export default function Home() {
                         {!isProduceShop && <button className="quiet-btn text-xs" onClick={() => nav("menu")}>{tr("View menu")}</button>}
                       </div>
                       <div className="space-y-2 mt-2">
-                        {dishes.slice(0, 4).map((d, i) => (
+                        {isProduceShop ? topSellingProducts.map((product, i) => {
+                          const item = inventoryList.find((x) => x.name.trim().toLowerCase() === product.name.trim().toLowerCase());
+                          return (
+                            <div className="leader-row" key={product.name}>
+                              <span className="leader-rank">0{i + 1}</span>
+                              <span className="dish-thumb overflow-hidden flex items-center justify-center">
+                                {item?.imageUrl ? <img src={item.imageUrl} alt={product.name} className="w-full h-full object-cover rounded-lg" /> : "🍎"}
+                              </span>
+                              <div className="leader-info">
+                                <b>{product.name}</b>
+                                <small>{product.quantity.toLocaleString(undefined, { maximumFractionDigits: 3 })} sold</small>
+                              </div>
+                              <strong>{money(product.revenue)}</strong>
+                            </div>
+                          );
+                        }) : dishes.slice(0, 4).map((d, i) => (
                           <div className="leader-row" key={d.id}>
                             <span className="leader-rank">0{i + 1}</span>
                             <span className="dish-thumb overflow-hidden flex items-center justify-center">
@@ -3680,7 +3721,10 @@ export default function Home() {
                             <strong>{money(d.price)}</strong>
                           </div>
                         ))}
-                        {!dishes.length && (
+                        {isProduceShop && !topSellingProducts.length && (
+                          <div className="text-center py-8 text-xs text-muted-foreground">No product sales recorded for this period.</div>
+                        )}
+                        {!isProduceShop && !dishes.length && (
                           <div className="text-center py-8 text-xs text-muted-foreground">{tr("No dishes added yet.")}</div>
                         )}
                       </div>

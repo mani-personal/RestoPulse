@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { requireAdmin } from '@/lib/serverAuth';
+import { requireAdminPermission } from "@/lib/serverAuth";
 
 export const runtime = 'nodejs';
 
@@ -10,7 +10,7 @@ function errorResponse(error: any, fallback = 'Server error') {
 
 export async function GET(request: NextRequest) {
   try {
-    const { supabase } = await requireAdmin(request);
+    const { supabase } = await requireAdminPermission(request, "restaurants");
     const { data, error } = await supabase.from("restaurants").select("id,name,owner_name,owner_email,owner_phone,city,address,business_phone,gstin,gst_percent,cgst_percent,sgst_percent,receipt_footer,logo_url,plan,status,renewal_on,business_type,created_at").order("created_at", { ascending: false });
     if (error) throw error;
     return NextResponse.json({ restaurants: data || [] });
@@ -19,7 +19,7 @@ export async function GET(request: NextRequest) {
 
 export async function POST(request: NextRequest) {
   try {
-    const { supabase: admin } = await requireAdmin(request);
+    const { supabase: admin } = await requireAdminPermission(request, "restaurants");
     let body: Record<string, unknown>;
     try { body = await request.json(); } catch { return NextResponse.json({ error: 'Invalid JSON' }, { status: 400 }); }
 
@@ -65,7 +65,7 @@ export async function POST(request: NextRequest) {
     renewal.setDate(renewal.getDate() + 7);
     const { data: restaurant, error: restaurantError } = await admin.from('restaurants').insert({
       name, owner_name: owner, owner_email: email, owner_phone: phone, city,
-      business_type: ['restaurant','fruit_shop','vegetable_shop','grocery_store','retail'].includes(String(body.business_type || 'restaurant')) ? String(body.business_type || 'restaurant') : 'restaurant',
+      business_type: ['restaurant','fruit_shop','juice_shop','vegetable_shop','grocery_store','retail'].includes(String(body.business_type || 'restaurant')) ? String(body.business_type || 'restaurant') : 'restaurant',
       plan: 'Free Trial', status: 'Trial', renewal_on: renewal.toISOString().slice(0, 10),
     }).select().single();
 
@@ -94,7 +94,7 @@ export async function POST(request: NextRequest) {
 
 export async function PATCH(request: NextRequest) {
   try {
-    const { supabase } = await requireAdmin(request);
+    const { supabase } = await requireAdminPermission(request, "restaurants");
     const body = await request.json();
     const id = String(body.id || '');
     if (!id) return NextResponse.json({ error: 'Restaurant ID is required' }, { status: 400 });
@@ -111,7 +111,7 @@ export async function PATCH(request: NextRequest) {
 
 export async function DELETE(request: NextRequest) {
   try {
-    const { supabase } = await requireAdmin(request);
+    const { supabase } = await requireAdminPermission(request, "restaurants");
     const body = await request.json();
     const id = String(body.id || '');
     if (!id) return NextResponse.json({ error: 'Restaurant ID is required' }, { status: 400 });

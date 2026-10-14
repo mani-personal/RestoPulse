@@ -4507,7 +4507,6 @@ export default function Home() {
                 {!supportSections.filter((x: any) => x.active !== false).length && <div className="panel p-6 border rounded-2xl text-sm text-muted-foreground">{tr("Support contact information is not configured yet.")}</div>}
               </div>
               <p className="text-xs text-muted-foreground text-center">For faster assistance, share the page or feature you were using, what you expected to happen, and any error message shown. Do not send passwords or payment PINs.</p>
-              </div>
             </div>
           )}
 

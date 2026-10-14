@@ -1,12 +1,18 @@
 import { NextRequest, NextResponse } from "next/server";
-import { requireAdmin } from "@/lib/serverAuth";
+import { requireAdmin, requireAdminPermission } from "@/lib/serverAuth";
 
 function fail(e:any, fallback="Server error") {
   return NextResponse.json({ error: e?.message || fallback }, { status: Number(e?.status) || 500 });
 }
 
+const DEFAULT_PERMISSIONS:any = { overview:true, restaurants:true, approvals:true, pricing:true, settings:true, support:true, admins:false };
+function normalizePermissions(value:any) {
+  const input = value && typeof value === "object" && !Array.isArray(value) ? value : {};
+  return Object.fromEntries(Object.keys(DEFAULT_PERMISSIONS).map((key) => [key, input[key] === true]));
+}
+
 async function listAdmins(supabase:any) {
-  const { data: rows, error } = await supabase.from("platform_admins").select("user_id,created_at").order("created_at", { ascending: true });
+  const { data: rows, error } = await supabase.from("platform_admins").select("user_id,created_at,permissions").order("created_at", { ascending: true });
   if (error) throw error;
   const result:any[] = [];
   for (const row of rows || []) {
@@ -17,6 +23,7 @@ async function listAdmins(supabase:any) {
       email: data.user.email || "",
       name: data.user.user_metadata?.full_name || data.user.user_metadata?.name || data.user.email?.split("@")[0] || "Admin",
       created_at: row.created_at,
+      permissions: row.permissions && typeof row.permissions === "object" ? row.permissions : { overview:true, restaurants:true, approvals:true, pricing:true, settings:true, support:true, admins:false },
     });
   }
   return result;
@@ -24,14 +31,16 @@ async function listAdmins(supabase:any) {
 
 export async function GET(request:NextRequest) {
   try {
-    const { supabase } = await requireAdmin(request);
-    return NextResponse.json({ admins: await listAdmins(supabase) });
+    const { supabase, user } = await requireAdmin(request);
+    const admins = await listAdmins(supabase);
+    const self = admins.find((a:any) => a.id === user.id);
+    return NextResponse.json({ admins: self?.permissions?.admins === true ? admins : (self ? [self] : []) });
   } catch (e:any) { return fail(e, "Could not load admins"); }
 }
 
 export async function POST(request:NextRequest) {
   try {
-    const { supabase } = await requireAdmin(request);
+    const { supabase } = await requireAdminPermission(request, "admins");
     const body = await request.json();
     const name = String(body.name || "").trim();
     const email = String(body.email || "").trim().toLowerCase();
@@ -65,7 +74,8 @@ export async function POST(request:NextRequest) {
       createdNew = true;
     }
 
-    const { error: insertError } = await supabase.from("platform_admins").insert({ user_id:userId });
+    const permissions = normalizePermissions(body.permissions);
+    const { error: insertError } = await supabase.from("platform_admins").insert({ user_id:userId, permissions });
     if (insertError) {
       if (createdNew) await supabase.auth.admin.deleteUser(userId);
       throw insertError;
@@ -76,7 +86,7 @@ export async function POST(request:NextRequest) {
 
 export async function PATCH(request:NextRequest) {
   try {
-    const { supabase } = await requireAdmin(request);
+    const { supabase } = await requireAdminPermission(request, "admins");
     const body = await request.json();
     const id = String(body.id || "");
     if (!id) return NextResponse.json({error:"Admin ID is required"},{status:400});
@@ -93,13 +103,17 @@ export async function PATCH(request:NextRequest) {
     }
     const { error } = await supabase.auth.admin.updateUserById(id, update);
     if (error) throw error;
+    if (body.permissions !== undefined) {
+      const { error: permissionError } = await supabase.from("platform_admins").update({ permissions: normalizePermissions(body.permissions) }).eq("user_id", id);
+      if (permissionError) throw permissionError;
+    }
     return NextResponse.json({success:true});
   } catch (e:any) { return fail(e, "Could not update admin"); }
 }
 
 export async function DELETE(request:NextRequest) {
   try {
-    const { supabase, user } = await requireAdmin(request);
+    const { supabase, user } = await requireAdminPermission(request, "admins");
     const body = await request.json();
     const id = String(body.id || "");
     if (!id) return NextResponse.json({error:"Admin ID is required"},{status:400});

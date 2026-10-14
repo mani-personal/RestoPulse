@@ -49,7 +49,7 @@ async function readSections(supabase: any) {
   try {
     const parsed = JSON.parse(data.value);
 
-    return Array.isArray(parsed)
+    return Array.isArray(parsed) && parsed.length > 0
       ? parsed
       : DEFAULT_SECTIONS;
   } catch {

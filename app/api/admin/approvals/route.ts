@@ -1,9 +1,9 @@
 import { NextResponse } from "next/server";
-import { requireAdmin } from "@/lib/serverAuth";
+import { requireAdminPermission } from "@/lib/serverAuth";
 
 export async function GET(request: Request) {
   try {
-    const { supabase } = await requireAdmin(request);
+    const { supabase } = await requireAdminPermission(request, "approvals");
     const { data, error } = await supabase
       .from("restaurants")
       .select("*")
@@ -31,7 +31,7 @@ export async function GET(request: Request) {
 
 export async function PATCH(request: Request) {
   try {
-    const { supabase } = await requireAdmin(request);
+    const { supabase } = await requireAdminPermission(request, "approvals");
     const { restaurant_id, action } = await request.json();
     if (!restaurant_id) return NextResponse.json({ error: "Restaurant ID is required" }, { status: 400 });
     if (!["approve", "reject"].includes(action)) return NextResponse.json({ error: "Invalid approval action" }, { status: 400 });

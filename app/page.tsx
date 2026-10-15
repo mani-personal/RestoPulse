@@ -1964,6 +1964,23 @@ export default function Home() {
   const saveInventoryToStorage = (updated: InventoryItem[]) => setInventoryList(updated);
   const saveDishesToStorage = (updated: Dish[]) => setDishes(updated);
 
+  // Persist dish availability to the database so the switch remains correct after refresh.
+  const handleDishAvailabilityChange = async (dish: Dish, available: boolean) => {
+    if (!tenantId) { toast.error("Restaurant is required to update dish availability."); return; }
+    const previous = dishes;
+    setDishes(old => old.map(item => item.id === dish.id ? { ...item, stock: available } : item));
+    const { error } = await db.from("menu_items")
+      .update({ available })
+      .eq("restaurant_id", tenantId)
+      .eq("id", dish.id);
+    if (error) {
+      setDishes(previous);
+      toast.error("Could not update dish availability. Please try again.");
+      return;
+    }
+    toast.success(available ? "Dish marked available." : "Dish marked unavailable.");
+  };
+
   const handleAddOrEditInventory = async () => {
     if (!tenantId) return;
     if (!invForm.name.trim()) { toast.error("Please enter an item name"); return; }
@@ -3985,10 +4002,7 @@ export default function Home() {
                           <td className="p-3">
                             <Switch
                               checked={d.stock}
-                              onCheckedChange={(v) => {
-                                const updated = dishes.map((x) => (x.id === d.id ? { ...x, stock: v } : x));
-                                saveDishesToStorage(updated);
-                              }}
+                              onCheckedChange={(v) => { void handleDishAvailabilityChange(d, v); }}
                             />
                           </td>
                           <td className="p-3 text-right">
@@ -4630,7 +4644,18 @@ export default function Home() {
                         placeholder="••••••••"
                         className="w-full p-2 pr-10 border rounded-lg text-xs bg-background"
                       />
-                      <button type="button" className="text-muted-foreground" aria-label={showNewPassword ? "Hide password" : "Show password"} onClick={() => setShowNewPassword(v => !v)}>{showNewPassword ? <EyeOff size={15}/> : <Eye size={15}/>}</button>
+                      <div className="relative">
+                        <input
+                          type={showNewPassword ? "text" : "password"}
+                          required
+                          minLength={6}
+                          value={newPassword}
+                          onChange={(e) => setNewPassword(e.target.value)}
+                          placeholder="••••••••"
+                          className="w-full p-2 pr-10 border rounded-lg text-xs bg-background"
+                        />
+                        <button type="button" className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground" aria-label={showNewPassword ? "Hide password" : "Show password"} onClick={() => setShowNewPassword(v => !v)}>{showNewPassword ? <EyeOff size={15}/> : <Eye size={15}/>}</button>
+                      </div>
                     </label>
                     <label className="block space-y-1">
                       <span className="text-xs font-medium text-muted-foreground">{tr("Confirm New Password")}</span>
@@ -4643,7 +4668,18 @@ export default function Home() {
                         placeholder="••••••••"
                         className="w-full p-2 pr-10 border rounded-lg text-xs bg-background"
                       />
-                      <button type="button" className="text-muted-foreground" aria-label={showConfirmPassword ? "Hide password" : "Show password"} onClick={() => setShowConfirmPassword(v => !v)}>{showConfirmPassword ? <EyeOff size={15}/> : <Eye size={15}/>}</button>
+                      <div className="relative">
+                        <input
+                          type={showConfirmPassword ? "text" : "password"}
+                          required
+                          minLength={6}
+                          value={confirmPassword}
+                          onChange={(e) => setConfirmPassword(e.target.value)}
+                          placeholder="••••••••"
+                          className="w-full p-2 pr-10 border rounded-lg text-xs bg-background"
+                        />
+                        <button type="button" className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground" aria-label={showConfirmPassword ? "Hide password" : "Show password"} onClick={() => setShowConfirmPassword(v => !v)}>{showConfirmPassword ? <EyeOff size={15}/> : <Eye size={15}/>}</button>
+                      </div>
                     </label>
                     <button type="submit" className="primary-btn w-full flex items-center justify-center gap-2" disabled={pwdBusy}>
                       <KeyRound size={16} /> {pwdBusy ? "Resetting…" : "Reset Password"}

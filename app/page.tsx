@@ -214,6 +214,9 @@ type BillItem = {
   unit?: string;
   unitPrice: number;
   discount: number;
+  mrp?: number;
+  discountedPrice?: number;
+  customerSaved?: number;
 };
 
 type Bill = {
@@ -1049,6 +1052,7 @@ export default function Home() {
   const [selectedStaff, setSelectedStaff] = useState<Staff | null>(null);
 
   const [cart, setCart] = useState<CartLine[]>([]);
+  const [parkedSales, setParkedSales] = useState<Array<{ id: string; cart: CartLine[]; orderDiscount: number; payment: string }>>([]);
   const [category, setCategory] = useState("All items");
   const [query, setQuery] = useState("");
   const [orderType, setOrderType] = useState("Dine-in");
@@ -2605,7 +2609,7 @@ export default function Home() {
     const time = now.toLocaleTimeString("en-IN", { hour: "numeric", minute: "2-digit" });
     const bill: Bill = {
       id, issuedAt: now.toLocaleString("en-IN"), business: tenantInfo,
-      items: cart.map((l) => { const d = dishes.find((d) => String(d.id) === String(l.id)); const item = checkoutIsProduce ? inventoryList.find((x) => String(x.id) === String(l.id)) : undefined; return { name: item?.name || d?.name || "Menu item", qty: l.qty, unit: item?.unit || "each", unitPrice: l.override ?? (item?.sellingPrice ?? d?.price ?? 0), discount: l.discount }; }),
+      items: cart.map((l) => { const d = dishes.find((d) => String(d.id) === String(l.id)); const item = checkoutIsProduce ? inventoryList.find((x) => String(x.id) === String(l.id)) : undefined; const mrp = l.override ?? (item?.sellingPrice ?? d?.price ?? 0); const allocatedOrderDiscount = subtotal > 0 ? (orderDiscount * ((mrp * l.qty) / subtotal)) / Math.max(l.qty, 1) : 0; const discountedPrice = Math.max(0, mrp - l.discount - allocatedOrderDiscount); return { name: item?.name || d?.name || "Menu item", qty: l.qty, unit: item?.unit || "each", unitPrice: mrp, discount: l.discount + allocatedOrderDiscount, mrp, discountedPrice, customerSaved: (l.discount + allocatedOrderDiscount) * l.qty }; }),
       subtotal, discount: totalDiscount, tax, cgst: cgstAmount, sgst: sgstAmount, total,
       type: orderType, table: orderType === "Dine-in" ? table : "", payment, status: "Paid",
     };
@@ -3862,6 +3866,11 @@ export default function Home() {
                       </span>
                     </div>
 
+                    <div className="flex flex-wrap gap-2 mb-3 no-print">
+                      <button type="button" className="quiet-btn text-xs" disabled={!cart.length} onClick={() => { if (!cart.length) return; setParkedSales(old => [...old, { id: `Sale ${old.length + 1}`, cart: cart.map(line => ({...line})), orderDiscount, payment }]); setCart([]); setOrderDiscount(0); toast.success("Current sale saved. New sale started."); }}>＋ New sale</button>
+                      <button type="button" className="quiet-btn text-xs" disabled={!cart.length} onClick={() => { setCart([]); setOrderDiscount(0); }}>Clear all</button>
+                    </div>
+                    {parkedSales.length > 0 && <div className="flex flex-wrap gap-1.5 mb-3 no-print">{parkedSales.map((draft, index) => <button type="button" key={draft.id + index} className="quiet-btn text-xs" onClick={() => { if (cart.length) setParkedSales(old => [...old, { id: `Sale ${old.length + 1}`, cart: cart.map(line => ({...line})), orderDiscount, payment }]); setCart(draft.cart); setOrderDiscount(draft.orderDiscount); setPayment(draft.payment); setParkedSales(old => old.filter((_, i) => i !== index)); }}>{draft.id} · {draft.cart.length} items</button>)}</div>}
                     <div className="cart-items space-y-3 max-h-[460px] overflow-y-auto pr-1">
                       {cart.map((l) => {
                         const dish = dishes.find((x) => x.id === l.id);
@@ -3935,6 +3944,10 @@ export default function Home() {
                   </div>
 
                   <div className="cart-footer mt-4 pt-3 border-t space-y-3">
+                    <label className="flex items-center justify-between gap-3 text-xs font-semibold text-muted-foreground no-print">Extra discount (₹)
+                      <input aria-label="Extra discount" type="number" min="0" max={subtotal} step="0.01" value={orderDiscount || ""} onChange={(e) => setOrderDiscount(Math.max(0, Math.min(subtotal, Number(e.target.value) || 0)))} className="w-28 h-9 rounded-lg border bg-background px-2 text-right text-foreground" placeholder="0.00" />
+                    </label>
+                    {totalDiscount > 0 && <div className="flex justify-between text-xs text-emerald-600"><span>Customer saves</span><b>{money(totalDiscount)}</b></div>}
                     <div className="print-format no-print">
                       <span>{tr("Receipt format")}</span>
                       <div className="print-format-options">
@@ -5842,7 +5855,7 @@ export default function Home() {
 
               <div className="flex justify-between text-[11px] font-bold">
                 <span>Bill: {receipt.id}</span>
-                <span>{receipt.type} {receipt.table ? `(${receipt.table})` : ''}</span>
+                {!(["fruit_shop","vegetable_shop","juice_shop","fruit","vegetable","fruits","vegetables","juice","juices"].includes(String(tenantInfo.business_type || "").toLowerCase())) && <span>{receipt.type} {receipt.table ? `(${receipt.table})` : ""}</span>}
               </div>
               <div className="text-[10px] text-gray-500">{receipt.issuedAt}</div>
 
@@ -5854,8 +5867,10 @@ export default function Home() {
                   <tr className="border-b border-dashed border-gray-400 text-gray-700 font-bold">
                     <th className="py-1 text-left w-[50%]">{tr("ITEM")}</th>
                     <th className="py-1 text-center w-[15%]">{tr("QTY")}</th>
-                    <th className="py-1 text-right w-[17%]">{tr("PRICE")}</th>
-                    <th className="py-1 text-right w-[18%]">{tr("TOTAL")}</th>
+                    <th className="py-1 text-right w-[15%]">MRP</th>
+                    <th className="py-1 text-right w-[15%]">SELL</th>
+                    <th className="py-1 text-right w-[18%]">DISCOUNTED</th>
+                    <th className="py-1 text-right w-[15%]">TOTAL</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -5863,10 +5878,10 @@ export default function Home() {
                     <tr key={idx} className="border-b border-dotted border-gray-200">
                       <td className="py-1 pr-1 truncate text-left">{item.name}</td>
                       <td className="py-1 text-center">{item.qty}{item.unit ? ` ${item.unit}` : ""}</td>
+                      <td className="py-1 text-right">{money(item.mrp ?? item.unitPrice)}</td>
                       <td className="py-1 text-right">{money(item.unitPrice)}</td>
-                      <td className="py-1 text-right font-semibold">
-                        {money(item.qty * (item.unitPrice - item.discount))}
-                      </td>
+                      <td className="py-1 text-right font-semibold">{money(item.discountedPrice ?? (item.unitPrice - item.discount))}</td>
+                      <td className="py-1 text-right font-semibold">{money(item.qty * (item.discountedPrice ?? (item.unitPrice - item.discount)))}</td>
                     </tr>
                   ))}
                 </tbody>
@@ -5886,6 +5901,7 @@ export default function Home() {
                     <span>−{money(receipt.discount)}</span>
                   </div>
                 )}
+                {(receipt.discount > 0) && <div className="flex justify-between text-emerald-700 font-bold"><span>Customer saved</span><span>{money(receipt.discount)}</span></div>}
                 <div className="flex justify-between text-gray-600 text-[10px]">
                   <span>CGST ({tenantInfo.cgst_percent}%):</span>
                   <span>{money(receipt.cgst)}</span>

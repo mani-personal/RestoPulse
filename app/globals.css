@@ -348,3 +348,45 @@
  .kpi-grid{grid-template-columns:repeat(2,minmax(0,1fr));}
 }
 @media(max-width:380px){.inventory-page{padding:8px!important}.inventory-table{min-width:620px}.kpi-grid{grid-template-columns:minmax(0,1fr);}}
+
+
+/* Receipt dialog sizing: A4 preview needs a landscape-friendly modal, not the default narrow dialog. */
+.receipt-dialog-content{width:min(94vw,720px)!important;max-width:720px!important;max-height:92vh!important;overflow-y:auto!important;box-sizing:border-box!important}
+.receipt-dialog-content.receipt-dialog-a4{width:min(94vw,1040px)!important;max-width:1040px!important;padding:clamp(14px,2vw,26px)!important}
+.receipt-dialog-a4 .receipt-preview-shell{width:100%;max-width:100%;overflow:auto;background:linear-gradient(135deg,#111827,#25344a);padding:clamp(8px,1.4vw,16px);border-radius:14px}
+.receipt-dialog-a4 .receipt-paper.format-A4{width:100%!important;max-width:100%!important;min-width:0!important;min-height:0!important;padding:clamp(18px,3vw,38px)!important;font-size:clamp(10px,1vw,12px)!important;line-height:1.5!important;border-radius:14px!important;overflow-wrap:anywhere!important}
+.receipt-dialog-a4 .receipt-paper table{width:100%!important;table-layout:fixed!important}
+.receipt-dialog-a4 .receipt-paper th,.receipt-dialog-a4 .receipt-paper td{padding:8px 5px!important;overflow-wrap:anywhere!important;word-break:normal!important}
+/* Print still uses physical A4 dimensions even though the on-screen preview is responsive. */
+@media print{
+  #printable-receipt-card.format-A4{width:190mm!important;max-width:190mm!important;padding:8mm!important;font-size:11px!important}
+}
+/* Business-themed photographic backgrounds for login and restaurant workspace. */
+.auth-page{background:linear-gradient(120deg,rgba(9,18,32,.82),rgba(16,28,43,.72)),url("https://images.unsplash.com/photo-1555992336-03a23c7b20ee?auto=format&fit=crop&w=2000&q=85") center/cover fixed!important}
+.auth-page:before{content:"";position:fixed;inset:0;pointer-events:none;background:radial-gradient(circle at 15% 18%,rgba(245,158,11,.24),transparent 34%),linear-gradient(0deg,rgba(4,10,20,.2),transparent 60%)}
+.auth-card{position:relative;z-index:1;backdrop-filter:blur(10px);background:rgba(255,255,255,.96);border:1px solid rgba(255,255,255,.6);box-shadow:0 28px 90px rgba(0,0,0,.38)}
+.main-wrap{background-image:linear-gradient(115deg,rgba(246,248,251,.95),rgba(241,245,249,.93)),url("https://images.unsplash.com/photo-1414235077428-338989a2e8c0?auto=format&fit=crop&w=2000&q=85");background-size:cover;background-position:center;background-attachment:fixed}
+.dark .main-wrap{background-image:linear-gradient(115deg,rgba(12,20,34,.94),rgba(12,20,34,.9)),url("https://images.unsplash.com/photo-1414235077428-338989a2e8c0?auto=format&fit=crop&w=2000&q=85")}
+@media(max-width:767px){.auth-page,.main-wrap{background-attachment:scroll!important}.receipt-dialog-content,.receipt-dialog-content.receipt-dialog-a4{width:calc(100vw - 20px)!important;max-width:calc(100vw - 20px)!important;padding:12px!important}.receipt-dialog-a4 .receipt-paper.format-A4{padding:12px!important;font-size:9px!important}.receipt-dialog-a4 .receipt-paper th,.receipt-dialog-a4 .receipt-paper td{padding:5px 2px!important}}
+
+
+/* Console backgrounds are selected by business type; content surfaces remain readable. */
+.main-wrap.fruit-shop-console{
+  background-image:linear-gradient(115deg,rgba(9,20,30,.76),rgba(13,27,39,.68)),url("https://images.unsplash.com/photo-1542838132-92c53300491e?auto=format&fit=crop&w=2200&q=90")!important;
+  background-size:cover!important;background-position:center!important;background-attachment:fixed!important;
+}
+.dark .main-wrap.fruit-shop-console{
+  background-image:linear-gradient(115deg,rgba(7,15,25,.84),rgba(8,20,31,.78)),url("https://images.unsplash.com/photo-1542838132-92c53300491e?auto=format&fit=crop&w=2200&q=90")!important;
+}
+.main-wrap.restaurant-console{
+  background-image:linear-gradient(115deg,rgba(12,20,32,.78),rgba(15,25,38,.70)),url("https://images.unsplash.com/photo-1414235077428-338989a2e8c0?auto=format&fit=crop&w=2200&q=90")!important;
+  background-size:cover!important;background-position:center!important;background-attachment:fixed!important;
+}
+.dark .main-wrap.restaurant-console{
+  background-image:linear-gradient(115deg,rgba(8,14,24,.86),rgba(10,18,29,.82)),url("https://images.unsplash.com/photo-1414235077428-338989a2e8c0?auto=format&fit=crop&w=2200&q=90")!important;
+}
+.main-wrap.fruit-shop-console .panel,.main-wrap.fruit-shop-console .card,.main-wrap.fruit-shop-console .management-panel,
+.main-wrap.restaurant-console .panel,.main-wrap.restaurant-console .card,.main-wrap.restaurant-console .management-panel{
+  backdrop-filter:blur(5px);
+}
+@media(max-width:767px){.main-wrap.fruit-shop-console,.main-wrap.restaurant-console{background-attachment:scroll!important;background-position:center top!important}}

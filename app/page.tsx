@@ -4191,11 +4191,11 @@ export default function Home() {
               </div>
               <div className="panel management-panel inventory-history-panel bg-card border rounded-xl p-6 mt-4">
                 <div className="panel-header border-b pb-3 mb-3"><h2 className="text-base font-bold">{tr("Inventory history")}</h2><span className="text-xs text-muted-foreground">{tr("Stock movements with search, transaction type and date filters")}</span></div>
-                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2 mb-4">
-                  <input value={inventoryHistorySearch} onChange={e => setInventoryHistorySearch(e.target.value)} placeholder={tr("Search item or transaction")} className="w-full p-2 border rounded-lg bg-background text-xs" />
-                  <select value={inventoryHistoryTypeFilter} onChange={e => setInventoryHistoryTypeFilter(e.target.value)} className="w-full p-2 border rounded-lg bg-background text-xs"><option>All transactions</option>{Array.from(new Set(inventoryTransactions.map((tx: any) => String(tx.transaction_type || "Other")))).sort().map(type => <option key={type}>{type}</option>)}</select>
-                  <label className="text-xs text-muted-foreground">{tr("From date")}<input type="date" value={inventoryHistoryStart} max={inventoryHistoryEnd || undefined} onChange={e => setInventoryHistoryStart(e.target.value)} className="mt-1 w-full p-2 border rounded-lg bg-background text-xs" /></label>
-                  <label className="text-xs text-muted-foreground">{tr("To date")}<input type="date" value={inventoryHistoryEnd} min={inventoryHistoryStart || undefined} onChange={e => setInventoryHistoryEnd(e.target.value)} className="mt-1 w-full p-2 border rounded-lg bg-background text-xs" /></label>
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 mb-4">
+                  <input value={inventoryHistorySearch} onChange={e => setInventoryHistorySearch(e.target.value)} placeholder={tr("Search item or transaction")} className="w-full h-[54px] box-border px-3 border rounded-lg bg-background text-xs" />
+                  <select value={inventoryHistoryTypeFilter} onChange={e => setInventoryHistoryTypeFilter(e.target.value)} className="w-full h-[54px] box-border px-3 border rounded-lg bg-background text-xs"><option>All transactions</option>{Array.from(new Set(inventoryTransactions.map((tx: any) => String(tx.transaction_type || "Other")))).sort().map(type => <option key={type}>{type}</option>)}</select>
+                  <label className="text-xs text-muted-foreground">{tr("From date")}<input type="date" value={inventoryHistoryStart} max={inventoryHistoryEnd || undefined} onChange={e => setInventoryHistoryStart(e.target.value)} className="mt-1 w-full h-[34px] box-border px-2 border rounded-lg bg-background text-xs" /></label>
+                  <label className="text-xs text-muted-foreground">{tr("To date")}<input type="date" value={inventoryHistoryEnd} min={inventoryHistoryStart || undefined} onChange={e => setInventoryHistoryEnd(e.target.value)} className="mt-1 w-full h-[34px] box-border px-2 border rounded-lg bg-background text-xs" /></label>
                 </div>
                 <div className="flex justify-between items-center text-xs text-muted-foreground mb-2"><span>{inventoryTransactions.filter((tx: any) => { const itemName = inventoryList.find(i => i.id === tx.inventory_item_id)?.name || "Inventory item"; const q = inventoryHistorySearch.trim().toLowerCase(); const textMatch = !q || `${itemName} ${tx.transaction_type || ""}`.toLowerCase().includes(q); const typeMatch = inventoryHistoryTypeFilter === "All transactions" || String(tx.transaction_type || "Other") === inventoryHistoryTypeFilter; const date = String(tx.created_at || "").slice(0, 10); return textMatch && typeMatch && (!inventoryHistoryStart || date >= inventoryHistoryStart) && (!inventoryHistoryEnd || date <= inventoryHistoryEnd); }).length} {tr("records")}</span><button type="button" className="quiet-btn text-xs" onClick={() => { setInventoryHistorySearch(""); setInventoryHistoryTypeFilter("All transactions"); setInventoryHistoryStart(""); setInventoryHistoryEnd(""); }}>{tr("Clear filters")}</button></div>
                 <div className="table-scroll inventory-history-table-wrap">
@@ -4237,7 +4237,13 @@ export default function Home() {
                 </button>
               </div>
 
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 mt-5">
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 mt-5">
+                <div className="rounded-xl border bg-card p-3"><div className="text-xs text-muted-foreground">Team members</div><div className="text-xl font-black mt-1">{staff.length}</div></div>
+                <div className="rounded-xl border bg-card p-3"><div className="text-xs text-muted-foreground">Monthly payroll</div><div className="text-xl font-black mt-1">{money(staff.filter(s => s.payType === "Monthly").reduce((n, s) => n + Number(s.monthlySalary || 0), 0))}</div></div>
+                <div className="rounded-xl border bg-card p-3"><div className="text-xs text-muted-foreground">Weekly salary total</div><div className="text-xl font-black mt-1">{money(staff.filter(s => s.payType === "Weekly").reduce((n, s) => n + Number(s.weeklySalary || 0), 0))}</div></div>
+                <div className="rounded-xl border bg-card p-3"><div className="text-xs text-muted-foreground">Unpaid wage records</div><div className="text-xl font-black mt-1">{wages.filter(w => w.status !== "Paid").length} <span className="text-sm font-semibold">· {money(wages.filter(w => w.status !== "Paid").reduce((n, w) => n + Number(w.amount || 0), 0))}</span></div></div>
+              </div>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 mt-4">
                 <input value={staffSearch} onChange={e => setStaffSearch(e.target.value)} placeholder={tr("Search employee name, email or role")} className="w-full p-2 border rounded-lg bg-background text-xs" />
                 <select value={staffPayFilter} onChange={e => setStaffPayFilter(e.target.value)} className="w-full p-2 border rounded-lg bg-background text-xs"><option>All pay types</option><option>Monthly</option><option>Weekly</option><option>Daily</option></select>
               </div>
@@ -4319,13 +4325,13 @@ export default function Home() {
 
               <div className="panel management-panel mt-6">
                 <div className="p-4 border-b grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
-                  <input value={expenseSearch} onChange={e => setExpenseSearch(e.target.value)} placeholder={tr("Search description or vendor")} className="w-full p-2 border rounded-lg bg-background text-xs" />
-                  <select value={expenseCategoryFilter} onChange={e => setExpenseCategoryFilter(e.target.value)} className="w-full p-2 border rounded-lg bg-background text-xs">
+                  <input value={expenseSearch} onChange={e => setExpenseSearch(e.target.value)} placeholder={tr("Search description or vendor")} className="w-full h-[54px] box-border px-3 border rounded-lg bg-background text-xs" />
+                  <select value={expenseCategoryFilter} onChange={e => setExpenseCategoryFilter(e.target.value)} className="w-full h-[54px] box-border px-3 border rounded-lg bg-background text-xs">
                     <option>{tr("All categories")}</option>
                     {[...new Set(expenses.map(e => e.category).filter(Boolean))].sort().map(c => <option key={c}>{c}</option>)}
                   </select>
-                  <label className="text-xs text-muted-foreground">{tr("From")} <input type="date" value={expenseStartDate} onChange={e => setExpenseStartDate(e.target.value)} className="block w-full p-2 border rounded-lg bg-background text-xs" /></label>
-                  <label className="text-xs text-muted-foreground">To <input type="date" value={expenseEndDate} onChange={e => setExpenseEndDate(e.target.value)} className="block w-full p-2 border rounded-lg bg-background text-xs" /></label>
+                  <label className="text-xs text-muted-foreground">{tr("From")} <input type="date" value={expenseStartDate} onChange={e => setExpenseStartDate(e.target.value)} className="block w-full h-[34px] box-border px-2 border rounded-lg bg-background text-xs" /></label>
+                  <label className="text-xs text-muted-foreground">To <input type="date" value={expenseEndDate} onChange={e => setExpenseEndDate(e.target.value)} className="block w-full h-[34px] box-border px-2 border rounded-lg bg-background text-xs" /></label>
                 </div>
                 <div className="table-scroll">
                   <table className="enhanced-data-table">
@@ -4340,7 +4346,7 @@ export default function Home() {
                           && (expenseCategoryFilter === "All categories" || e.category === expenseCategoryFilter)
                           && (!expenseStartDate || d >= expenseStartDate)
                           && (!expenseEndDate || d <= expenseEndDate);
-                      }).map((e) => (
+                      }).sort((a, b) => String(a.date || "").localeCompare(String(b.date || ""))).map((e) => (
                         <tr key={e.id}>
                           <td className="text-xs text-muted-foreground">{new Date(`${e.date}T12:00:00`).toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" })}</td>
                           <td className="strong">{e.name}</td>
@@ -4396,7 +4402,7 @@ export default function Home() {
                     const matchesSearch = !q || `${sp.name} ${sp.contact || ""} ${sp.phone || ""} ${sp.email || ""}`.toLowerCase().includes(q);
                     const hasTransactions = expenses.some(e => e.supplierId === sp.id) || supplierPayments.some(p => p.supplierId === sp.id);
                     return matchesSearch && (supplierActivityFilter === "All suppliers" || (supplierActivityFilter === "With transactions" ? hasTransactions : !hasTransactions));
-                  }).map((sp) => (
+                  }).sort((a, b) => a.name.localeCompare(b.name)).map((sp) => (
                     <div
                       key={sp.id}
                       onClick={() => setSupplierDetail(sp.id)}
@@ -4422,7 +4428,7 @@ export default function Home() {
                     const transactions = [
                       ...supplierExpenses.map(e => ({ id: `expense-${e.id}`, date: e.date, type: "Purchase / Expense", description: e.name, amount: Number(e.amount || 0), method: e.vendor || "—" })),
                       ...supplierPaymentsForHistory.map(p => ({ id: `payment-${p.id}`, date: p.date, type: "Payment", description: p.note || "Supplier payment", amount: Number(p.amount || 0), method: p.method || "—" })),
-                    ].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+                    ].sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
                     const purchases = supplierExpenses.reduce((n, e) => n + Number(e.amount || 0), 0);
                     const payments = supplierPaymentsForHistory.reduce((n, p) => n + Number(p.amount || 0), 0);
                     return selected ? (
@@ -4725,29 +4731,33 @@ export default function Home() {
                   <form onSubmit={handleResetPassword} className="space-y-3">
                     <label className="block space-y-1">
                       <span className="text-xs font-medium text-muted-foreground">{tr("New Password")}</span>
-                      <input
-                        type={showNewPassword ? "text" : "password"}
-                        required
-                        minLength={6}
-                        value={newPassword}
-                        onChange={(e) => setNewPassword(e.target.value)}
-                        placeholder="••••••••"
-                        className="w-full p-2 pr-10 border rounded-lg text-xs bg-background"
-                      />
-                      <button type="button" className="text-muted-foreground" aria-label={showNewPassword ? "Hide password" : "Show password"} onClick={() => setShowNewPassword(v => !v)}>{showNewPassword ? <EyeOff size={15}/> : <Eye size={15}/>}</button>
+                      <span className="relative block">
+                        <input
+                          type={showNewPassword ? "text" : "password"}
+                          required
+                          minLength={6}
+                          value={newPassword}
+                          onChange={(e) => setNewPassword(e.target.value)}
+                          placeholder="••••••••"
+                          className="w-full p-2 pr-10 border rounded-lg text-xs bg-background"
+                        />
+                        <button type="button" className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground" aria-label={showNewPassword ? "Hide password" : "Show password"} onClick={() => setShowNewPassword(v => !v)}>{showNewPassword ? <EyeOff size={15}/> : <Eye size={15}/>}</button>
+                      </span>
                     </label>
                     <label className="block space-y-1">
                       <span className="text-xs font-medium text-muted-foreground">{tr("Confirm New Password")}</span>
-                      <input
-                        type={showConfirmPassword ? "text" : "password"}
-                        required
-                        minLength={6}
-                        value={confirmPassword}
-                        onChange={(e) => setConfirmPassword(e.target.value)}
-                        placeholder="••••••••"
-                        className="w-full p-2 pr-10 border rounded-lg text-xs bg-background"
-                      />
-                      <button type="button" className="text-muted-foreground" aria-label={showConfirmPassword ? "Hide password" : "Show password"} onClick={() => setShowConfirmPassword(v => !v)}>{showConfirmPassword ? <EyeOff size={15}/> : <Eye size={15}/>}</button>
+                      <span className="relative block">
+                        <input
+                          type={showConfirmPassword ? "text" : "password"}
+                          required
+                          minLength={6}
+                          value={confirmPassword}
+                          onChange={(e) => setConfirmPassword(e.target.value)}
+                          placeholder="••••••••"
+                          className="w-full p-2 pr-10 border rounded-lg text-xs bg-background"
+                        />
+                        <button type="button" className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground" aria-label={showConfirmPassword ? "Hide password" : "Show password"} onClick={() => setShowConfirmPassword(v => !v)}>{showConfirmPassword ? <EyeOff size={15}/> : <Eye size={15}/>}</button>
+                      </span>
                     </label>
                     <button type="submit" className="primary-btn w-full flex items-center justify-center gap-2" disabled={pwdBusy}>
                       <KeyRound size={16} /> {pwdBusy ? "Resetting…" : "Reset Password"}
@@ -5743,7 +5753,7 @@ export default function Home() {
                 <div className="font-bold">{tr("Wage History")}</div>
                 <div className="grid grid-cols-2 gap-2"><label className="space-y-1"><span>{tr("From")}</span><input type="date" value={wageHistoryStart} onChange={e => setWageHistoryStart(e.target.value)} className="w-full p-1.5 border rounded" /></label><label className="space-y-1"><span>{tr("To")}</span><input type="date" value={wageHistoryEnd} onChange={e => setWageHistoryEnd(e.target.value)} className="w-full p-1.5 border rounded" /></label></div>
                 <div className="space-y-1.5 max-h-48 overflow-y-auto">
-                  {wages.filter(w => w.staffId === selectedStaff.id && (!wageHistoryStart || w.date >= wageHistoryStart) && (!wageHistoryEnd || w.date <= wageHistoryEnd)).map(w => (
+                  {wages.filter(w => w.staffId === selectedStaff.id && (!wageHistoryStart || w.date >= wageHistoryStart) && (!wageHistoryEnd || w.date <= wageHistoryEnd)).sort((a, b) => String(a.date).localeCompare(String(b.date))).map(w => (
                     <div key={w.id} className="p-2 border rounded-lg flex justify-between items-center">
                       <div>
                         <div>{w.date}</div>

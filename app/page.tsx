@@ -214,9 +214,6 @@ type BillItem = {
   unit?: string;
   unitPrice: number;
   discount: number;
-  mrp?: number;
-  discountedPrice?: number;
-  customerSaved?: number;
 };
 
 type Bill = {
@@ -1052,7 +1049,6 @@ export default function Home() {
   const [selectedStaff, setSelectedStaff] = useState<Staff | null>(null);
 
   const [cart, setCart] = useState<CartLine[]>([]);
-  const [parkedSales, setParkedSales] = useState<Array<{ id: string; cart: CartLine[]; orderDiscount: number; payment: string }>>([]);
   const [category, setCategory] = useState("All items");
   const [query, setQuery] = useState("");
   const [orderType, setOrderType] = useState("Dine-in");
@@ -2609,7 +2605,7 @@ export default function Home() {
     const time = now.toLocaleTimeString("en-IN", { hour: "numeric", minute: "2-digit" });
     const bill: Bill = {
       id, issuedAt: now.toLocaleString("en-IN"), business: tenantInfo,
-      items: cart.map((l) => { const d = dishes.find((d) => String(d.id) === String(l.id)); const item = checkoutIsProduce ? inventoryList.find((x) => String(x.id) === String(l.id)) : undefined; const mrp = l.override ?? (item?.sellingPrice ?? d?.price ?? 0); const allocatedOrderDiscount = subtotal > 0 ? (orderDiscount * ((mrp * l.qty) / subtotal)) / Math.max(l.qty, 1) : 0; const discountedPrice = Math.max(0, mrp - l.discount - allocatedOrderDiscount); return { name: item?.name || d?.name || "Menu item", qty: l.qty, unit: item?.unit || "each", unitPrice: mrp, discount: l.discount + allocatedOrderDiscount, mrp, discountedPrice, customerSaved: (l.discount + allocatedOrderDiscount) * l.qty }; }),
+      items: cart.map((l) => { const d = dishes.find((d) => String(d.id) === String(l.id)); const item = checkoutIsProduce ? inventoryList.find((x) => String(x.id) === String(l.id)) : undefined; return { name: item?.name || d?.name || "Menu item", qty: l.qty, unit: item?.unit || "each", unitPrice: l.override ?? (item?.sellingPrice ?? d?.price ?? 0), discount: l.discount }; }),
       subtotal, discount: totalDiscount, tax, cgst: cgstAmount, sgst: sgstAmount, total,
       type: orderType, table: orderType === "Dine-in" ? table : "", payment, status: "Paid",
     };
@@ -3210,24 +3206,8 @@ export default function Home() {
           #printable-receipt-card.format-58mm { width: 58mm !important; max-width: 58mm !important; padding: 2mm !important; font-size: 9px !important; }
           #printable-receipt-card.format-80mm { width: 80mm !important; max-width: 80mm !important; padding: 3mm !important; font-size: 10px !important; }
           #printable-receipt-card.format-A4 { width: 190mm !important; max-width: 190mm !important; padding: 8mm !important; font-size: 12px !important; }
-          #printable-receipt-card table { width: 100% !important; max-width: 100% !important; table-layout: fixed !important; border-collapse: collapse !important; }
-          #printable-receipt-card th, #printable-receipt-card td { box-sizing: border-box !important; min-width: 0 !important; padding-left: 1px !important; padding-right: 1px !important; overflow-wrap: anywhere !important; word-break: normal !important; vertical-align: top !important; }
-          #printable-receipt-card .receipt-col-item { width: 34% !important; text-align: left !important; }
-          #printable-receipt-card .receipt-col-qty { width: 12% !important; text-align: center !important; }
-          #printable-receipt-card .receipt-col-sell { width: 16% !important; text-align: right !important; }
-          #printable-receipt-card .receipt-col-discount { width: 18% !important; text-align: right !important; }
-          #printable-receipt-card .receipt-col-total { width: 20% !important; text-align: right !important; }
-          #printable-receipt-card.format-58mm th, #printable-receipt-card.format-58mm td { font-size: 7px !important; letter-spacing: -.025em !important; }
-          #printable-receipt-card.format-58mm .receipt-col-item { width: 32% !important; }
-          #printable-receipt-card.format-58mm .receipt-col-qty { width: 12% !important; }
-          #printable-receipt-card.format-58mm .receipt-col-sell { width: 17% !important; }
-          #printable-receipt-card.format-58mm .receipt-col-discount { width: 19% !important; }
-          #printable-receipt-card.format-58mm .receipt-col-total { width: 20% !important; }
-          #printable-receipt-card.format-A4 .receipt-col-item { width: 40% !important; }
-          #printable-receipt-card.format-A4 .receipt-col-qty { width: 12% !important; }
-          #printable-receipt-card.format-A4 .receipt-col-sell { width: 15% !important; }
-          #printable-receipt-card.format-A4 .receipt-col-discount { width: 16% !important; }
-          #printable-receipt-card.format-A4 .receipt-col-total { width: 15% !important; }
+          #printable-receipt-card table { width: 100% !important; table-layout: fixed !important; border-collapse: collapse !important; }
+          #printable-receipt-card th, #printable-receipt-card td { overflow-wrap: anywhere !important; word-break: break-word !important; }
           #printable-receipt-card.format-58mm .receipt-line { grid-template-columns: minmax(0,1fr) 20px 48px !important; }
           #printable-receipt-card.format-80mm .receipt-line { grid-template-columns: minmax(0,1fr) 28px 62px !important; }
           #printable-receipt-card.format-A4 .receipt-line { grid-template-columns: minmax(0,1fr) 50px 100px !important; }
@@ -3882,11 +3862,6 @@ export default function Home() {
                       </span>
                     </div>
 
-                    <div className="flex flex-wrap gap-2 mb-3 no-print">
-                      <button type="button" className="quiet-btn text-xs" disabled={!cart.length} onClick={() => { if (!cart.length) return; setParkedSales(old => [...old, { id: `Sale ${old.length + 1}`, cart: cart.map(line => ({...line})), orderDiscount, payment }]); setCart([]); setOrderDiscount(0); toast.success("Current sale saved. New sale started."); }}>＋ New sale</button>
-                      <button type="button" className="quiet-btn text-xs" disabled={!cart.length} onClick={() => { setCart([]); setOrderDiscount(0); }}>Clear all</button>
-                    </div>
-                    {parkedSales.length > 0 && <div className="flex flex-wrap gap-1.5 mb-3 no-print">{parkedSales.map((draft, index) => <button type="button" key={draft.id + index} className="quiet-btn text-xs" onClick={() => { if (cart.length) setParkedSales(old => [...old, { id: `Sale ${old.length + 1}`, cart: cart.map(line => ({...line})), orderDiscount, payment }]); setCart(draft.cart); setOrderDiscount(draft.orderDiscount); setPayment(draft.payment); setParkedSales(old => old.filter((_, i) => i !== index)); }}>{draft.id} · {draft.cart.length} items</button>)}</div>}
                     <div className="cart-items space-y-3 max-h-[460px] overflow-y-auto pr-1">
                       {cart.map((l) => {
                         const dish = dishes.find((x) => x.id === l.id);
@@ -3960,10 +3935,6 @@ export default function Home() {
                   </div>
 
                   <div className="cart-footer mt-4 pt-3 border-t space-y-3">
-                    <label className="flex items-center justify-between gap-3 text-xs font-semibold text-muted-foreground no-print">Extra discount (₹)
-                      <input aria-label="Extra discount" type="number" min="0" max={subtotal} step="0.01" value={orderDiscount || ""} onChange={(e) => setOrderDiscount(Math.max(0, Math.min(subtotal, Number(e.target.value) || 0)))} className="w-28 h-9 rounded-lg border bg-background px-2 text-right text-foreground" placeholder="0.00" />
-                    </label>
-                    {totalDiscount > 0 && <div className="flex justify-between text-xs text-emerald-600"><span>Customer saves</span><b>{money(totalDiscount)}</b></div>}
                     <div className="print-format no-print">
                       <span>{tr("Receipt format")}</span>
                       <div className="print-format-options">
@@ -4010,8 +3981,8 @@ export default function Home() {
               <div className="panel sales-history-panel">
                 <div className="p-3 border-b grid grid-cols-1 sm:grid-cols-3 gap-2">
                   <input value={saleHistorySearch} onChange={e => setSaleHistorySearch(e.target.value)} placeholder={tr("Search receipt, item or payment")} className="w-full p-2 border rounded-lg bg-background text-xs" />
-                  <label className="date-filter-field text-xs text-muted-foreground"><span>{tr("From")}</span><input type="date" value={saleHistoryStart} onChange={e => setSaleHistoryStart(e.target.value)} className="date-filter-control" /></label>
-                  <label className="date-filter-field text-xs text-muted-foreground"><span>{tr("To")}</span><input type="date" value={saleHistoryEnd} onChange={e => setSaleHistoryEnd(e.target.value)} className="date-filter-control" /></label>
+                  <label className="text-xs text-muted-foreground">{tr("From")}<input type="date" value={saleHistoryStart} onChange={e => setSaleHistoryStart(e.target.value)} className="block w-full p-2 border rounded-lg bg-background text-xs" /></label>
+                  <label className="text-xs text-muted-foreground">{tr("To")}<input type="date" value={saleHistoryEnd} onChange={e => setSaleHistoryEnd(e.target.value)} className="block w-full p-2 border rounded-lg bg-background text-xs" /></label>
                 </div>
                 <div className="table-wrap">
                   <table className="w-full text-sm sales-history-table">
@@ -4145,14 +4116,14 @@ export default function Home() {
               </div>
               <div className="kpi-grid mt-4">
                 {[
-                  ["Total items", inventoryList.length, "catalogued stock", "All stock"],
-                  ["Available stock", inventoryList.reduce((n, x) => n + Number(x.onHand || 0), 0), "units on hand", "In stock"],
-                  ["Stock value", money(inventoryList.reduce((n, x) => n + Number(x.onHand || 0) * Number(x.cost || 0), 0)), "based on recorded cost", "All stock"],
-                  ["Low stock", inventoryList.filter(x => x.onHand > 0 && x.onHand <= x.reorderLevel).length, "reorder attention", "Low stock"],
-                  ["Out of stock", inventoryList.filter(x => x.onHand <= 0).length, "needs replenishment", "Out of stock"],
-                ].map(([label, value, note, filter]) => <button type="button" className="kpi-card text-left cursor-pointer hover:shadow-md focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary transition-shadow" key={String(label)} onClick={() => { setInventoryStatusFilter(String(filter)); setInventorySearch(""); document.getElementById("inventory-items-table")?.scrollIntoView({ behavior: "smooth", block: "start" }); }} aria-label={`View ${String(label)} inventory`}><div className="kpi-top"><span>{label}</span><span className="kpi-icon teal"><Package size={19}/></span></div><strong>{String(value)}</strong><div className="kpi-foot"><span>{note}</span></div><div className="text-[10px] text-muted-foreground mt-1">Click to view details ↗</div></button>)}
+                  ["Total items", inventoryList.length, "catalogued stock"],
+                  ["Available stock", inventoryList.reduce((n, x) => n + Number(x.onHand || 0), 0), "units on hand"],
+                  ["Stock value", money(inventoryList.reduce((n, x) => n + Number(x.onHand || 0) * Number(x.cost || 0), 0)), "based on recorded cost"],
+                  ["Low stock", inventoryList.filter(x => x.onHand > 0 && x.onHand <= x.reorderLevel).length, "reorder attention"],
+                  ["Out of stock", inventoryList.filter(x => x.onHand === 0).length, "needs replenishment"],
+                ].map(([label, value, note]) => <div className="kpi-card" key={String(label)}><div className="kpi-top"><span>{label}</span><span className="kpi-icon teal"><Package size={19}/></span></div><strong>{String(value)}</strong><div className="kpi-foot"><span>{note}</span></div></div>)}
               </div>
-              <div id="inventory-items-table" className="panel management-panel inventory-page bg-card border rounded-xl p-6 mt-4 scroll-mt-4">
+              <div className="panel management-panel inventory-page bg-card border rounded-xl p-6 mt-4">
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 mb-4">
                   <input value={inventorySearch} onChange={e => setInventorySearch(e.target.value)} placeholder={tr("Search inventory item or category")} className="w-full p-2 border rounded-lg bg-background text-xs" />
                   <select value={inventoryStatusFilter} onChange={e => setInventoryStatusFilter(e.target.value)} className="w-full p-2 border rounded-lg bg-background text-xs"><option>All stock</option><option>In stock</option><option>Low stock</option><option>Out of stock</option></select>
@@ -4220,11 +4191,11 @@ export default function Home() {
               </div>
               <div className="panel management-panel inventory-history-panel bg-card border rounded-xl p-6 mt-4">
                 <div className="panel-header border-b pb-3 mb-3"><h2 className="text-base font-bold">{tr("Inventory history")}</h2><span className="text-xs text-muted-foreground">{tr("Stock movements with search, transaction type and date filters")}</span></div>
-                <div className="inventory-history-filter-bar grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 mb-4 items-end">
-                  <input value={inventoryHistorySearch} onChange={e => setInventoryHistorySearch(e.target.value)} placeholder={tr("Search item or transaction")} className="filter-control w-full h-[54px] max-md:h-12 box-border px-3 border rounded-xl bg-background text-xs" />
-                  <select value={inventoryHistoryTypeFilter} onChange={e => setInventoryHistoryTypeFilter(e.target.value)} className="filter-control w-full h-[54px] max-md:h-12 box-border px-3 border rounded-xl bg-background text-xs"><option>All transactions</option>{Array.from(new Set(inventoryTransactions.map((tx: any) => String(tx.transaction_type || "Other")))).sort().map(type => <option key={type}>{type}</option>)}</select>
-                  <label className="date-filter-field text-xs text-muted-foreground"><span>{tr("From date")}</span><input type="date" value={inventoryHistoryStart} max={inventoryHistoryEnd || undefined} onChange={e => setInventoryHistoryStart(e.target.value)} className="date-filter-control" /></label>
-                  <label className="date-filter-field text-xs text-muted-foreground"><span>{tr("To date")}</span><input type="date" value={inventoryHistoryEnd} min={inventoryHistoryStart || undefined} onChange={e => setInventoryHistoryEnd(e.target.value)} className="date-filter-control" /></label>
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 mb-4">
+                  <input value={inventoryHistorySearch} onChange={e => setInventoryHistorySearch(e.target.value)} placeholder={tr("Search item or transaction")} className="w-full h-[54px] box-border px-3 border rounded-lg bg-background text-xs" />
+                  <select value={inventoryHistoryTypeFilter} onChange={e => setInventoryHistoryTypeFilter(e.target.value)} className="w-full h-[54px] box-border px-3 border rounded-lg bg-background text-xs"><option>All transactions</option>{Array.from(new Set(inventoryTransactions.map((tx: any) => String(tx.transaction_type || "Other")))).sort().map(type => <option key={type}>{type}</option>)}</select>
+                  <label className="text-xs text-muted-foreground">{tr("From date")}<input type="date" value={inventoryHistoryStart} max={inventoryHistoryEnd || undefined} onChange={e => setInventoryHistoryStart(e.target.value)} className="mt-1 w-full h-[34px] box-border px-2 border rounded-lg bg-background text-xs" /></label>
+                  <label className="text-xs text-muted-foreground">{tr("To date")}<input type="date" value={inventoryHistoryEnd} min={inventoryHistoryStart || undefined} onChange={e => setInventoryHistoryEnd(e.target.value)} className="mt-1 w-full h-[34px] box-border px-2 border rounded-lg bg-background text-xs" /></label>
                 </div>
                 <div className="flex justify-between items-center text-xs text-muted-foreground mb-2"><span>{inventoryTransactions.filter((tx: any) => { const itemName = inventoryList.find(i => i.id === tx.inventory_item_id)?.name || "Inventory item"; const q = inventoryHistorySearch.trim().toLowerCase(); const textMatch = !q || `${itemName} ${tx.transaction_type || ""}`.toLowerCase().includes(q); const typeMatch = inventoryHistoryTypeFilter === "All transactions" || String(tx.transaction_type || "Other") === inventoryHistoryTypeFilter; const date = String(tx.created_at || "").slice(0, 10); return textMatch && typeMatch && (!inventoryHistoryStart || date >= inventoryHistoryStart) && (!inventoryHistoryEnd || date <= inventoryHistoryEnd); }).length} {tr("records")}</span><button type="button" className="quiet-btn text-xs" onClick={() => { setInventoryHistorySearch(""); setInventoryHistoryTypeFilter("All transactions"); setInventoryHistoryStart(""); setInventoryHistoryEnd(""); }}>{tr("Clear filters")}</button></div>
                 <div className="table-scroll inventory-history-table-wrap">
@@ -4353,14 +4324,14 @@ export default function Home() {
               </div>
 
               <div className="panel management-panel mt-6">
-                <div className="expense-filter-bar p-4 border-b grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 items-end">
-                  <input value={expenseSearch} onChange={e => setExpenseSearch(e.target.value)} placeholder={tr("Search description or vendor")} className="filter-control w-full h-[54px] max-md:h-12 box-border px-3 border rounded-xl bg-background text-xs" />
-                  <select value={expenseCategoryFilter} onChange={e => setExpenseCategoryFilter(e.target.value)} className="filter-control w-full h-[54px] max-md:h-12 box-border px-3 border rounded-xl bg-background text-xs">
+                <div className="p-4 border-b grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+                  <input value={expenseSearch} onChange={e => setExpenseSearch(e.target.value)} placeholder={tr("Search description or vendor")} className="w-full h-[54px] box-border px-3 border rounded-lg bg-background text-xs" />
+                  <select value={expenseCategoryFilter} onChange={e => setExpenseCategoryFilter(e.target.value)} className="w-full h-[54px] box-border px-3 border rounded-lg bg-background text-xs">
                     <option>{tr("All categories")}</option>
                     {[...new Set(expenses.map(e => e.category).filter(Boolean))].sort().map(c => <option key={c}>{c}</option>)}
                   </select>
-                  <label className="date-filter-field text-xs text-muted-foreground"><span>{tr("From")}</span><input type="date" value={expenseStartDate} onChange={e => setExpenseStartDate(e.target.value)} className="date-filter-control" /></label>
-                  <label className="date-filter-field text-xs text-muted-foreground"><span>To</span><input type="date" value={expenseEndDate} onChange={e => setExpenseEndDate(e.target.value)} className="date-filter-control" /></label>
+                  <label className="text-xs text-muted-foreground">{tr("From")} <input type="date" value={expenseStartDate} onChange={e => setExpenseStartDate(e.target.value)} className="block w-full h-[34px] box-border px-2 border rounded-lg bg-background text-xs" /></label>
+                  <label className="text-xs text-muted-foreground">To <input type="date" value={expenseEndDate} onChange={e => setExpenseEndDate(e.target.value)} className="block w-full h-[34px] box-border px-2 border rounded-lg bg-background text-xs" /></label>
                 </div>
                 <div className="table-scroll">
                   <table className="enhanced-data-table">
@@ -5871,7 +5842,7 @@ export default function Home() {
 
               <div className="flex justify-between text-[11px] font-bold">
                 <span>Bill: {receipt.id}</span>
-                {!(["fruit_shop","vegetable_shop","juice_shop","fruit","vegetable","fruits","vegetables","juice","juices"].includes(String(tenantInfo.business_type || "").toLowerCase())) && <span>{receipt.type} {receipt.table ? `(${receipt.table})` : ""}</span>}
+                <span>{receipt.type} {receipt.table ? `(${receipt.table})` : ''}</span>
               </div>
               <div className="text-[10px] text-gray-500">{receipt.issuedAt}</div>
 
@@ -5881,21 +5852,21 @@ export default function Home() {
               <table className="w-full text-[10px] font-mono border-collapse table-fixed">
                 <thead>
                   <tr className="border-b border-dashed border-gray-400 text-gray-700 font-bold">
-                    <th className="receipt-col-item py-1 text-left">{tr("ITEM")}</th>
-                    <th className="receipt-col-qty py-1 text-center">{tr("QTY")}</th>
-                    <th className="receipt-col-sell py-1 text-right">SELL</th>
-                    <th className="receipt-col-discount py-1 text-right">DISC.</th>
-                    <th className="receipt-col-total py-1 text-right">TOTAL</th>
+                    <th className="py-1 text-left w-[50%]">{tr("ITEM")}</th>
+                    <th className="py-1 text-center w-[15%]">{tr("QTY")}</th>
+                    <th className="py-1 text-right w-[17%]">{tr("PRICE")}</th>
+                    <th className="py-1 text-right w-[18%]">{tr("TOTAL")}</th>
                   </tr>
                 </thead>
                 <tbody>
                   {receipt.items.map((item, idx) => (
                     <tr key={idx} className="border-b border-dotted border-gray-200">
-                      <td className="receipt-col-item py-1 pr-1 text-left">{item.name}</td>
-                      <td className="receipt-col-qty py-1 text-center">{item.qty}{item.unit ? ` ${item.unit}` : ""}</td>
-                      <td className="receipt-col-sell py-1 text-right">{money(item.unitPrice)}</td>
-                      <td className="receipt-col-discount py-1 text-right font-semibold">{money(item.discountedPrice ?? (item.unitPrice - item.discount))}</td>
-                      <td className="receipt-col-total py-1 text-right font-semibold">{money(item.qty * (item.discountedPrice ?? (item.unitPrice - item.discount)))}</td>
+                      <td className="py-1 pr-1 truncate text-left">{item.name}</td>
+                      <td className="py-1 text-center">{item.qty}{item.unit ? ` ${item.unit}` : ""}</td>
+                      <td className="py-1 text-right">{money(item.unitPrice)}</td>
+                      <td className="py-1 text-right font-semibold">
+                        {money(item.qty * (item.unitPrice - item.discount))}
+                      </td>
                     </tr>
                   ))}
                 </tbody>
@@ -5915,7 +5886,6 @@ export default function Home() {
                     <span>−{money(receipt.discount)}</span>
                   </div>
                 )}
-                {(receipt.discount > 0) && <div className="flex justify-between text-emerald-700 font-bold"><span>Customer saved</span><span>{money(receipt.discount)}</span></div>}
                 <div className="flex justify-between text-gray-600 text-[10px]">
                   <span>CGST ({tenantInfo.cgst_percent}%):</span>
                   <span>{money(receipt.cgst)}</span>

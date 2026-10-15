@@ -4204,9 +4204,9 @@ export default function Home() {
               </div>
               <div className="panel management-panel inventory-history-panel bg-card border rounded-xl p-6 mt-4">
                 <div className="panel-header border-b pb-3 mb-3"><h2 className="text-base font-bold">{tr("Inventory history")}</h2><span className="text-xs text-muted-foreground">{tr("Stock movements with search, transaction type and date filters")}</span></div>
-                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 mb-4">
-                  <input value={inventoryHistorySearch} onChange={e => setInventoryHistorySearch(e.target.value)} placeholder={tr("Search item or transaction")} className="w-full h-[54px] box-border px-3 border rounded-lg bg-background text-xs" />
-                  <select value={inventoryHistoryTypeFilter} onChange={e => setInventoryHistoryTypeFilter(e.target.value)} className="w-full h-[54px] box-border px-3 border rounded-lg bg-background text-xs"><option>All transactions</option>{Array.from(new Set(inventoryTransactions.map((tx: any) => String(tx.transaction_type || "Other")))).sort().map(type => <option key={type}>{type}</option>)}</select>
+                <div className="inventory-history-filter-bar grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 mb-4 items-end">
+                  <input value={inventoryHistorySearch} onChange={e => setInventoryHistorySearch(e.target.value)} placeholder={tr("Search item or transaction")} className="filter-control w-full h-[54px] max-md:h-12 box-border px-3 border rounded-xl bg-background text-xs" />
+                  <select value={inventoryHistoryTypeFilter} onChange={e => setInventoryHistoryTypeFilter(e.target.value)} className="filter-control w-full h-[54px] max-md:h-12 box-border px-3 border rounded-xl bg-background text-xs"><option>All transactions</option>{Array.from(new Set(inventoryTransactions.map((tx: any) => String(tx.transaction_type || "Other")))).sort().map(type => <option key={type}>{type}</option>)}</select>
                   <label className="date-filter-field text-xs text-muted-foreground"><span>{tr("From date")}</span><input type="date" value={inventoryHistoryStart} max={inventoryHistoryEnd || undefined} onChange={e => setInventoryHistoryStart(e.target.value)} className="date-filter-control" /></label>
                   <label className="date-filter-field text-xs text-muted-foreground"><span>{tr("To date")}</span><input type="date" value={inventoryHistoryEnd} min={inventoryHistoryStart || undefined} onChange={e => setInventoryHistoryEnd(e.target.value)} className="date-filter-control" /></label>
                 </div>
@@ -4337,9 +4337,9 @@ export default function Home() {
               </div>
 
               <div className="panel management-panel mt-6">
-                <div className="p-4 border-b grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
-                  <input value={expenseSearch} onChange={e => setExpenseSearch(e.target.value)} placeholder={tr("Search description or vendor")} className="w-full h-[54px] box-border px-3 border rounded-lg bg-background text-xs" />
-                  <select value={expenseCategoryFilter} onChange={e => setExpenseCategoryFilter(e.target.value)} className="w-full h-[54px] box-border px-3 border rounded-lg bg-background text-xs">
+                <div className="expense-filter-bar p-4 border-b grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 items-end">
+                  <input value={expenseSearch} onChange={e => setExpenseSearch(e.target.value)} placeholder={tr("Search description or vendor")} className="filter-control w-full h-[54px] max-md:h-12 box-border px-3 border rounded-xl bg-background text-xs" />
+                  <select value={expenseCategoryFilter} onChange={e => setExpenseCategoryFilter(e.target.value)} className="filter-control w-full h-[54px] max-md:h-12 box-border px-3 border rounded-xl bg-background text-xs">
                     <option>{tr("All categories")}</option>
                     {[...new Set(expenses.map(e => e.category).filter(Boolean))].sort().map(c => <option key={c}>{c}</option>)}
                   </select>
@@ -5867,7 +5867,6 @@ export default function Home() {
                   <tr className="border-b border-dashed border-gray-400 text-gray-700 font-bold">
                     <th className="py-1 text-left w-[50%]">{tr("ITEM")}</th>
                     <th className="py-1 text-center w-[15%]">{tr("QTY")}</th>
-                    <th className="py-1 text-right w-[15%]">MRP</th>
                     <th className="py-1 text-right w-[15%]">SELL</th>
                     <th className="py-1 text-right w-[18%]">DISCOUNTED</th>
                     <th className="py-1 text-right w-[15%]">TOTAL</th>
@@ -5878,7 +5877,6 @@ export default function Home() {
                     <tr key={idx} className="border-b border-dotted border-gray-200">
                       <td className="py-1 pr-1 truncate text-left">{item.name}</td>
                       <td className="py-1 text-center">{item.qty}{item.unit ? ` ${item.unit}` : ""}</td>
-                      <td className="py-1 text-right">{money(item.mrp ?? item.unitPrice)}</td>
                       <td className="py-1 text-right">{money(item.unitPrice)}</td>
                       <td className="py-1 text-right font-semibold">{money(item.discountedPrice ?? (item.unitPrice - item.discount))}</td>
                       <td className="py-1 text-right font-semibold">{money(item.qty * (item.discountedPrice ?? (item.unitPrice - item.discount)))}</td>

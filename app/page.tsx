@@ -298,8 +298,6 @@ const navPlatform: { id: View; label: string; icon: typeof Building2 }[] = [
   { id: "approvals", label: "Approvals", icon: BadgeCheck },
   { id: "pricing", label: "Pricing plans", icon: CreditCard },
   { id: "settings", label: "Settings", icon: Settings },
-  { id: "support", label: "Support & Help", icon: LifeBuoy },
-  { id: "admins", label: "Manage admins", icon: ShieldCheck },
 ];
 
 export default function Home() {
@@ -332,9 +330,6 @@ export default function Home() {
   const [activeRenewalDate, setActiveRenewalDate] = useState<string>("—");
   const [activeRestaurantName, setActiveRestaurantName] = useState<string>("Loading workspace…");
   const [workspaceMenuOpen, setWorkspaceMenuOpen] = useState(false);
-  const [newWorkspaceName, setNewWorkspaceName] = useState("");
-  const [newWorkspaceType, setNewWorkspaceType] = useState("fruit_shop");
-  const [creatingWorkspace, setCreatingWorkspace] = useState(false);
 
   const [tenantInfo, setTenantInfo] = useState<{
     id?: string;
@@ -1026,26 +1021,10 @@ export default function Home() {
   const [expenseStartDate, setExpenseStartDate] = useState("");
   const [expenseEndDate, setExpenseEndDate] = useState("");
   const [supplierSearch, setSupplierSearch] = useState("");
-  const [saleHistorySearch, setSaleHistorySearch] = useState("");
-  const [saleHistoryStart, setSaleHistoryStart] = useState("");
-  const [saleHistoryEnd, setSaleHistoryEnd] = useState("");
-  const [menuSearch, setMenuSearch] = useState("");
-  const [menuCategoryFilter, setMenuCategoryFilter] = useState("All categories");
-  const [inventorySearch, setInventorySearch] = useState("");
-  const [inventoryStatusFilter, setInventoryStatusFilter] = useState("All stock");
-  const [inventoryHistorySearch, setInventoryHistorySearch] = useState("");
-  const [inventoryHistoryTypeFilter, setInventoryHistoryTypeFilter] = useState("All transactions");
-  const [inventoryHistoryStart, setInventoryHistoryStart] = useState("");
-  const [inventoryHistoryEnd, setInventoryHistoryEnd] = useState("");
-  const [staffSearch, setStaffSearch] = useState("");
-  const [adminRestaurantSearch, setAdminRestaurantSearch] = useState("");
-  const [staffPayFilter, setStaffPayFilter] = useState("All pay types");
   const [supplierActivityFilter, setSupplierActivityFilter] = useState("All suppliers");
   const [staff, setStaff] = useState<Staff[]>([]);
   const [wages, setWages] = useState<Wage[]>([]);
   const [wageForm, setWageForm] = useState({ date: new Date().toLocaleDateString("en-CA"), amount: "", note: "" });
-  const [wageHistoryStart, setWageHistoryStart] = useState("");
-  const [wageHistoryEnd, setWageHistoryEnd] = useState("");
   const [selectedStaff, setSelectedStaff] = useState<Staff | null>(null);
 
   const [cart, setCart] = useState<CartLine[]>([]);
@@ -1085,7 +1064,7 @@ export default function Home() {
   const [subscriptionUpiId, setSubscriptionUpiId] = useState<string>("admin-restopulse@upi");
 
   const [supportSections, setSupportSections] = useState<any[]>([]);
-  const defaultAdminPermissions = { overview: true, restaurants: true, approvals: true, pricing: true, settings: true, support: true, admins: false };
+  const defaultAdminPermissions = { restaurants: true, approvals: true, pricing: true, settings: true, support: true, admins: false };
   const [adminForm, setAdminForm] = useState({ name: "", email: "", password: "", permissions: defaultAdminPermissions });
   const [editingAdminId, setEditingAdminId] = useState<string | null>(null);
   const [supportEditingId, setSupportEditingId] = useState<string | null>(null);
@@ -1295,10 +1274,10 @@ export default function Home() {
     try {
       const res = await authedFetch("/api/admin/admins");
       const json = await res.json();
-      if (res.ok && Array.isArray(json?.admins)) { setAdmins(json.admins); const self = json.admins.find((a:any) => a.id === authUser); if (self) setCurrentUserPermissions(self.permissions || { overview:true, restaurants:true, approvals:true, pricing:true, settings:true, support:true, admins:false }); }
+      if (res.ok && Array.isArray(json?.admins)) setAdmins(json.admins);
       else if (!res.ok) throw new Error(json?.error || "Could not load admins");
     } catch (e: any) { toast.error(e.message || "Could not load admins"); }
-  }, [authedFetch, isAdmin, roleHydrated, authUser]);
+  }, [authedFetch, isAdmin, roleHydrated]);
 
   const fetchRealApprovals = useCallback(async () => {
     if (!isAdmin || !roleHydrated) return;
@@ -1776,7 +1755,7 @@ export default function Home() {
             setView("dashboard");
           }
         }
-        setCurrentUserPermissions({});
+        setCurrentUserPermissions(platform ? { restaurants: true, approvals: true, pricing: true, settings: true, support: true, admins: true } : {});
         if (!platform) {
           const wsRes = await authedFetch("/api/workspaces");
           const wsJson = await wsRes.json().catch(() => ({}));
@@ -2030,7 +2009,7 @@ export default function Home() {
       }
       await loadRestaurantData(tenantId);
       setModal(null); setEditingInvId(null);
-      setInvForm({ name: "", category: isProduceShop ? (tenantInfo.business_type === "fruit_shop" ? "Fruits" : tenantInfo.business_type === "juice_shop" ? "Juices" : "Vegetables") : "Grains", onHand: "", unit: isProduceShop ? "kg" : "bags", reorderLevel: "5", cost: "", sellingPrice: "", imageUrl: "", supplierId: "" });
+      setInvForm({ name: "", category: isProduceShop ? (tenantInfo.business_type === "fruit_shop" ? "Fruits" : "Vegetables") : "Grains", onHand: "", unit: isProduceShop ? "kg" : "bags", reorderLevel: "5", cost: "", sellingPrice: "", imageUrl: "", supplierId: "" });
       toast.success(editingInvId ? "Inventory item updated successfully!" : "Inventory item added successfully!");
     } catch (e: any) { toast.error(e.message || "Could not save inventory item"); }
   };
@@ -2158,7 +2137,7 @@ export default function Home() {
       });
     } else {
       setEditingInvId(null);
-      setInvForm({ name: "", category: isProduceShop ? (tenantInfo.business_type === "fruit_shop" ? "Fruits" : tenantInfo.business_type === "juice_shop" ? "Juices" : "Vegetables") : "Grains", onHand: "", unit: isProduceShop ? "kg" : "bags", reorderLevel: "5", cost: "", sellingPrice: "", imageUrl: "", supplierId: "" });
+      setInvForm({ name: "", category: isProduceShop ? (tenantInfo.business_type === "fruit_shop" ? "Fruits" : "Vegetables") : "Grains", onHand: "", unit: isProduceShop ? "kg" : "bags", reorderLevel: "5", cost: "", sellingPrice: "", imageUrl: "", supplierId: "" });
     }
     setModal("inventory");
   };
@@ -2228,7 +2207,7 @@ export default function Home() {
   );
 
   const normalizedBusinessType = String(tenantInfo.business_type || "restaurant").trim().toLowerCase().replace(/[\s-]+/g, "_");
-  const isProduceShop = ["fruit_shop", "juice_shop", "vegetable_shop", "fruit", "vegetable", "fruits", "vegetables", "juice", "juices"].includes(normalizedBusinessType);
+  const isProduceShop = ["fruit_shop", "vegetable_shop", "fruit", "vegetable", "fruits", "vegetables"].includes(normalizedBusinessType);
   const posCatalog = isProduceShop ? inventoryList.filter((x) => x.onHand > 0 && Number(x.sellingPrice) > 0) : [];
   const subtotal = cart.reduce((sum, l) => {
     const d = dishes.find((x) => x.id === l.id);
@@ -2525,10 +2504,6 @@ export default function Home() {
         toast.error("Enter employee name");
         return;
       }
-      if (!/^\S+@\S+\.\S+$/.test(String(form.email || "").trim())) {
-        toast.error("Enter a valid employee email address");
-        return;
-      }
       const payType = (form.payType as "Monthly" | "Weekly" | "Daily") || "Monthly";
       const monthlySalary = Number(form.monthlySalary) || 0;
       const weeklySalary = Number(form.weeklySalary) || 0;
@@ -2545,7 +2520,7 @@ export default function Home() {
         monthlySalary,
         weeklySalary,
         dailyRate,
-        email: String(form.email || "").trim().toLowerCase(),
+        email: form.email || "staff@restopulse.demo",
         phone: form.phone || "",
         active: form.active !== "false",
         permissions: selectedPermissions,
@@ -2913,16 +2888,6 @@ export default function Home() {
     let v = requestedView;
     const normalized = String(currentUserRole || "").toLowerCase();
     const owner = normalized === "owner" || normalized === "admin" || normalized === "restaurant owner" || normalized === "restaurant_owner" || normalized === "restaurant-owner" || !normalized;
-    if (isAdmin) {
-      const adminPermissions = admins.find((a:any) => a.id === authUser)?.permissions;
-      const requestedPermission = v === "dashboard" ? "overview" : v;
-      if (adminPermissions && adminPermissions[requestedPermission] !== true) {
-        const fallback = navPlatform.find((item:any) => adminPermissions[item.id === "dashboard" ? "overview" : item.id] === true);
-        toast.error("You do not have access to this section.");
-        if (fallback) nav(fallback.id, true);
-        return;
-      }
-    }
     if (!isAdmin && !owner && v !== "dashboard" && currentUserPermissions[v] !== true) {
       toast.error("You do not have access to this section.");
       return;
@@ -3091,7 +3056,11 @@ export default function Home() {
   
   const currentAdminRecord = isAdmin ? admins.find((a: any) => a.id === authUser) : null;
   const currentAdminPermissions: any = currentAdminRecord?.permissions || {};
-  const visibleNavPlatform = isAdmin ? navPlatform.filter((item: any) => currentAdminPermissions[item.id === "dashboard" ? "overview" : item.id] === true) : [];
+  const visibleNavPlatform = isAdmin ? navPlatform.filter((item: any) => {
+    if (item.id === "dashboard") return true;
+    if (currentAdminRecord && admins[0]?.id === authUser) return true;
+    return currentAdminPermissions[item.id] === true;
+  }) : [];
 
   const visibleNavTenant = isAdmin
     ? []
@@ -3100,16 +3069,6 @@ export default function Home() {
         if (isOwnerOrAdmin) return true;
         return currentUserPermissions[item.id === "dashboard" ? "overview" : item.id] === true;
       });
-
-  useEffect(() => {
-    if (authLoading || tenantHydrating || !authUser || !isAdmin || !admins.length) return;
-    const activeAdmin = admins.find((a:any) => a.id === authUser);
-    if (!activeAdmin?.permissions) return;
-    const requested = view === "dashboard" ? "overview" : view;
-    if (activeAdmin.permissions[requested] === true) return;
-    const fallback = navPlatform.find((item:any) => activeAdmin.permissions[item.id === "dashboard" ? "overview" : item.id] === true);
-    if (fallback) nav(fallback.id, true);
-  }, [authLoading, tenantHydrating, authUser, isAdmin, admins, view]);
 
   useEffect(() => {
     if (authLoading || tenantHydrating || !authUser || isAdmin || isOwnerOrAdmin) return;
@@ -3269,29 +3228,6 @@ export default function Home() {
                   <span className="text-[10px] opacity-75">{r.plan || "Free trial"}</span>
                 </button>
               ))}
-              {currentUserRole.toLowerCase() === "owner" && <div className="mt-2 border-t border-slate-700 pt-2 space-y-2" onClick={(e) => e.stopPropagation()}>
-                <div className="text-[10px] text-gray-400 font-bold px-2 uppercase">Create another shop</div>
-                <input value={newWorkspaceName} onChange={e => setNewWorkspaceName(e.target.value)} placeholder="Shop name" className="w-full rounded-lg border border-slate-600 bg-slate-800 text-white px-2.5 py-2 text-xs" />
-                <select value={newWorkspaceType} onChange={e => setNewWorkspaceType(e.target.value)} className="w-full rounded-lg border border-slate-600 bg-slate-800 text-white px-2.5 py-2 text-xs">
-                  <option value="fruit_shop">Fruit shop</option><option value="juice_shop">Juice shop</option><option value="vegetable_shop">Vegetable shop</option>
-                </select>
-                <button disabled={creatingWorkspace || !newWorkspaceName.trim()} className="w-full rounded-lg bg-amber-500 disabled:opacity-50 text-white font-bold text-xs py-2" onClick={async () => {
-                  if (!newWorkspaceName.trim()) return;
-                  setCreatingWorkspace(true);
-                  try {
-                    const res = await authedFetch("/api/workspaces", { method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify({name:newWorkspaceName.trim(),business_type:newWorkspaceType}) });
-                    const json = await res.json();
-                    if (!res.ok) throw new Error(json.error || "Could not create shop");
-                    const listRes = await authedFetch("/api/workspaces"); const listJson = await listRes.json();
-                    const list = Array.isArray(listJson.workspaces) ? listJson.workspaces : [];
-                    setRestaurants(list); setNewWorkspaceName("");
-                    const created = list.find((w:any) => w.id === json.workspace?.id) || json.workspace;
-                    if (created) switchWorkspace(created);
-                    else toast.success("Shop created. Reopen the workspace selector to switch.");
-                  } catch (e:any) { toast.error(e.message || "Could not create shop"); }
-                  finally { setCreatingWorkspace(false); }
-                }}>{creatingWorkspace ? "Creating…" : "Create shop"}</button>
-              </div>}
             </div>
           )}
         </div></>}
@@ -3372,7 +3308,7 @@ export default function Home() {
         </div>
       </aside>
 
-      <div className="main-wrap">
+      <div className={`main-wrap ${isProduceShop ? "fruit-shop-console" : "restaurant-console"}`}>
         <header className="topbar">
           <div className="top-left">
             <button
@@ -3866,7 +3802,7 @@ export default function Home() {
                       {cart.map((l) => {
                         const dish = dishes.find((x) => x.id === l.id);
                         const stockItem = isProduceShop ? inventoryList.find((x) => x.id === l.id) : undefined;
-                        const d = { name: stockItem?.name || dish?.name || "Item", price: stockItem?.sellingPrice ?? dish?.price ?? 0, emoji: stockItem ? (tenantInfo.business_type === "fruit_shop" ? "🍎" : tenantInfo.business_type === "juice_shop" ? "🥤" : "🥬") : dish?.emoji || "🍽️", imageUrl: stockItem?.imageUrl || dish?.imageUrl };
+                        const d = { name: stockItem?.name || dish?.name || "Item", price: stockItem?.sellingPrice ?? dish?.price ?? 0, emoji: stockItem ? (tenantInfo.business_type === "fruit_shop" ? "🍎" : "🥬") : dish?.emoji || "🍽️", imageUrl: stockItem?.imageUrl || dish?.imageUrl };
                         return (
                           <div
                             key={l.id}
@@ -3979,20 +3915,11 @@ export default function Home() {
                 <div className="kpi-card"><div className="kpi-top">{tr("Total sales value")}</div><strong>{money(orders.reduce((sum, sale) => sum + Number(sale.bill.total || 0), 0))}</strong></div>
               </div>
               <div className="panel sales-history-panel">
-                <div className="p-3 border-b grid grid-cols-1 sm:grid-cols-3 gap-2">
-                  <input value={saleHistorySearch} onChange={e => setSaleHistorySearch(e.target.value)} placeholder={tr("Search receipt, item or payment")} className="w-full p-2 border rounded-lg bg-background text-xs" />
-                  <label className="text-xs text-muted-foreground">{tr("From")}<input type="date" value={saleHistoryStart} onChange={e => setSaleHistoryStart(e.target.value)} className="block w-full p-2 border rounded-lg bg-background text-xs" /></label>
-                  <label className="text-xs text-muted-foreground">{tr("To")}<input type="date" value={saleHistoryEnd} onChange={e => setSaleHistoryEnd(e.target.value)} className="block w-full p-2 border rounded-lg bg-background text-xs" /></label>
-                </div>
                 <div className="table-wrap">
                   <table className="w-full text-sm sales-history-table">
                     <thead><tr className="border-b"><th className="text-left p-3">{tr("Receipt")}</th><th className="text-left p-3">{tr("Date & time")}</th><th className="text-left p-3">{tr("Items")}</th><th className="text-left p-3">{tr("Payment")}</th><th className="text-right p-3">{tr("Total")}</th><th className="text-right p-3">{tr("Action")}</th></tr></thead>
                     <tbody>
-                      {[...orders].reverse().filter((sale:any) => {
-                        const d = String(sale.placedAt || sale.bill?.issuedAt || "").slice(0, 10);
-                        const q = saleHistorySearch.trim().toLowerCase();
-                        return (!q || `${sale.bill?.id || sale.id} ${sale.bill?.payment || ""} ${(sale.bill?.items || []).map((i:any) => i.name).join(" ")}`.toLowerCase().includes(q)) && (!saleHistoryStart || d >= saleHistoryStart) && (!saleHistoryEnd || d <= saleHistoryEnd);
-                      }).map((sale) => (
+                      {[...orders].reverse().map((sale) => (
                         <tr key={sale.id} className="border-b">
                           <td className="p-3 font-mono">{sale.bill.id}</td>
                           <td className="p-3">{sale.bill.issuedAt}</td>
@@ -4002,7 +3929,7 @@ export default function Home() {
                           <td className="p-3 text-right"><button className="quiet-btn text-xs" onClick={() => setReceipt(sale.bill)}>{tr("View receipt")}</button></td>
                         </tr>
                       ))}
-                      {!orders.filter((sale:any) => { const d = String(sale.placedAt || sale.bill?.issuedAt || "").slice(0,10); const q = saleHistorySearch.trim().toLowerCase(); return (!q || `${sale.bill?.id || sale.id} ${sale.bill?.payment || ""} ${(sale.bill?.items || []).map((i:any) => i.name).join(" ")}`.toLowerCase().includes(q)) && (!saleHistoryStart || d >= saleHistoryStart) && (!saleHistoryEnd || d <= saleHistoryEnd); }).length && <tr><td colSpan={6} className="p-10 text-center text-muted-foreground">{tr("No completed sales yet.")}</td></tr>}
+                      {!orders.length && <tr><td colSpan={6} className="p-10 text-center text-muted-foreground">{tr("No completed sales yet.")}</td></tr>}
                     </tbody>
                   </table>
                 </div>
@@ -4025,10 +3952,6 @@ export default function Home() {
               </div>
 
               <div className="panel management-panel mt-4">
-                <div className="p-3 border-b grid grid-cols-1 sm:grid-cols-2 gap-2">
-                  <input value={menuSearch} onChange={e => setMenuSearch(e.target.value)} placeholder={tr("Search dish name or category")} className="w-full p-2 border rounded-lg bg-background text-xs" />
-                  <select value={menuCategoryFilter} onChange={e => setMenuCategoryFilter(e.target.value)} className="w-full p-2 border rounded-lg bg-background text-xs"><option>All categories</option>{[...new Set(dishes.map(d => d.category).filter(Boolean))].sort().map(c => <option key={c}>{c}</option>)}</select>
-                </div>
                 <div className="table-scroll overflow-x-auto">
                   <table className="w-full text-left border-collapse text-xs">
                     <thead>
@@ -4042,7 +3965,7 @@ export default function Home() {
                       </tr>
                     </thead>
                     <tbody>
-                      {dishes.filter(d => { const q = menuSearch.trim().toLowerCase(); return (!q || `${d.name} ${d.category || ""}`.toLowerCase().includes(q)) && (menuCategoryFilter === "All categories" || d.category === menuCategoryFilter); }).map((d) => (
+                      {dishes.map((d) => (
                         <tr key={d.id} className="border-b hover:bg-muted/40 transition-colors">
                           <td className="p-3">
                             <div className="w-10 h-10 rounded-xl overflow-hidden bg-muted flex items-center justify-center border text-base">
@@ -4108,7 +4031,7 @@ export default function Home() {
               <div className="page-head flex justify-between items-center">
                 <div>
                   <div className="eyebrow">{tr("WAREHOUSE & STOCK")}</div>
-                  <h1>{isProduceShop ? (tenantInfo.business_type === "fruit_shop" ? "Fruit Inventory" : tenantInfo.business_type === "juice_shop" ? "Juice Inventory" : "Vegetable Inventory") : tr("Inventory Manager")}</h1>
+                  <h1>{isProduceShop ? (tenantInfo.business_type === "fruit_shop" ? "Fruit Inventory" : "Vegetable Inventory") : tr("Inventory Manager")}</h1>
                 </div>
                 <button className="primary-btn flex items-center gap-2" onClick={() => openInventoryModal()}>
                   <Plus size={17} /> {isProduceShop ? "Add Produce" : "Add Stock Item"}
@@ -4124,10 +4047,6 @@ export default function Home() {
                 ].map(([label, value, note]) => <div className="kpi-card" key={String(label)}><div className="kpi-top"><span>{label}</span><span className="kpi-icon teal"><Package size={19}/></span></div><strong>{String(value)}</strong><div className="kpi-foot"><span>{note}</span></div></div>)}
               </div>
               <div className="panel management-panel inventory-page bg-card border rounded-xl p-6 mt-4">
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 mb-4">
-                  <input value={inventorySearch} onChange={e => setInventorySearch(e.target.value)} placeholder={tr("Search inventory item or category")} className="w-full p-2 border rounded-lg bg-background text-xs" />
-                  <select value={inventoryStatusFilter} onChange={e => setInventoryStatusFilter(e.target.value)} className="w-full p-2 border rounded-lg bg-background text-xs"><option>All stock</option><option>In stock</option><option>Low stock</option><option>Out of stock</option></select>
-                </div>
                 <div className="table-scroll inventory-table-wrapper overflow-x-auto">
                   <table className="inventory-table w-full text-left border-collapse">
                     <thead>
@@ -4142,17 +4061,12 @@ export default function Home() {
                       </tr>
                     </thead>
                     <tbody>
-                      {inventoryList.filter((item) => {
-                        const q = inventorySearch.trim().toLowerCase();
-                        const textMatch = !q || `${item.name} ${item.category || ""} ${item.unit || ""}`.toLowerCase().includes(q);
-                        const statusMatch = inventoryStatusFilter === "All stock" || (inventoryStatusFilter === "Out of stock" ? item.onHand <= 0 : inventoryStatusFilter === "Low stock" ? item.onHand > 0 && item.onHand <= item.reorderLevel : item.onHand > item.reorderLevel);
-                        return textMatch && statusMatch;
-                      }).map((item) => {
+                      {inventoryList.map((item) => {
                         const isOut = item.onHand === 0;
                         const isLow = item.onHand > 0 && item.onHand <= item.reorderLevel;
                         return (
                           <tr key={item.id} className="border-b hover:bg-muted/50">
-                            <td className="p-3 font-semibold"><div className="flex items-center gap-3">{isProduceShop && (item.imageUrl ? <img src={item.imageUrl} alt={item.name} className="h-11 w-11 rounded-lg object-cover border" /> : <div className="h-11 w-11 rounded-lg border bg-muted flex items-center justify-center text-xl">{tenantInfo.business_type === "fruit_shop" ? "🍎" : tenantInfo.business_type === "juice_shop" ? "🥤" : "🥬"}</div>)}<span>{item.name}</span></div></td>
+                            <td className="p-3 font-semibold"><div className="flex items-center gap-3">{isProduceShop && (item.imageUrl ? <img src={item.imageUrl} alt={item.name} className="h-11 w-11 rounded-lg object-cover border" /> : <div className="h-11 w-11 rounded-lg border bg-muted flex items-center justify-center text-xl">{tenantInfo.business_type === "fruit_shop" ? "🍎" : "🥬"}</div>)}<span>{item.name}</span></div></td>
                             <td className="p-3 font-mono font-bold">{item.onHand} {item.unit}</td>
                             {isProduceShop && <><td className="p-3">{money(item.cost || 0)}</td><td className="p-3">{money(item.sellingPrice || 0)}</td></>}
                             {(normalizedBusinessType === "fruit_shop" || normalizedBusinessType === "fruit" || normalizedBusinessType === "fruits") && <td className={`p-3 font-semibold ${(Number(item.sellingPrice || 0) - Number(item.cost || 0)) < 0 ? "text-red-600" : "text-green-700"}`}>{money(Number(item.sellingPrice || 0) - Number(item.cost || 0))}</td>}
@@ -4178,7 +4092,7 @@ export default function Home() {
                           </tr>
                         );
                       })}
-                      {!inventoryList.filter((item) => { const q = inventorySearch.trim().toLowerCase(); const textMatch = !q || `${item.name} ${item.category || ""} ${item.unit || ""}`.toLowerCase().includes(q); const statusMatch = inventoryStatusFilter === "All stock" || (inventoryStatusFilter === "Out of stock" ? item.onHand <= 0 : inventoryStatusFilter === "Low stock" ? item.onHand > 0 && item.onHand <= item.reorderLevel : item.onHand > item.reorderLevel); return textMatch && statusMatch; }).length && (
+                      {!inventoryList.length && (
                         <tr>
                           <td colSpan={(normalizedBusinessType === "fruit_shop" || normalizedBusinessType === "fruit" || normalizedBusinessType === "fruits") ? 8 : isProduceShop ? 7 : 5} className="text-center py-6 text-muted-foreground text-xs">
                             No inventory items found. Add items to track stock.
@@ -4190,19 +4104,12 @@ export default function Home() {
                 </div>
               </div>
               <div className="panel management-panel inventory-history-panel bg-card border rounded-xl p-6 mt-4">
-                <div className="panel-header border-b pb-3 mb-3"><h2 className="text-base font-bold">{tr("Inventory history")}</h2><span className="text-xs text-muted-foreground">{tr("Stock movements with search, transaction type and date filters")}</span></div>
-                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 mb-4">
-                  <input value={inventoryHistorySearch} onChange={e => setInventoryHistorySearch(e.target.value)} placeholder={tr("Search item or transaction")} className="w-full h-[54px] box-border px-3 border rounded-lg bg-background text-xs" />
-                  <select value={inventoryHistoryTypeFilter} onChange={e => setInventoryHistoryTypeFilter(e.target.value)} className="w-full h-[54px] box-border px-3 border rounded-lg bg-background text-xs"><option>All transactions</option>{Array.from(new Set(inventoryTransactions.map((tx: any) => String(tx.transaction_type || "Other")))).sort().map(type => <option key={type}>{type}</option>)}</select>
-                  <label className="text-xs text-muted-foreground">{tr("From date")}<input type="date" value={inventoryHistoryStart} max={inventoryHistoryEnd || undefined} onChange={e => setInventoryHistoryStart(e.target.value)} className="mt-1 w-full h-[34px] box-border px-2 border rounded-lg bg-background text-xs" /></label>
-                  <label className="text-xs text-muted-foreground">{tr("To date")}<input type="date" value={inventoryHistoryEnd} min={inventoryHistoryStart || undefined} onChange={e => setInventoryHistoryEnd(e.target.value)} className="mt-1 w-full h-[34px] box-border px-2 border rounded-lg bg-background text-xs" /></label>
-                </div>
-                <div className="flex justify-between items-center text-xs text-muted-foreground mb-2"><span>{inventoryTransactions.filter((tx: any) => { const itemName = inventoryList.find(i => i.id === tx.inventory_item_id)?.name || "Inventory item"; const q = inventoryHistorySearch.trim().toLowerCase(); const textMatch = !q || `${itemName} ${tx.transaction_type || ""}`.toLowerCase().includes(q); const typeMatch = inventoryHistoryTypeFilter === "All transactions" || String(tx.transaction_type || "Other") === inventoryHistoryTypeFilter; const date = String(tx.created_at || "").slice(0, 10); return textMatch && typeMatch && (!inventoryHistoryStart || date >= inventoryHistoryStart) && (!inventoryHistoryEnd || date <= inventoryHistoryEnd); }).length} {tr("records")}</span><button type="button" className="quiet-btn text-xs" onClick={() => { setInventoryHistorySearch(""); setInventoryHistoryTypeFilter("All transactions"); setInventoryHistoryStart(""); setInventoryHistoryEnd(""); }}>{tr("Clear filters")}</button></div>
+                <div className="panel-header border-b pb-3 mb-3"><h2 className="text-base font-bold">{tr("Inventory history")}</h2><span className="text-xs text-muted-foreground">{tr("Latest stock movements")}</span></div>
                 <div className="table-scroll inventory-history-table-wrap">
                   <table className="inventory-history-table">
                     <thead><tr><th>{tr("DATE & TIME")}</th><th>{tr("ITEM")}</th><th>{tr("TRANSACTION")}</th><th className="text-right">{tr("CHANGE")}</th><th className="text-right">{tr("STOCK")}</th></tr></thead>
                     <tbody>
-                      {inventoryTransactions.filter((tx: any) => { const itemName = inventoryList.find(i => i.id === tx.inventory_item_id)?.name || "Inventory item"; const q = inventoryHistorySearch.trim().toLowerCase(); const textMatch = !q || `${itemName} ${tx.transaction_type || ""}`.toLowerCase().includes(q); const typeMatch = inventoryHistoryTypeFilter === "All transactions" || String(tx.transaction_type || "Other") === inventoryHistoryTypeFilter; const date = String(tx.created_at || "").slice(0, 10); return textMatch && typeMatch && (!inventoryHistoryStart || date >= inventoryHistoryStart) && (!inventoryHistoryEnd || date <= inventoryHistoryEnd); }).map((tx: any) => {
+                      {inventoryTransactions.map((tx: any) => {
                         const change = Number(tx.change_quantity || 0);
                         return <tr key={tx.id}>
                           <td className="text-xs text-muted-foreground">{new Date(tx.created_at).toLocaleString("en-IN", { day: "2-digit", month: "short", year: "numeric", hour: "numeric", minute: "2-digit" })}</td>
@@ -4212,7 +4119,7 @@ export default function Home() {
                           <td className="text-right text-xs font-semibold">{tx.previous_quantity} → {tx.new_quantity} {inventoryList.find(i => i.id === tx.inventory_item_id)?.unit || ""}</td>
                         </tr>
                       })}
-                      {!inventoryTransactions.filter((tx: any) => { const itemName = inventoryList.find(i => i.id === tx.inventory_item_id)?.name || "Inventory item"; const q = inventoryHistorySearch.trim().toLowerCase(); const textMatch = !q || `${itemName} ${tx.transaction_type || ""}`.toLowerCase().includes(q); const typeMatch = inventoryHistoryTypeFilter === "All transactions" || String(tx.transaction_type || "Other") === inventoryHistoryTypeFilter; const date = String(tx.created_at || "").slice(0, 10); return textMatch && typeMatch && (!inventoryHistoryStart || date >= inventoryHistoryStart) && (!inventoryHistoryEnd || date <= inventoryHistoryEnd); }).length && <tr><td colSpan={5} className="text-center py-8 text-xs text-muted-foreground">{inventoryTransactions.length ? tr("No inventory movements match these filters.") : tr("No inventory movements recorded yet.")}</td></tr>}
+                      {!inventoryTransactions.length && <tr><td colSpan={5} className="text-center py-8 text-xs text-muted-foreground">{tr("No inventory movements recorded yet.")}</td></tr>}
                     </tbody>
                   </table>
                 </div>
@@ -4237,18 +4144,8 @@ export default function Home() {
                 </button>
               </div>
 
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 mt-5">
-                <div className="rounded-xl border bg-card p-3"><div className="text-xs text-muted-foreground">Team members</div><div className="text-xl font-black mt-1">{staff.length}</div></div>
-                <div className="rounded-xl border bg-card p-3"><div className="text-xs text-muted-foreground">Monthly payroll</div><div className="text-xl font-black mt-1">{money(staff.filter(s => s.payType === "Monthly").reduce((n, s) => n + Number(s.monthlySalary || 0), 0))}</div></div>
-                <div className="rounded-xl border bg-card p-3"><div className="text-xs text-muted-foreground">Weekly salary total</div><div className="text-xl font-black mt-1">{money(staff.filter(s => s.payType === "Weekly").reduce((n, s) => n + Number(s.weeklySalary || 0), 0))}</div></div>
-                <div className="rounded-xl border bg-card p-3"><div className="text-xs text-muted-foreground">Unpaid wage records</div><div className="text-xl font-black mt-1">{wages.filter(w => w.status !== "Paid").length} <span className="text-sm font-semibold">· {money(wages.filter(w => w.status !== "Paid").reduce((n, w) => n + Number(w.amount || 0), 0))}</span></div></div>
-              </div>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 mt-4">
-                <input value={staffSearch} onChange={e => setStaffSearch(e.target.value)} placeholder={tr("Search employee name, email or role")} className="w-full p-2 border rounded-lg bg-background text-xs" />
-                <select value={staffPayFilter} onChange={e => setStaffPayFilter(e.target.value)} className="w-full p-2 border rounded-lg bg-background text-xs"><option>All pay types</option><option>Monthly</option><option>Weekly</option><option>Daily</option></select>
-              </div>
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mt-4">
-                {staff.filter(s => { const q = staffSearch.trim().toLowerCase(); return (!q || `${s.name} ${s.email || ""} ${s.role}`.toLowerCase().includes(q)) && (staffPayFilter === "All pay types" || s.payType === staffPayFilter); }).map((s) => (
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mt-6">
+                {staff.map((s) => (
                   <div
                     key={s.name}
                     className="p-5 rounded-2xl border bg-card/60 hover:bg-card border-border/70 hover:border-indigo-500/80 transition-all cursor-pointer shadow-sm relative group flex flex-col justify-between"
@@ -4282,7 +4179,6 @@ export default function Home() {
 
                       <div className="mb-4">
                         <div className="font-bold text-sm text-foreground leading-tight">{s.name}</div>
-                        <div className="text-[11px] text-muted-foreground mt-1 break-all">{s.email || "No email added"}</div>
                         <div className="flex items-center gap-1.5 mt-1">
                           <span className={`designation-badge designation-${s.role.toLowerCase()}`}>
                             {s.role}
@@ -4325,13 +4221,13 @@ export default function Home() {
 
               <div className="panel management-panel mt-6">
                 <div className="p-4 border-b grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
-                  <input value={expenseSearch} onChange={e => setExpenseSearch(e.target.value)} placeholder={tr("Search description or vendor")} className="w-full h-[54px] box-border px-3 border rounded-lg bg-background text-xs" />
-                  <select value={expenseCategoryFilter} onChange={e => setExpenseCategoryFilter(e.target.value)} className="w-full h-[54px] box-border px-3 border rounded-lg bg-background text-xs">
+                  <input value={expenseSearch} onChange={e => setExpenseSearch(e.target.value)} placeholder={tr("Search description or vendor")} className="w-full p-2 border rounded-lg bg-background text-xs" />
+                  <select value={expenseCategoryFilter} onChange={e => setExpenseCategoryFilter(e.target.value)} className="w-full p-2 border rounded-lg bg-background text-xs">
                     <option>{tr("All categories")}</option>
                     {[...new Set(expenses.map(e => e.category).filter(Boolean))].sort().map(c => <option key={c}>{c}</option>)}
                   </select>
-                  <label className="text-xs text-muted-foreground">{tr("From")} <input type="date" value={expenseStartDate} onChange={e => setExpenseStartDate(e.target.value)} className="block w-full h-[34px] box-border px-2 border rounded-lg bg-background text-xs" /></label>
-                  <label className="text-xs text-muted-foreground">To <input type="date" value={expenseEndDate} onChange={e => setExpenseEndDate(e.target.value)} className="block w-full h-[34px] box-border px-2 border rounded-lg bg-background text-xs" /></label>
+                  <label className="text-xs text-muted-foreground">{tr("From")} <input type="date" value={expenseStartDate} onChange={e => setExpenseStartDate(e.target.value)} className="block w-full p-2 border rounded-lg bg-background text-xs" /></label>
+                  <label className="text-xs text-muted-foreground">To <input type="date" value={expenseEndDate} onChange={e => setExpenseEndDate(e.target.value)} className="block w-full p-2 border rounded-lg bg-background text-xs" /></label>
                 </div>
                 <div className="table-scroll">
                   <table className="enhanced-data-table">
@@ -4346,7 +4242,7 @@ export default function Home() {
                           && (expenseCategoryFilter === "All categories" || e.category === expenseCategoryFilter)
                           && (!expenseStartDate || d >= expenseStartDate)
                           && (!expenseEndDate || d <= expenseEndDate);
-                      }).sort((a, b) => String(a.date || "").localeCompare(String(b.date || ""))).map((e) => (
+                      }).map((e) => (
                         <tr key={e.id}>
                           <td className="text-xs text-muted-foreground">{new Date(`${e.date}T12:00:00`).toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" })}</td>
                           <td className="strong">{e.name}</td>
@@ -4402,7 +4298,7 @@ export default function Home() {
                     const matchesSearch = !q || `${sp.name} ${sp.contact || ""} ${sp.phone || ""} ${sp.email || ""}`.toLowerCase().includes(q);
                     const hasTransactions = expenses.some(e => e.supplierId === sp.id) || supplierPayments.some(p => p.supplierId === sp.id);
                     return matchesSearch && (supplierActivityFilter === "All suppliers" || (supplierActivityFilter === "With transactions" ? hasTransactions : !hasTransactions));
-                  }).sort((a, b) => a.name.localeCompare(b.name)).map((sp) => (
+                  }).map((sp) => (
                     <div
                       key={sp.id}
                       onClick={() => setSupplierDetail(sp.id)}
@@ -4428,7 +4324,7 @@ export default function Home() {
                     const transactions = [
                       ...supplierExpenses.map(e => ({ id: `expense-${e.id}`, date: e.date, type: "Purchase / Expense", description: e.name, amount: Number(e.amount || 0), method: e.vendor || "—" })),
                       ...supplierPaymentsForHistory.map(p => ({ id: `payment-${p.id}`, date: p.date, type: "Payment", description: p.note || "Supplier payment", amount: Number(p.amount || 0), method: p.method || "—" })),
-                    ].sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+                    ].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
                     const purchases = supplierExpenses.reduce((n, e) => n + Number(e.amount || 0), 0);
                     const payments = supplierPaymentsForHistory.reduce((n, p) => n + Number(p.amount || 0), 0);
                     return selected ? (
@@ -4591,13 +4487,7 @@ export default function Home() {
             </>
           )}
 
-          {/* SUPPORT & HELP — restore the management workspace in the admin console */}
-          {view === "support" && isAdmin && (
-            <div className="space-y-4">
-              <div className="page-head"><div><div className="eyebrow">{tr("PLATFORM SUPPORT")}</div><h1>{tr("Support & Help")}</h1><p>{tr("Manage the phone, WhatsApp, email and guidance shown to restaurant owners.")}</p></div></div>
-              <AdminSettingsPanel />
-            </div>
-          )}
+          {/* SUPPORT & HELP */}
           {view === "support" && !isAdmin && (
             <div className="space-y-6">
               <div className="page-head"><div><div className="eyebrow">{tr("HELP & SUPPORT")}</div><h1>{tr("Support & Help")}</h1><p>{tr("Contact the RestoPulse support team for billing, technical, and restaurant operations assistance.")}</p></div></div>
@@ -4731,33 +4621,29 @@ export default function Home() {
                   <form onSubmit={handleResetPassword} className="space-y-3">
                     <label className="block space-y-1">
                       <span className="text-xs font-medium text-muted-foreground">{tr("New Password")}</span>
-                      <span className="relative block">
-                        <input
-                          type={showNewPassword ? "text" : "password"}
-                          required
-                          minLength={6}
-                          value={newPassword}
-                          onChange={(e) => setNewPassword(e.target.value)}
-                          placeholder="••••••••"
-                          className="w-full p-2 pr-10 border rounded-lg text-xs bg-background"
-                        />
-                        <button type="button" className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground" aria-label={showNewPassword ? "Hide password" : "Show password"} onClick={() => setShowNewPassword(v => !v)}>{showNewPassword ? <EyeOff size={15}/> : <Eye size={15}/>}</button>
-                      </span>
+                      <input
+                        type={showNewPassword ? "text" : "password"}
+                        required
+                        minLength={6}
+                        value={newPassword}
+                        onChange={(e) => setNewPassword(e.target.value)}
+                        placeholder="••••••••"
+                        className="w-full p-2 pr-10 border rounded-lg text-xs bg-background"
+                      />
+                      <button type="button" className="text-muted-foreground" aria-label={showNewPassword ? "Hide password" : "Show password"} onClick={() => setShowNewPassword(v => !v)}>{showNewPassword ? <EyeOff size={15}/> : <Eye size={15}/>}</button>
                     </label>
                     <label className="block space-y-1">
                       <span className="text-xs font-medium text-muted-foreground">{tr("Confirm New Password")}</span>
-                      <span className="relative block">
-                        <input
-                          type={showConfirmPassword ? "text" : "password"}
-                          required
-                          minLength={6}
-                          value={confirmPassword}
-                          onChange={(e) => setConfirmPassword(e.target.value)}
-                          placeholder="••••••••"
-                          className="w-full p-2 pr-10 border rounded-lg text-xs bg-background"
-                        />
-                        <button type="button" className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground" aria-label={showConfirmPassword ? "Hide password" : "Show password"} onClick={() => setShowConfirmPassword(v => !v)}>{showConfirmPassword ? <EyeOff size={15}/> : <Eye size={15}/>}</button>
-                      </span>
+                      <input
+                        type={showConfirmPassword ? "text" : "password"}
+                        required
+                        minLength={6}
+                        value={confirmPassword}
+                        onChange={(e) => setConfirmPassword(e.target.value)}
+                        placeholder="••••••••"
+                        className="w-full p-2 pr-10 border rounded-lg text-xs bg-background"
+                      />
+                      <button type="button" className="text-muted-foreground" aria-label={showConfirmPassword ? "Hide password" : "Show password"} onClick={() => setShowConfirmPassword(v => !v)}>{showConfirmPassword ? <EyeOff size={15}/> : <Eye size={15}/>}</button>
                     </label>
                     <button type="submit" className="primary-btn w-full flex items-center justify-center gap-2" disabled={pwdBusy}>
                       <KeyRound size={16} /> {pwdBusy ? "Resetting…" : "Reset Password"}
@@ -4784,7 +4670,6 @@ export default function Home() {
               </div>
 
               <div className="panel management-panel mt-6">
-                <div className="p-3 border-b"><input value={adminRestaurantSearch} onChange={e => setAdminRestaurantSearch(e.target.value)} placeholder={tr("Search restaurant, owner, email or business type")} className="w-full p-2 border rounded-lg bg-background text-xs" /></div>
                 <div className="table-scroll">
                   <table>
                     <thead>
@@ -4799,7 +4684,7 @@ export default function Home() {
                       </tr>
                     </thead>
                     <tbody>
-                      {restaurants.filter((r:any) => { const q = adminRestaurantSearch.trim().toLowerCase(); return !q || `${r.name} ${r.owner || ""} ${r.email || ""} ${r.businessType || ""}`.toLowerCase().includes(q); }).map((r: any) => (
+                      {restaurants.map((r: any) => (
                         <tr key={r.id}>
                           <td><b>{r.name}</b></td>
                           <td>{r.owner}</td>
@@ -4833,12 +4718,12 @@ export default function Home() {
                 <button className="primary-btn flex items-center gap-1.5" onClick={() => { setEditingAdminId(null); setAdminForm({ name: "", email: "", password: "", permissions: defaultAdminPermissions }); setModal("admin"); }}><Plus size={16}/> {tr("Add new admin")}</button>
               </div>
               <div className="panel management-panel mt-6">
-                <div className="table-scroll"><table><thead><tr><th>{tr("ADMIN")}</th><th>{tr("EMAIL")}</th><th>{tr("CREATED")}</th><th>{tr("SECTION ACCESS")}</th><th>{tr("ACTIONS")}</th></tr></thead>
-                <tbody>{admins.map((a: any) => <tr key={a.id}><td><b>{a.name}</b></td><td>{a.email}</td><td>{a.created_at ? new Date(a.created_at).toLocaleDateString("en-IN") : "—"}</td><td className="text-xs">{Object.entries(a.permissions || {}).filter(([,enabled]) => enabled === true).map(([key]) => key === "overview" ? "Overview" : key === "pricing" ? "Pricing" : key === "admins" ? "Manage admins" : key.charAt(0).toUpperCase() + key.slice(1)).join(", ") || "No sections enabled"}</td><td><div className="flex gap-1.5">
-                  <button className="quiet-btn text-xs" title={tr("Edit admin")} onClick={() => { setEditingAdminId(a.id); setAdminForm({ name: a.name || "", email: a.email || "", password: "", permissions: { ...defaultAdminPermissions, ...(a.permissions || {}) } }); setModal("admin"); }}><Pencil size={13}/></button>
+                <div className="table-scroll"><table><thead><tr><th>{tr("ADMIN")}</th><th>{tr("EMAIL")}</th><th>{tr("CREATED")}</th><th>{tr("ACTIONS")}</th></tr></thead>
+                <tbody>{admins.map((a: any) => <tr key={a.id}><td><b>{a.name}</b></td><td>{a.email}</td><td>{a.created_at ? new Date(a.created_at).toLocaleDateString("en-IN") : "—"}</td><td><div className="flex gap-1.5">
+                  <button className="quiet-btn text-xs" title={tr("Edit admin")} onClick={() => { setEditingAdminId(a.id); setAdminForm({ name: a.name || "", email: a.email || "", password: "", permissions: { restaurants: true, approvals: true, pricing: true, settings: true, admins: false, ...(a.permissions || {}) } }); setModal("admin"); }}><Pencil size={13}/></button>
                   <button className="quiet-btn text-xs text-red-600" title={tr("Remove admin")} onClick={async () => { if (!confirm(`Remove ${a.name || a.email} from platform admins?`)) return; const res = await authedFetch("/api/admin/admins", { method: "DELETE", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ id: a.id }) }); const j = await res.json(); if (!res.ok) { toast.error(j.error || "Could not remove admin"); return; } await fetchAdmins(); toast.success("Admin access removed"); }}><Trash2 size={13}/></button>
                 </div></td></tr>)}
-                {!admins.length && <tr><td colSpan={5} className="text-center py-8 text-muted-foreground">{tr("No platform admins found.")}</td></tr>}</tbody></table></div>
+                {!admins.length && <tr><td colSpan={4} className="text-center py-8 text-muted-foreground">{tr("No platform admins found.")}</td></tr>}</tbody></table></div>
               </div>
             </>
           )}
@@ -5057,7 +4942,7 @@ export default function Home() {
             <label>{tr("Admin name")}<input value={adminForm.name} onChange={e => setAdminForm({ ...adminForm, name: e.target.value })} /></label>
             <label>{tr("Admin email")}<input type="email" value={adminForm.email} onChange={e => setAdminForm({ ...adminForm, email: e.target.value })} /></label>
             <label>Password {editingAdminId ? "(leave blank to keep current)" : "(optional)"}<div className="relative"><input type={showAdminPassword ? "text" : "password"} minLength={12} placeholder={tr("Minimum 12 characters")} value={adminForm.password} onChange={e => setAdminForm({ ...adminForm, password: e.target.value })} className="pr-10" /><button type="button" className="absolute right-2 top-1/2 -translate-y-1/2" aria-label={showAdminPassword ? "Hide password" : "Show password"} onClick={() => setShowAdminPassword(v => !v)}>{showAdminPassword ? <EyeOff size={15}/> : <Eye size={15}/>}</button></div></label>
-            <div className="border rounded-xl p-3 space-y-2"><b className="text-xs">{tr("Section access")}</b>{([['overview', 'Overview'], ['restaurants', 'Restaurants'], ['approvals', 'Approvals'], ['pricing', 'Pricing plans'], ['settings', 'Settings'], ['support', 'Support & Help'], ['admins', 'Manage admins']] as const).map(([key, label]) => <label key={key} className="flex items-center gap-2 text-xs"><input type="checkbox" checked={!!(adminForm.permissions as any)[key]} onChange={e => setAdminForm({ ...adminForm, permissions: { ...adminForm.permissions, [key]: e.target.checked } })} />{label}</label>)}</div>
+            <div className="border rounded-xl p-3 space-y-2"><b className="text-xs">{tr("Section access")}</b>{([['restaurants', 'Restaurants'], ['approvals', 'Approvals'], ['pricing', 'Pricing plans'], ['settings', 'Settings'], ['support', 'Support & Help'], ['admins', 'Manage admins']] as const).map(([key, label]) => <label key={key} className="flex items-center gap-2 text-xs"><input type="checkbox" checked={!!(adminForm.permissions as any)[key]} onChange={e => setAdminForm({ ...adminForm, permissions: { ...adminForm.permissions, [key]: e.target.checked } })} />{label}</label>)}</div>
           </div>
           <DialogFooter><button className="quiet-btn" onClick={() => setModal(null)}>{tr("Cancel")}</button><button className="primary-btn" onClick={save}>{editingAdminId ? "Save changes" : "Add admin"}</button></DialogFooter>
         </DialogContent>
@@ -5072,7 +4957,7 @@ export default function Home() {
             <label>{tr("Owner email")}<input type="email" disabled={editing !== null} value={form.email || ""} onChange={e => setForm({ ...form, email: e.target.value })} /></label>
             <label>{tr("Owner phone")}<input value={form.phone || ""} onChange={e => setForm({ ...form, phone: e.target.value })} /></label>
             <label>{tr("City")}<input value={form.city || ""} onChange={e => setForm({ ...form, city: e.target.value })} /></label>
-            <label>{tr("Business type")}<select value={form.businessType || "restaurant"} onChange={e => setForm({ ...form, businessType: e.target.value })}><option value="restaurant">Restaurant</option><option value="fruit_shop">Fruit shop</option><option value="juice_shop">Juice shop</option><option value="vegetable_shop">Vegetable shop</option><option value="grocery_store">Grocery store</option><option value="retail">Other retail</option></select><span className="text-xs text-muted-foreground">{tr("Choose the business type to configure the appropriate inventory and POS workflow.")}</span></label>
+            <label>{tr("Business type")}<select value={form.businessType || "restaurant"} onChange={e => setForm({ ...form, businessType: e.target.value })}><option value="restaurant">Restaurant</option><option value="fruit_shop">Fruit shop</option><option value="vegetable_shop">Vegetable shop</option><option value="grocery_store">Grocery store</option><option value="retail">Other retail</option></select><span className="text-xs text-muted-foreground">{tr("Choose the business type to configure the appropriate inventory and POS workflow.")}</span></label>
             {!editing && <label>{tr("Temporary password")}<div className="relative"><input type={showRestaurantPassword ? "text" : "password"} minLength={12} placeholder={tr("Minimum 12 characters")} value={form.password || ""} onChange={e => setForm({ ...form, password: e.target.value })} className="pr-10" /><button type="button" className="absolute right-2 top-1/2 -translate-y-1/2" aria-label={showRestaurantPassword ? "Hide password" : "Show password"} onClick={() => setShowRestaurantPassword(v => !v)}>{showRestaurantPassword ? <EyeOff size={15}/> : <Eye size={15}/>}</button></div></label>}
             {editing && <><label>{tr("Plan")}<select value={form.plan || "Free Trial"} onChange={e => setForm({ ...form, plan: e.target.value })}>{plans.map(x => <option key={x.id}>{x.name}</option>)}</select></label><label>{tr("Status")}<select value={form.status || "Active"} onChange={e => setForm({ ...form, status: e.target.value })}><option>{tr("Trial")}</option><option>{tr("Active")}</option><option>{tr("Paused")}</option></select></label><label>{tr("Renewal date")}<input type="date" value={form.renewal === "—" ? "" : form.renewal || ""} onChange={e => setForm({ ...form, renewal: e.target.value })} /></label></>}
           </div>
@@ -5332,7 +5217,7 @@ export default function Home() {
             </label>
             {isProduceShop && <div className="space-y-2">
               <span className="text-sm font-medium">Fruit / vegetable image</span>
-              {invForm.imageUrl ? <div className="flex items-center gap-3"><img src={invForm.imageUrl} alt="Inventory item preview" className="h-20 w-20 rounded-lg object-cover border" /><button type="button" className="quiet-btn" onClick={() => setInvForm(prev => ({ ...prev, imageUrl: "" }))}>Remove image</button></div> : <div className="h-20 w-20 rounded-lg border bg-muted flex items-center justify-center text-2xl">{tenantInfo.business_type === "fruit_shop" ? "🍎" : tenantInfo.business_type === "juice_shop" ? "🥤" : "🥬"}</div>}
+              {invForm.imageUrl ? <div className="flex items-center gap-3"><img src={invForm.imageUrl} alt="Inventory item preview" className="h-20 w-20 rounded-lg object-cover border" /><button type="button" className="quiet-btn" onClick={() => setInvForm(prev => ({ ...prev, imageUrl: "" }))}>Remove image</button></div> : <div className="h-20 w-20 rounded-lg border bg-muted flex items-center justify-center text-2xl">{tenantInfo.business_type === "fruit_shop" ? "🍎" : "🥬"}</div>}
               <label className="inventory-image-picker">
                 <input type="file" accept="image/png,image/jpeg,image/webp,image/gif" disabled={inventoryImageUploading} onChange={async (e) => {
                   const input = e.currentTarget; const file = input.files?.[0]; if (!file) return;
@@ -5374,11 +5259,11 @@ export default function Home() {
             </div>
             <div className="grid grid-cols-2 gap-3">
               <label className="block space-y-1">
-                <span className="text-sm font-medium">{tr(`Cost Price (per ${invForm.unit || "unit"})`)}</span>
+                <span className="text-sm font-medium">{tr("Cost Price (per unit)")}</span>
                 <input type="number" min="0" step="0.01" value={invForm.cost} onChange={(e) => setInvForm({ ...invForm, cost: e.target.value })} className="w-full p-2 border rounded-md text-sm bg-transparent" />
               </label>
               {isProduceShop && <label className="block space-y-1">
-                <span className="text-sm font-medium">{tr(`Selling Price (per ${invForm.unit || "unit"})`)}</span>
+                <span className="text-sm font-medium">{tr("Selling Price (per unit)")}</span>
                 <input type="number" min="0" step="0.01" value={invForm.sellingPrice} onChange={(e) => setInvForm({ ...invForm, sellingPrice: e.target.value })} className="w-full p-2 border rounded-md text-sm bg-transparent" />
               </label>}
             </div>
@@ -5558,11 +5443,7 @@ export default function Home() {
             </div>
 
             <label className="block space-y-1">
-              <span className="font-semibold text-muted-foreground">Employee email *</span>
-              <input type="email" required value={form.email || ""} onChange={(e) => setForm({ ...form, email: e.target.value })} placeholder="employee@example.com" className="w-full p-2 border rounded-lg bg-background" />
-            </label>
-            <label className="block space-y-1">
-              <span className="font-semibold text-muted-foreground">Login password {editing ? "(leave blank to keep existing)" : "(optional unless login is needed)"}</span>
+              <span className="font-semibold text-muted-foreground">Login password {editing ? "(leave blank to keep existing)" : ""}</span>
               <div className="relative"><input type={showEmployeePassword ? "text" : "password"} value={form.password || ""} onChange={(e) => setForm({ ...form, password: e.target.value })} placeholder={tr("Minimum 12 characters")} className="w-full p-2 pr-10 border rounded-lg bg-background" /><button type="button" className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground" aria-label={showEmployeePassword ? "Hide password" : "Show password"} onClick={() => setShowEmployeePassword(v => !v)}>{showEmployeePassword ? <EyeOff size={15}/> : <Eye size={15}/>}</button></div>
               <span className="text-[11px] text-muted-foreground">{tr("The employee signs in with the email above and receives only the selected designation's permissions.")}</span>
             </label>
@@ -5661,7 +5542,7 @@ export default function Home() {
                 </span>
                 <div>
                   <h3 className="text-sm font-bold">{selectedStaff.name}</h3>
-                  <p className="text-muted-foreground">{selectedStaff.role} · {selectedStaff.phone}</p><p className="text-muted-foreground break-all">{selectedStaff.email || "No email added"}</p>
+                  <p className="text-muted-foreground">{selectedStaff.role} · {selectedStaff.phone}</p>
                   <p className="text-indigo-600 font-semibold mt-0.5">
                     {selectedStaff.payType === "Monthly"
                       ? `Monthly: ${money(selectedStaff.monthlySalary)}`
@@ -5751,9 +5632,8 @@ export default function Home() {
 
               <div className="space-y-2">
                 <div className="font-bold">{tr("Wage History")}</div>
-                <div className="grid grid-cols-2 gap-2"><label className="space-y-1"><span>{tr("From")}</span><input type="date" value={wageHistoryStart} onChange={e => setWageHistoryStart(e.target.value)} className="w-full p-1.5 border rounded" /></label><label className="space-y-1"><span>{tr("To")}</span><input type="date" value={wageHistoryEnd} onChange={e => setWageHistoryEnd(e.target.value)} className="w-full p-1.5 border rounded" /></label></div>
                 <div className="space-y-1.5 max-h-48 overflow-y-auto">
-                  {wages.filter(w => w.staffId === selectedStaff.id && (!wageHistoryStart || w.date >= wageHistoryStart) && (!wageHistoryEnd || w.date <= wageHistoryEnd)).sort((a, b) => String(a.date).localeCompare(String(b.date))).map(w => (
+                  {wages.filter(w => w.staffId === selectedStaff.id).map(w => (
                     <div key={w.id} className="p-2 border rounded-lg flex justify-between items-center">
                       <div>
                         <div>{w.date}</div>
@@ -5785,7 +5665,7 @@ export default function Home() {
 
       {/* PRINTABLE THERMAL RECEIPT DIALOG */}
       <Dialog open={!!receipt} onOpenChange={(v) => !v && setReceipt(null)}>
-        <DialogContent className="max-w-md p-6 bg-slate-900 border border-slate-800 text-white">
+        <DialogContent className={`receipt-dialog-content p-6 bg-slate-900 border border-slate-800 text-white ${printPaperSize === "A4" ? "receipt-dialog-a4" : ""}`}>
           <DialogHeader className="no-print">
             <DialogTitle className="text-base font-bold">{tr("Bill Details & Receipt")}</DialogTitle>
             <DialogDescription className="text-xs text-muted-foreground">

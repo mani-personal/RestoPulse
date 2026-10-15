@@ -3981,8 +3981,8 @@ export default function Home() {
               <div className="panel sales-history-panel">
                 <div className="p-3 border-b grid grid-cols-1 sm:grid-cols-3 gap-2">
                   <input value={saleHistorySearch} onChange={e => setSaleHistorySearch(e.target.value)} placeholder={tr("Search receipt, item or payment")} className="w-full p-2 border rounded-lg bg-background text-xs" />
-                  <label className="text-xs text-muted-foreground">{tr("From")}<input type="date" value={saleHistoryStart} onChange={e => setSaleHistoryStart(e.target.value)} className="block w-full p-2 border rounded-lg bg-background text-xs" /></label>
-                  <label className="text-xs text-muted-foreground">{tr("To")}<input type="date" value={saleHistoryEnd} onChange={e => setSaleHistoryEnd(e.target.value)} className="block w-full p-2 border rounded-lg bg-background text-xs" /></label>
+                  <label className="text-xs text-muted-foreground">{tr("From")}<input type="date" value={saleHistoryStart} onChange={e => setSaleHistoryStart(e.target.value)} className="block w-full h-[54px] box-border px-3 border rounded-lg bg-background text-xs" /></label>
+                  <label className="text-xs text-muted-foreground">{tr("To")}<input type="date" value={saleHistoryEnd} onChange={e => setSaleHistoryEnd(e.target.value)} className="block w-full h-[54px] box-border px-3 border rounded-lg bg-background text-xs" /></label>
                 </div>
                 <div className="table-wrap">
                   <table className="w-full text-sm sales-history-table">
@@ -4116,14 +4116,14 @@ export default function Home() {
               </div>
               <div className="kpi-grid mt-4">
                 {[
-                  ["Total items", inventoryList.length, "catalogued stock"],
-                  ["Available stock", inventoryList.reduce((n, x) => n + Number(x.onHand || 0), 0), "units on hand"],
-                  ["Stock value", money(inventoryList.reduce((n, x) => n + Number(x.onHand || 0) * Number(x.cost || 0), 0)), "based on recorded cost"],
-                  ["Low stock", inventoryList.filter(x => x.onHand > 0 && x.onHand <= x.reorderLevel).length, "reorder attention"],
-                  ["Out of stock", inventoryList.filter(x => x.onHand === 0).length, "needs replenishment"],
-                ].map(([label, value, note]) => <div className="kpi-card" key={String(label)}><div className="kpi-top"><span>{label}</span><span className="kpi-icon teal"><Package size={19}/></span></div><strong>{String(value)}</strong><div className="kpi-foot"><span>{note}</span></div></div>)}
+                  ["Total items", inventoryList.length, "catalogued stock", "All stock"],
+                  ["Available stock", inventoryList.reduce((n, x) => n + Number(x.onHand || 0), 0), "units on hand", "In stock"],
+                  ["Stock value", money(inventoryList.reduce((n, x) => n + Number(x.onHand || 0) * Number(x.cost || 0), 0)), "based on recorded cost", "All stock"],
+                  ["Low stock", inventoryList.filter(x => x.onHand > 0 && x.onHand <= x.reorderLevel).length, "reorder attention", "Low stock"],
+                  ["Out of stock", inventoryList.filter(x => x.onHand <= 0).length, "needs replenishment", "Out of stock"],
+                ].map(([label, value, note, filter]) => <button type="button" className="kpi-card text-left cursor-pointer hover:shadow-md focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary transition-shadow" key={String(label)} onClick={() => { setInventoryStatusFilter(String(filter)); setInventorySearch(""); document.getElementById("inventory-items-table")?.scrollIntoView({ behavior: "smooth", block: "start" }); }} aria-label={`View ${String(label)} inventory`}><div className="kpi-top"><span>{label}</span><span className="kpi-icon teal"><Package size={19}/></span></div><strong>{String(value)}</strong><div className="kpi-foot"><span>{note}</span></div><div className="text-[10px] text-muted-foreground mt-1">Click to view details ↗</div></button>)}
               </div>
-              <div className="panel management-panel inventory-page bg-card border rounded-xl p-6 mt-4">
+              <div id="inventory-items-table" className="panel management-panel inventory-page bg-card border rounded-xl p-6 mt-4 scroll-mt-4">
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 mb-4">
                   <input value={inventorySearch} onChange={e => setInventorySearch(e.target.value)} placeholder={tr("Search inventory item or category")} className="w-full p-2 border rounded-lg bg-background text-xs" />
                   <select value={inventoryStatusFilter} onChange={e => setInventoryStatusFilter(e.target.value)} className="w-full p-2 border rounded-lg bg-background text-xs"><option>All stock</option><option>In stock</option><option>Low stock</option><option>Out of stock</option></select>
@@ -4194,8 +4194,8 @@ export default function Home() {
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 mb-4">
                   <input value={inventoryHistorySearch} onChange={e => setInventoryHistorySearch(e.target.value)} placeholder={tr("Search item or transaction")} className="w-full h-[54px] box-border px-3 border rounded-lg bg-background text-xs" />
                   <select value={inventoryHistoryTypeFilter} onChange={e => setInventoryHistoryTypeFilter(e.target.value)} className="w-full h-[54px] box-border px-3 border rounded-lg bg-background text-xs"><option>All transactions</option>{Array.from(new Set(inventoryTransactions.map((tx: any) => String(tx.transaction_type || "Other")))).sort().map(type => <option key={type}>{type}</option>)}</select>
-                  <label className="text-xs text-muted-foreground">{tr("From date")}<input type="date" value={inventoryHistoryStart} max={inventoryHistoryEnd || undefined} onChange={e => setInventoryHistoryStart(e.target.value)} className="mt-1 w-full h-[34px] box-border px-2 border rounded-lg bg-background text-xs" /></label>
-                  <label className="text-xs text-muted-foreground">{tr("To date")}<input type="date" value={inventoryHistoryEnd} min={inventoryHistoryStart || undefined} onChange={e => setInventoryHistoryEnd(e.target.value)} className="mt-1 w-full h-[34px] box-border px-2 border rounded-lg bg-background text-xs" /></label>
+                  <label className="text-xs text-muted-foreground">{tr("From date")}<input type="date" value={inventoryHistoryStart} max={inventoryHistoryEnd || undefined} onChange={e => setInventoryHistoryStart(e.target.value)} className="mt-1 w-full h-[54px] box-border px-3 border rounded-lg bg-background text-xs" /></label>
+                  <label className="text-xs text-muted-foreground">{tr("To date")}<input type="date" value={inventoryHistoryEnd} min={inventoryHistoryStart || undefined} onChange={e => setInventoryHistoryEnd(e.target.value)} className="mt-1 w-full h-[54px] box-border px-3 border rounded-lg bg-background text-xs" /></label>
                 </div>
                 <div className="flex justify-between items-center text-xs text-muted-foreground mb-2"><span>{inventoryTransactions.filter((tx: any) => { const itemName = inventoryList.find(i => i.id === tx.inventory_item_id)?.name || "Inventory item"; const q = inventoryHistorySearch.trim().toLowerCase(); const textMatch = !q || `${itemName} ${tx.transaction_type || ""}`.toLowerCase().includes(q); const typeMatch = inventoryHistoryTypeFilter === "All transactions" || String(tx.transaction_type || "Other") === inventoryHistoryTypeFilter; const date = String(tx.created_at || "").slice(0, 10); return textMatch && typeMatch && (!inventoryHistoryStart || date >= inventoryHistoryStart) && (!inventoryHistoryEnd || date <= inventoryHistoryEnd); }).length} {tr("records")}</span><button type="button" className="quiet-btn text-xs" onClick={() => { setInventoryHistorySearch(""); setInventoryHistoryTypeFilter("All transactions"); setInventoryHistoryStart(""); setInventoryHistoryEnd(""); }}>{tr("Clear filters")}</button></div>
                 <div className="table-scroll inventory-history-table-wrap">
@@ -4330,8 +4330,8 @@ export default function Home() {
                     <option>{tr("All categories")}</option>
                     {[...new Set(expenses.map(e => e.category).filter(Boolean))].sort().map(c => <option key={c}>{c}</option>)}
                   </select>
-                  <label className="text-xs text-muted-foreground">{tr("From")} <input type="date" value={expenseStartDate} onChange={e => setExpenseStartDate(e.target.value)} className="block w-full h-[34px] box-border px-2 border rounded-lg bg-background text-xs" /></label>
-                  <label className="text-xs text-muted-foreground">To <input type="date" value={expenseEndDate} onChange={e => setExpenseEndDate(e.target.value)} className="block w-full h-[34px] box-border px-2 border rounded-lg bg-background text-xs" /></label>
+                  <label className="text-xs text-muted-foreground">{tr("From")} <input type="date" value={expenseStartDate} onChange={e => setExpenseStartDate(e.target.value)} className="block w-full h-[54px] box-border px-3 border rounded-lg bg-background text-xs" /></label>
+                  <label className="text-xs text-muted-foreground">To <input type="date" value={expenseEndDate} onChange={e => setExpenseEndDate(e.target.value)} className="block w-full h-[54px] box-border px-3 border rounded-lg bg-background text-xs" /></label>
                 </div>
                 <div className="table-scroll">
                   <table className="enhanced-data-table">

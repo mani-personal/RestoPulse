@@ -5722,7 +5722,7 @@ export default function Home() {
 
               <div className="flex justify-between text-[11px] font-bold">
                 <span>Bill: {receipt.id}</span>
-                <span>{receipt.type} {receipt.table ? `(${receipt.table})` : ''}</span>
+                {!isProduceShop && <span>{receipt.type} {receipt.table ? `(${receipt.table})` : ''}</span>}
               </div>
               <div className="text-[10px] text-gray-500">{receipt.issuedAt}</div>
 

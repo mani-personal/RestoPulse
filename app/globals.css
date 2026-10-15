@@ -362,31 +362,25 @@
   #printable-receipt-card.format-A4{width:190mm!important;max-width:190mm!important;padding:8mm!important;font-size:11px!important}
 }
 /* Business-themed photographic backgrounds for login and restaurant workspace. */
-.auth-page{background:linear-gradient(120deg,rgba(9,18,32,.82),rgba(16,28,43,.72)),url("https://images.unsplash.com/photo-1555992336-03a23c7b20ee?auto=format&fit=crop&w=2000&q=85") center/cover fixed!important}
+.auth-page{background:radial-gradient(ellipse at top left,rgba(45,74,105,.42),transparent 48%),linear-gradient(135deg,#0b1220 0%,#142235 55%,#18283b 100%)!important}
 .auth-page:before{content:"";position:fixed;inset:0;pointer-events:none;background:radial-gradient(circle at 15% 18%,rgba(245,158,11,.24),transparent 34%),linear-gradient(0deg,rgba(4,10,20,.2),transparent 60%)}
 .auth-card{position:relative;z-index:1;backdrop-filter:blur(10px);background:rgba(255,255,255,.96);border:1px solid rgba(255,255,255,.6);box-shadow:0 28px 90px rgba(0,0,0,.38)}
-.main-wrap{background-image:linear-gradient(115deg,rgba(246,248,251,.95),rgba(241,245,249,.93)),url("https://images.unsplash.com/photo-1414235077428-338989a2e8c0?auto=format&fit=crop&w=2000&q=85");background-size:cover;background-position:center;background-attachment:fixed}
-.dark .main-wrap{background-image:linear-gradient(115deg,rgba(12,20,34,.94),rgba(12,20,34,.9)),url("https://images.unsplash.com/photo-1414235077428-338989a2e8c0?auto=format&fit=crop&w=2000&q=85")}
+.main-wrap{background-image:linear-gradient(135deg,#f4f7fb 0%,#edf2f8 55%,#f8fafc 100%);background-attachment:scroll}
+.dark .main-wrap{background-image:linear-gradient(135deg,#0b1220 0%,#111d2e 55%,#142235 100%)}
 @media(max-width:767px){.auth-page,.main-wrap{background-attachment:scroll!important}.receipt-dialog-content,.receipt-dialog-content.receipt-dialog-a4{width:calc(100vw - 20px)!important;max-width:calc(100vw - 20px)!important;padding:12px!important}.receipt-dialog-a4 .receipt-paper.format-A4{padding:12px!important;font-size:9px!important}.receipt-dialog-a4 .receipt-paper th,.receipt-dialog-a4 .receipt-paper td{padding:5px 2px!important}}
 
 
-/* Console backgrounds are selected by business type; content surfaces remain readable. */
-.main-wrap.fruit-shop-console{
-  background-image:linear-gradient(115deg,rgba(9,20,30,.76),rgba(13,27,39,.68)),url("https://images.unsplash.com/photo-1542838132-92c53300491e?auto=format&fit=crop&w=2200&q=90")!important;
-  background-size:cover!important;background-position:center!important;background-attachment:fixed!important;
+/* Clean image-free console backgrounds: polished gradients with no photographic wallpaper. */
+.main-wrap.fruit-shop-console,.dark .main-wrap.fruit-shop-console{
+  background-image:linear-gradient(135deg,#10251f 0%,#17372d 48%,#122b25 100%)!important;
+  background-color:#10251f!important;background-size:auto!important;background-attachment:scroll!important;
 }
-.dark .main-wrap.fruit-shop-console{
-  background-image:linear-gradient(115deg,rgba(7,15,25,.84),rgba(8,20,31,.78)),url("https://images.unsplash.com/photo-1542838132-92c53300491e?auto=format&fit=crop&w=2200&q=90")!important;
-}
-.main-wrap.restaurant-console{
-  background-image:linear-gradient(115deg,rgba(12,20,32,.78),rgba(15,25,38,.70)),url("https://images.unsplash.com/photo-1414235077428-338989a2e8c0?auto=format&fit=crop&w=2200&q=90")!important;
-  background-size:cover!important;background-position:center!important;background-attachment:fixed!important;
-}
-.dark .main-wrap.restaurant-console{
-  background-image:linear-gradient(115deg,rgba(8,14,24,.86),rgba(10,18,29,.82)),url("https://images.unsplash.com/photo-1414235077428-338989a2e8c0?auto=format&fit=crop&w=2200&q=90")!important;
+.main-wrap.restaurant-console,.dark .main-wrap.restaurant-console{
+  background-image:linear-gradient(135deg,#111c2d 0%,#1a2a40 52%,#142235 100%)!important;
+  background-color:#111c2d!important;background-size:auto!important;background-attachment:scroll!important;
 }
 .main-wrap.fruit-shop-console .panel,.main-wrap.fruit-shop-console .card,.main-wrap.fruit-shop-console .management-panel,
 .main-wrap.restaurant-console .panel,.main-wrap.restaurant-console .card,.main-wrap.restaurant-console .management-panel{
-  backdrop-filter:blur(5px);
+  backdrop-filter:none;
 }
-@media(max-width:767px){.main-wrap.fruit-shop-console,.main-wrap.restaurant-console{background-attachment:scroll!important;background-position:center top!important}}
+@media(max-width:767px){.main-wrap.fruit-shop-console,.main-wrap.restaurant-console{background-attachment:scroll!important}}

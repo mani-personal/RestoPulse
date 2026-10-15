@@ -370,14 +370,14 @@
 @media(max-width:767px){.auth-page,.main-wrap{background-attachment:scroll!important}.receipt-dialog-content,.receipt-dialog-content.receipt-dialog-a4{width:calc(100vw - 20px)!important;max-width:calc(100vw - 20px)!important;padding:12px!important}.receipt-dialog-a4 .receipt-paper.format-A4{padding:12px!important;font-size:9px!important}.receipt-dialog-a4 .receipt-paper th,.receipt-dialog-a4 .receipt-paper td{padding:5px 2px!important}}
 
 
-/* Clean image-free console backgrounds: polished gradients with no photographic wallpaper. */
-.main-wrap.fruit-shop-console,.dark .main-wrap.fruit-shop-console{
-  background-image:linear-gradient(135deg,#10251f 0%,#17372d 48%,#122b25 100%)!important;
-  background-color:#10251f!important;background-size:auto!important;background-attachment:scroll!important;
+/* Keep the established shared console theme for both restaurant and fruit shops. */
+.main-wrap.fruit-shop-console,.main-wrap.restaurant-console{
+  background-image:linear-gradient(135deg,#f4f7fb 0%,#edf2f8 55%,#f8fafc 100%)!important;
+  background-color:#f4f7fb!important;background-size:auto!important;background-attachment:scroll!important;
 }
-.main-wrap.restaurant-console,.dark .main-wrap.restaurant-console{
-  background-image:linear-gradient(135deg,#111c2d 0%,#1a2a40 52%,#142235 100%)!important;
-  background-color:#111c2d!important;background-size:auto!important;background-attachment:scroll!important;
+.dark .main-wrap.fruit-shop-console,.dark .main-wrap.restaurant-console{
+  background-image:linear-gradient(135deg,#0b1220 0%,#111d2e 55%,#142235 100%)!important;
+  background-color:#0b1220!important;background-size:auto!important;background-attachment:scroll!important;
 }
 .main-wrap.fruit-shop-console .panel,.main-wrap.fruit-shop-console .card,.main-wrap.fruit-shop-console .management-panel,
 .main-wrap.restaurant-console .panel,.main-wrap.restaurant-console .card,.main-wrap.restaurant-console .management-panel{

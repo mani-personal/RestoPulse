@@ -133,31 +133,22 @@
 .support-contact-row span{color:var(--text-muted);font-weight:700;flex:none}
 .support-contact-row a{color:var(--text);font-weight:750;overflow-wrap:anywhere;text-align:right}
 
-/* Receipt preview and print use a five-column grid that fits 58mm, 80mm and A4 paper. */
-.receipt-preview-shell{width:100%;display:flex;justify-content:center;align-items:flex-start;overflow:auto;padding:8px;background:linear-gradient(135deg,#172338,#26364d 52%,#111827);border:1px solid rgba(148,163,184,.24);border-radius:12px}
-.receipt-paper{box-sizing:border-box;flex:none;margin:0 auto!important;max-width:none!important;overflow-wrap:anywhere;word-break:normal}
-.receipt-paper.format-58mm{width:58mm!important;max-width:58mm!important;padding:2.2mm!important;font-size:7.5px!important;line-height:1.35!important}
-.receipt-paper.format-80mm{width:80mm!important;max-width:80mm!important;padding:3mm!important;font-size:9px!important;line-height:1.4!important}
+/* Receipt preview: the visible receipt uses exactly the same widths as printing. */
+.receipt-preview-shell{width:100%;display:flex;justify-content:center;align-items:flex-start;overflow:auto;padding:4px 2px 8px;background:#0b1220;border-radius:10px}
+.receipt-paper{box-sizing:border-box;flex:none;margin:0 auto!important;max-width:none!important;overflow-wrap:anywhere;word-break:break-word}
+.receipt-paper.format-58mm{width:58mm!important;max-width:58mm!important;padding:2.5mm!important;font-size:8.5px!important;line-height:1.35!important}
+.receipt-paper.format-80mm{width:80mm!important;max-width:80mm!important;padding:3.5mm!important;font-size:9.5px!important;line-height:1.4!important}
 .receipt-paper.format-A4{width:190mm!important;max-width:190mm!important;padding:8mm!important;font-size:11px!important;line-height:1.45!important}
-.receipt-paper table{width:100%!important;max-width:100%!important;table-layout:fixed!important;border-collapse:collapse!important}
-.receipt-paper th,.receipt-paper td{box-sizing:border-box;min-width:0;padding-left:1px!important;padding-right:1px!important;overflow-wrap:anywhere!important;word-break:normal!important;vertical-align:top}
-.receipt-paper .receipt-col-item{width:34%!important;text-align:left!important}
-.receipt-paper .receipt-col-qty{width:12%!important;text-align:center!important}
-.receipt-paper .receipt-col-sell{width:16%!important;text-align:right!important}
-.receipt-paper .receipt-col-discount{width:18%!important;text-align:right!important}
-.receipt-paper .receipt-col-total{width:20%!important;text-align:right!important}
-.receipt-paper.format-58mm th,.receipt-paper.format-58mm td{font-size:7px!important;letter-spacing:-.025em}
-.receipt-paper.format-58mm .receipt-col-item{width:32%!important}
-.receipt-paper.format-58mm .receipt-col-qty{width:12%!important}
-.receipt-paper.format-58mm .receipt-col-sell{width:17%!important}
-.receipt-paper.format-58mm .receipt-col-discount{width:19%!important}
-.receipt-paper.format-58mm .receipt-col-total{width:20%!important}
-.receipt-paper.format-80mm th,.receipt-paper.format-80mm td{font-size:8.5px!important}
-.receipt-paper.format-A4 .receipt-col-item{width:40%!important}
-.receipt-paper.format-A4 .receipt-col-qty{width:12%!important}
-.receipt-paper.format-A4 .receipt-col-sell{width:15%!important}
-.receipt-paper.format-A4 .receipt-col-discount{width:16%!important}
-.receipt-paper.format-A4 .receipt-col-total{width:15%!important}
+.receipt-paper table{width:100%!important;table-layout:fixed!important;border-collapse:collapse!important}
+.receipt-paper th,.receipt-paper td{overflow-wrap:anywhere!important;word-break:break-word!important;min-width:0}
+.receipt-paper th:nth-child(1),.receipt-paper td:nth-child(1){width:46%}
+.receipt-paper th:nth-child(2),.receipt-paper td:nth-child(2){width:14%}
+.receipt-paper th:nth-child(3),.receipt-paper td:nth-child(3){width:20%}
+.receipt-paper th:nth-child(4),.receipt-paper td:nth-child(4){width:20%}
+.receipt-paper.format-58mm th:nth-child(1),.receipt-paper.format-58mm td:nth-child(1){width:42%}
+.receipt-paper.format-58mm th:nth-child(2),.receipt-paper.format-58mm td:nth-child(2){width:13%}
+.receipt-paper.format-58mm th:nth-child(3),.receipt-paper.format-58mm td:nth-child(3){width:22%}
+.receipt-paper.format-58mm th:nth-child(4),.receipt-paper.format-58mm td:nth-child(4){width:23%}
 
 /* Laptop/tablet responsive hardening */
 @media (max-width:1200px) and (min-width:768px){
@@ -357,37 +348,3 @@
  .kpi-grid{grid-template-columns:repeat(2,minmax(0,1fr));}
 }
 @media(max-width:380px){.inventory-page{padding:8px!important}.inventory-table{min-width:620px}.kpi-grid{grid-template-columns:minmax(0,1fr);}}
-
-/* Shared filter-control sizing: date fields align with adjacent search/select controls. */
-.date-filter-field{display:flex;flex-direction:column;justify-content:flex-end;gap:4px;width:100%;min-width:0;align-self:stretch;line-height:1.25;margin:0}
-.date-filter-field>span{display:block;min-height:14px;line-height:14px}
-.date-filter-control{display:block!important;width:100%!important;min-width:0!important;max-width:100%;height:54px!important;min-height:54px;box-sizing:border-box;padding:0 12px!important;border:1px solid var(--border);border-radius:12px;background:var(--panel);color:var(--text);font-size:12px;line-height:normal;appearance:auto;-webkit-appearance:auto;box-shadow:0 1px 2px rgba(15,23,42,.04);transition:border-color .15s ease,box-shadow .15s ease}
-.date-filter-control::-webkit-date-and-time-value{text-align:left}
-.date-filter-control:focus,.filter-control:focus{outline:none;border-color:var(--primary)!important;box-shadow:0 0 0 3px color-mix(in srgb,var(--primary) 16%,transparent)!important}
-.filter-control{border-color:var(--border)!important;border-radius:12px!important;min-width:0;transition:border-color .15s ease,box-shadow .15s ease}
-.inventory-history-filter-bar,.expense-filter-bar{background:linear-gradient(180deg,color-mix(in srgb,var(--panel) 94%,var(--primary) 6%),var(--panel));}
-.inventory-history-panel,.management-panel{box-shadow:0 8px 28px rgba(15,23,42,.045);border-color:color-mix(in srgb,var(--border) 84%,var(--primary) 16%)}
-@media(max-width:767px){
-  .inventory-history-panel .grid,.management-panel .grid{min-width:0}
-  .inventory-history-panel .date-filter-field,.management-panel .date-filter-field{width:100%;min-width:0}
-  .date-filter-control{height:48px!important;min-height:48px;padding-left:10px!important;padding-right:8px!important;font-size:12px}
-  .filter-control{height:48px!important;min-height:48px;padding-left:10px!important;padding-right:8px!important;font-size:12px}
-  .inventory-history-filter-bar,.expense-filter-bar{padding:12px!important;gap:10px!important}
-  .date-filter-field>span{font-size:11px}
-}
-
-
-/* Rich visual treatment: subtle food photography backgrounds with readable overlays. */
-.auth-page{position:relative;isolation:isolate;background:linear-gradient(120deg,rgba(9,18,32,.88),rgba(17,30,49,.72)),url("https://images.unsplash.com/photo-1559339352-11d035aa65de?auto=format&fit=crop&w=2000&q=85") center/cover fixed!important;}
-.auth-page:before{content:"";position:absolute;inset:0;background:radial-gradient(circle at 18% 15%,rgba(245,158,11,.22),transparent 35%),linear-gradient(135deg,transparent,rgba(5,12,24,.28));z-index:-1;pointer-events:none}
-.auth-card{backdrop-filter:blur(10px);background:rgba(255,255,255,.96);border:1px solid rgba(255,255,255,.55);box-shadow:0 28px 90px rgba(0,0,0,.36)}
-.main-wrap{background-image:linear-gradient(rgba(247,248,250,.94),rgba(247,248,250,.97)),url("https://images.unsplash.com/photo-1547592180-85f173990554?auto=format&fit=crop&w=1800&q=80");background-size:cover;background-position:center;background-attachment:fixed}
-.dark .main-wrap{background-image:linear-gradient(rgba(12,20,35,.95),rgba(12,20,35,.97)),url("https://images.unsplash.com/photo-1559339352-11d035aa65de?auto=format&fit=crop&w=1800&q=80")}
-@media(max-width:767px){.auth-page{background-attachment:scroll!important}.main-wrap{background-attachment:scroll}}
-
-/* Shop Billings / POS: warm, premium backdrop with readable opaque work surfaces. */
-.pos-layout{position:relative;isolation:isolate;padding:14px;border:1px solid rgba(148,163,184,.28);border-radius:18px;background:linear-gradient(125deg,rgba(12,23,39,.84),rgba(36,48,62,.68)),url("https://images.unsplash.com/photo-1542838132-92c53300491e?auto=format&fit=crop&w=1800&q=80") center/cover;box-shadow:0 14px 36px rgba(15,23,42,.12);gap:16px}
-.pos-catalog,.pos-layout .order-panel{background:color-mix(in srgb,var(--panel) 96%,transparent);backdrop-filter:blur(8px);border:1px solid rgba(148,163,184,.25);border-radius:14px;box-shadow:0 8px 24px rgba(15,23,42,.10)}
-.pos-catalog{padding:12px}
-.pos-layout .order-panel{min-width:0}
-@media(max-width:767px){.pos-layout{padding:8px;gap:10px;border-radius:13px;background-position:center;padding-bottom:10px}.pos-catalog{padding:8px}.receipt-preview-shell{padding:5px}.receipt-paper.format-58mm{padding:1.8mm!important}}

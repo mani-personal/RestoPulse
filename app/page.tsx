@@ -3210,8 +3210,24 @@ export default function Home() {
           #printable-receipt-card.format-58mm { width: 58mm !important; max-width: 58mm !important; padding: 2mm !important; font-size: 9px !important; }
           #printable-receipt-card.format-80mm { width: 80mm !important; max-width: 80mm !important; padding: 3mm !important; font-size: 10px !important; }
           #printable-receipt-card.format-A4 { width: 190mm !important; max-width: 190mm !important; padding: 8mm !important; font-size: 12px !important; }
-          #printable-receipt-card table { width: 100% !important; table-layout: fixed !important; border-collapse: collapse !important; }
-          #printable-receipt-card th, #printable-receipt-card td { overflow-wrap: anywhere !important; word-break: break-word !important; }
+          #printable-receipt-card table { width: 100% !important; max-width: 100% !important; table-layout: fixed !important; border-collapse: collapse !important; }
+          #printable-receipt-card th, #printable-receipt-card td { box-sizing: border-box !important; min-width: 0 !important; padding-left: 1px !important; padding-right: 1px !important; overflow-wrap: anywhere !important; word-break: normal !important; vertical-align: top !important; }
+          #printable-receipt-card .receipt-col-item { width: 34% !important; text-align: left !important; }
+          #printable-receipt-card .receipt-col-qty { width: 12% !important; text-align: center !important; }
+          #printable-receipt-card .receipt-col-sell { width: 16% !important; text-align: right !important; }
+          #printable-receipt-card .receipt-col-discount { width: 18% !important; text-align: right !important; }
+          #printable-receipt-card .receipt-col-total { width: 20% !important; text-align: right !important; }
+          #printable-receipt-card.format-58mm th, #printable-receipt-card.format-58mm td { font-size: 7px !important; letter-spacing: -.025em !important; }
+          #printable-receipt-card.format-58mm .receipt-col-item { width: 32% !important; }
+          #printable-receipt-card.format-58mm .receipt-col-qty { width: 12% !important; }
+          #printable-receipt-card.format-58mm .receipt-col-sell { width: 17% !important; }
+          #printable-receipt-card.format-58mm .receipt-col-discount { width: 19% !important; }
+          #printable-receipt-card.format-58mm .receipt-col-total { width: 20% !important; }
+          #printable-receipt-card.format-A4 .receipt-col-item { width: 40% !important; }
+          #printable-receipt-card.format-A4 .receipt-col-qty { width: 12% !important; }
+          #printable-receipt-card.format-A4 .receipt-col-sell { width: 15% !important; }
+          #printable-receipt-card.format-A4 .receipt-col-discount { width: 16% !important; }
+          #printable-receipt-card.format-A4 .receipt-col-total { width: 15% !important; }
           #printable-receipt-card.format-58mm .receipt-line { grid-template-columns: minmax(0,1fr) 20px 48px !important; }
           #printable-receipt-card.format-80mm .receipt-line { grid-template-columns: minmax(0,1fr) 28px 62px !important; }
           #printable-receipt-card.format-A4 .receipt-line { grid-template-columns: minmax(0,1fr) 50px 100px !important; }
@@ -5865,21 +5881,21 @@ export default function Home() {
               <table className="w-full text-[10px] font-mono border-collapse table-fixed">
                 <thead>
                   <tr className="border-b border-dashed border-gray-400 text-gray-700 font-bold">
-                    <th className="py-1 text-left w-[50%]">{tr("ITEM")}</th>
-                    <th className="py-1 text-center w-[15%]">{tr("QTY")}</th>
-                    <th className="py-1 text-right w-[15%]">SELL</th>
-                    <th className="py-1 text-right w-[18%]">DISCOUNTED</th>
-                    <th className="py-1 text-right w-[15%]">TOTAL</th>
+                    <th className="receipt-col-item py-1 text-left">{tr("ITEM")}</th>
+                    <th className="receipt-col-qty py-1 text-center">{tr("QTY")}</th>
+                    <th className="receipt-col-sell py-1 text-right">SELL</th>
+                    <th className="receipt-col-discount py-1 text-right">DISC.</th>
+                    <th className="receipt-col-total py-1 text-right">TOTAL</th>
                   </tr>
                 </thead>
                 <tbody>
                   {receipt.items.map((item, idx) => (
                     <tr key={idx} className="border-b border-dotted border-gray-200">
-                      <td className="py-1 pr-1 truncate text-left">{item.name}</td>
-                      <td className="py-1 text-center">{item.qty}{item.unit ? ` ${item.unit}` : ""}</td>
-                      <td className="py-1 text-right">{money(item.unitPrice)}</td>
-                      <td className="py-1 text-right font-semibold">{money(item.discountedPrice ?? (item.unitPrice - item.discount))}</td>
-                      <td className="py-1 text-right font-semibold">{money(item.qty * (item.discountedPrice ?? (item.unitPrice - item.discount)))}</td>
+                      <td className="receipt-col-item py-1 pr-1 text-left">{item.name}</td>
+                      <td className="receipt-col-qty py-1 text-center">{item.qty}{item.unit ? ` ${item.unit}` : ""}</td>
+                      <td className="receipt-col-sell py-1 text-right">{money(item.unitPrice)}</td>
+                      <td className="receipt-col-discount py-1 text-right font-semibold">{money(item.discountedPrice ?? (item.unitPrice - item.discount))}</td>
+                      <td className="receipt-col-total py-1 text-right font-semibold">{money(item.qty * (item.discountedPrice ?? (item.unitPrice - item.discount)))}</td>
                     </tr>
                   ))}
                 </tbody>

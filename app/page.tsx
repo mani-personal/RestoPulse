@@ -1028,6 +1028,7 @@ export default function Home() {
   const [selectedStaff, setSelectedStaff] = useState<Staff | null>(null);
 
   const [cart, setCart] = useState<CartLine[]>([]);
+  const [savedDraftSales, setSavedDraftSales] = useState<Array<{ id: number; cart: CartLine[]; discount: number; createdAt: string }>>([]);
   const [category, setCategory] = useState("All items");
   const [query, setQuery] = useState("");
   const [orderType, setOrderType] = useState("Dine-in");
@@ -2239,6 +2240,28 @@ export default function Home() {
   const cgstAmount = Math.round(tax / 2);
   const sgstAmount = tax - cgstAmount;
   const total = subtotal - totalDiscount + tax;
+
+  const startNewSale = () => {
+    if (cart.length) {
+      setSavedDraftSales((old) => [{ id: Date.now(), cart: cart.map((line) => ({ ...line })), discount: orderDiscount, createdAt: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }) }, ...old]);
+    }
+    setCart([]);
+    setOrderDiscount(0);
+  };
+
+  const resumeDraftSale = (draftId: number) => {
+    const selected = savedDraftSales.find((draft) => draft.id === draftId);
+    if (!selected) return;
+    const currentDraft = cart.length ? { id: Date.now(), cart: cart.map((line) => ({ ...line })), discount: orderDiscount, createdAt: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }) } : null;
+    setCart(selected.cart.map((line) => ({ ...line })));
+    setOrderDiscount(selected.discount);
+    setSavedDraftSales((old) => [...(currentDraft ? [currentDraft] : []), ...old.filter((draft) => draft.id !== draftId)]);
+  };
+
+  const clearCurrentSale = () => {
+    setCart([]);
+    setOrderDiscount(0);
+  };
 
   const addCart = (id: number | string) => {
     setCart((old) => {
@@ -3808,12 +3831,24 @@ export default function Home() {
 
                 <aside className="order-panel flex flex-col justify-between p-4 bg-card border rounded-2xl shadow-sm">
                   <div>
-                    <div className="order-head flex justify-between items-center mb-4 pb-2 border-b">
+                    <div className="order-head flex flex-wrap justify-between items-center gap-2 mb-3 pb-2 border-b">
                       <h2 className="text-base font-bold">{tr("Current order")}</h2>
                       <span className="order-count text-xs px-2.5 py-1 rounded-full bg-secondary font-semibold">
                         {cart.reduce((a, x) => a + x.qty, 0)} items
                       </span>
                     </div>
+                    <div className="flex flex-wrap gap-2 mb-3 no-print">
+                      <button type="button" className="quiet-btn text-xs flex items-center gap-1.5" onClick={startNewSale}>
+                        <Plus size={14} /> New sale
+                      </button>
+                      <button type="button" className="quiet-btn text-xs flex items-center gap-1.5" onClick={clearCurrentSale} disabled={!cart.length}>
+                        <X size={14} /> Clear all
+                      </button>
+                    </div>
+                    {savedDraftSales.length > 0 && <div className="mb-3 rounded-xl border border-border p-2.5 no-print">
+                      <div className="text-xs font-semibold mb-2">Unfinished sales ({savedDraftSales.length})</div>
+                      <div className="flex flex-wrap gap-2">{savedDraftSales.map((draft, index) => <button type="button" key={draft.id} className="quiet-btn text-xs" onClick={() => resumeDraftSale(draft.id)}>Resume sale {savedDraftSales.length - index} · {draft.cart.reduce((sum, line) => sum + line.qty, 0)} items · {draft.createdAt}</button>)}</div>
+                    </div>}
 
                     <div className="cart-items space-y-3 max-h-[460px] overflow-y-auto pr-1">
                       {cart.map((l) => {
@@ -4635,15 +4670,6 @@ export default function Home() {
                   <form onSubmit={handleResetPassword} className="space-y-3">
                     <label className="block space-y-1">
                       <span className="text-xs font-medium text-muted-foreground">{tr("New Password")}</span>
-                      <input
-                        type={showNewPassword ? "text" : "password"}
-                        required
-                        minLength={6}
-                        value={newPassword}
-                        onChange={(e) => setNewPassword(e.target.value)}
-                        placeholder="••••••••"
-                        className="w-full p-2 pr-10 border rounded-lg text-xs bg-background"
-                      />
                       <div className="relative">
                         <input
                           type={showNewPassword ? "text" : "password"}
@@ -4659,15 +4685,6 @@ export default function Home() {
                     </label>
                     <label className="block space-y-1">
                       <span className="text-xs font-medium text-muted-foreground">{tr("Confirm New Password")}</span>
-                      <input
-                        type={showConfirmPassword ? "text" : "password"}
-                        required
-                        minLength={6}
-                        value={confirmPassword}
-                        onChange={(e) => setConfirmPassword(e.target.value)}
-                        placeholder="••••••••"
-                        className="w-full p-2 pr-10 border rounded-lg text-xs bg-background"
-                      />
                       <div className="relative">
                         <input
                           type={showConfirmPassword ? "text" : "password"}

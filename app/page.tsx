@@ -3923,6 +3923,11 @@ export default function Home() {
                   </div>
 
                   <div className="cart-footer mt-4 pt-3 border-t space-y-3">
+                    <label className="flex items-center justify-between gap-3 rounded-xl border border-emerald-200/70 bg-emerald-50/70 dark:bg-emerald-950/20 dark:border-emerald-900/60 px-3 py-2.5 text-xs font-semibold text-muted-foreground no-print">
+                      <span className="flex flex-col gap-0.5"><span>Extra discount</span><span className="text-[10px] font-normal">Apply a discount to this sale</span></span>
+                      <span className="flex items-center gap-1.5 shrink-0"><span className="text-sm">₹</span><input aria-label="Extra discount" type="number" min="0" max={subtotal} step="0.01" value={orderDiscount || ""} onChange={(e) => setOrderDiscount(Math.max(0, Math.min(subtotal, Number(e.target.value) || 0)))} className="w-28 h-10 rounded-lg border border-border bg-background px-2 text-right text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-emerald-500/30" placeholder="0.00" /></span>
+                    </label>
+                    {orderDiscount > 0 && <div className="flex justify-between px-1 text-xs text-emerald-600"><span>Extra discount applied</span><strong>-{money(orderDiscount)}</strong></div>}
                     <div className="print-format no-print">
                       <span>{tr("Receipt format")}</span>
                       <div className="print-format-options">

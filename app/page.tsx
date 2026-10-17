@@ -3135,26 +3135,32 @@ export default function Home() {
 
   if (!authUser)
     return (
-      <div className="auth-page">
-        <form className="auth-card" onSubmit={login}>
-          <div className="brand-symbol">✳</div>
-          <h1>{tr("Welcome to RestoPulse")}</h1>
-          <p>{tr("Sign in to your restaurant or platform account.")}</p>
-          <label>
-            Email
-            <input type="email" autoComplete="username" required value={loginEmail} onChange={(e) => setLoginEmail(e.target.value)} />
-          </label>
-          <label>
-            Password
-            <div className="login-password-wrap relative">
-              <input type={showLoginPassword ? "text" : "password"} autoComplete="current-password" required value={loginPassword} onChange={(e) => setLoginPassword(e.target.value)} className="pr-10" />
-              <button type="button" className="login-eye-toggle" aria-label={showLoginPassword ? "Hide password" : "Show password"} onClick={() => setShowLoginPassword(v => !v)}>{showLoginPassword ? <EyeOff size={18}/> : <Eye size={18}/>}</button>
-            </div>
-          </label>
-          <button className="primary-btn" disabled={loginBusy}>
-            {loginBusy ? "Signing in…" : "Sign in"}
-          </button>
-        </form>
+      <div className="auth-page auth-page-login">
+        <section className="auth-visual" aria-label="RestoPulse restaurant management">
+          <img src="/restaurant-login-hero.png" alt="Warm restaurant interior with plated food and point-of-sale equipment" />
+        </section>
+        <section className="auth-form-panel">
+          <form className="auth-card" onSubmit={login}>
+            <div className="auth-form-brand"><span className="brand-symbol">✳</span><span>Resto<strong>Pulse</strong></span></div>
+            <h1>{tr("Welcome to RestoPulse")}</h1>
+            <p>{tr("Sign in to your restaurant or platform account.")}</p>
+            <label>
+              Email
+              <input type="email" autoComplete="username" required value={loginEmail} onChange={(e) => setLoginEmail(e.target.value)} />
+            </label>
+            <label>
+              Password
+              <div className="login-password-wrap relative">
+                <input type={showLoginPassword ? "text" : "password"} autoComplete="current-password" required value={loginPassword} onChange={(e) => setLoginPassword(e.target.value)} className="pr-10" />
+                <button type="button" className="login-eye-toggle" aria-label={showLoginPassword ? "Hide password" : "Show password"} onClick={() => setShowLoginPassword(v => !v)}>{showLoginPassword ? <EyeOff size={18}/> : <Eye size={18}/>}</button>
+              </div>
+            </label>
+            <button className="primary-btn" disabled={loginBusy}>
+              {loginBusy ? "Signing in…" : "Sign in"}
+            </button>
+            <p className="auth-form-footnote">Restaurant & shop management, all in one place.</p>
+          </form>
+        </section>
         <Toaster richColors />
       </div>
     );

@@ -386,7 +386,7 @@
 @media(max-width:767px){.main-wrap.fruit-shop-console,.main-wrap.restaurant-console{background-attachment:scroll!important}}
 
 /* ==========================================================================
-   Login refresh: balanced split, full dynamic viewport height & no scrollbars
+   Login refresh: Full image fit + centered login card (No scroll, No gaps)
    ========================================================================== */
 .auth-page.auth-page-login {
   display: grid;
@@ -397,6 +397,7 @@
   width: 100vw;
   height: 100vh;
   height: 100dvh;
+  min-height: 100dvh;
   max-height: 100dvh;
   background: #f7f8fb !important;
   color: #182236;
@@ -408,54 +409,59 @@
   display: none !important;
 }
 
+/* Left Panel: Visual section */
 .auth-visual {
   position: relative;
   width: 100%;
   height: 100%;
   max-height: 100dvh;
   overflow: hidden;
-  background: #24170e;
+  background: #17110c;
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 
+/* Shows the image covering the full panel anchored at the bottom to keep the POS and food plate in view */
 .auth-visual img {
   position: absolute;
-  top: 0;
-  left: 0;
-  display: block;
+  inset: 0;
   width: 100%;
   height: 100%;
   object-fit: cover;
-  object-position: center center;
+  object-position: center bottom;
+  display: block;
 }
 
-/* Prevents overlay copy from sticking flush against the browser borders */
+/* Overlay branding copy with safety margins from screen edge */
 .auth-visual-content,
 .auth-visual > div:not(img) {
   position: absolute;
-  top: clamp(24px, 4vw, 44px);
-  left: clamp(24px, 4vw, 44px);
-  right: clamp(24px, 4vw, 44px);
+  top: clamp(20px, 3.5vw, 40px);
+  left: clamp(20px, 3.5vw, 40px);
+  right: clamp(20px, 3.5vw, 40px);
   z-index: 2;
   color: #ffffff;
-  text-shadow: 0 2px 10px rgba(0, 0, 0, 0.45);
+  text-shadow: 0 2px 12px rgba(0, 0, 0, 0.7);
 }
 
 .auth-visual-content strong,
 .auth-visual > div:not(img) strong {
   display: block;
-  font-size: clamp(22px, 2.4vw, 30px);
-  letter-spacing: -0.6px;
-  line-height: 1.15;
+  font-size: clamp(20px, 2.2vw, 28px);
+  letter-spacing: -0.5px;
+  line-height: 1.2;
 }
 
 .auth-visual-content p,
 .auth-visual > div:not(img) p {
-  margin-top: 8px;
-  font-size: clamp(12px, 1.1vw, 14px);
+  margin-top: 6px;
+  font-size: clamp(12px, 1vw, 14px);
   color: #f1f5f9;
   line-height: 1.4;
 }
 
+/* Right Panel: Form section */
 .auth-form-panel {
   display: flex;
   align-items: center;
@@ -463,8 +469,9 @@
   width: 100%;
   height: 100%;
   max-height: 100dvh;
-  padding: clamp(16px, 3.5vw, 48px);
-  background: radial-gradient(circle at 100% 0%, #fff2d4 0, transparent 32%), linear-gradient(145deg, #fff 0%, #f5f7fb 100%);
+  padding: clamp(16px, 3vw, 40px);
+  background: radial-gradient(circle at 100% 0%, #fff2d4 0, transparent 32%), 
+              linear-gradient(145deg, #ffffff 0%, #f5f7fb 100%);
   min-width: 0;
   box-sizing: border-box;
   overflow-y: auto;
@@ -472,12 +479,14 @@
 
 .auth-page.auth-page-login .auth-card {
   width: min(100%, 420px);
-  padding: clamp(22px, 2.5vw, 36px);
+  padding: clamp(20px, 2.5vw, 36px);
+  display: flex;
+  flex-direction: column;
   gap: 12px;
   border: 1px solid #e8edf4;
   border-radius: 20px;
-  background: rgba(255, 255, 255, .96);
-  box-shadow: 0 20px 60px rgba(26, 42, 67, .10);
+  background: rgba(255, 255, 255, 0.96);
+  box-shadow: 0 20px 60px rgba(26, 42, 67, 0.09);
   backdrop-filter: blur(12px);
   box-sizing: border-box;
   margin: auto 0;
@@ -508,7 +517,7 @@
 
 .auth-page.auth-page-login .auth-card h1 {
   font-size: clamp(22px, 2vw, 27px);
-  letter-spacing: -.6px;
+  letter-spacing: -0.6px;
   margin: 4px 0 0;
   color: #14233a;
 }
@@ -536,7 +545,7 @@
   border-radius: 9px;
   font-size: 13px;
   margin-top: 4px;
-  box-shadow: 0 8px 20px rgba(245, 158, 11, .2);
+  box-shadow: 0 8px 20px rgba(245, 158, 11, 0.2);
 }
 
 .auth-page.auth-page-login .auth-form-footnote {
@@ -546,31 +555,31 @@
   margin: 2px 0 0;
 }
 
-/* Tablet & Mobile responsive behavior */
+/* Tablet & Mobile responsive */
 @media (max-width: 850px) {
   .auth-page.auth-page-login {
     grid-template-columns: 1fr;
-    grid-template-rows: 20vh 1fr;
+    grid-template-rows: 24vh 1fr;
     height: 100dvh;
     overflow: hidden;
   }
   .auth-visual {
     height: 100%;
     min-height: 0;
-    max-height: 20vh;
+    max-height: 24vh;
   }
   .auth-visual img {
-    object-position: center 30%;
+    object-position: center 60%;
   }
   .auth-visual-content,
   .auth-visual > div:not(img) {
-    top: 14px;
-    left: 16px;
-    right: 16px;
+    top: 12px;
+    left: 14px;
+    right: 14px;
   }
   .auth-visual-content p,
   .auth-visual > div:not(img) p {
-    display: none; /* Hide subtitle on mobile to preserve visual space */
+    display: none;
   }
   .auth-form-panel {
     padding: 14px 16px;
@@ -578,39 +587,31 @@
   }
   .auth-page.auth-page-login .auth-card {
     width: min(100%, 420px);
-    padding: 18px 20px;
-    gap: 10px;
+    padding: 16px 18px;
+    gap: 8px;
   }
   .auth-form-brand {
-    font-size: 22px;
+    font-size: 21px;
   }
   .auth-page.auth-page-login .auth-card h1 {
-    font-size: 20px;
+    font-size: 19px;
   }
   .auth-page.auth-page-login .auth-card input,
   .auth-page.auth-page-login .auth-card .primary-btn {
-    height: 40px;
+    height: 38px;
   }
 }
 
 @media (max-width: 420px) {
   .auth-page.auth-page-login {
-    grid-template-rows: 16vh 1fr;
+    grid-template-rows: 18vh 1fr;
   }
   .auth-visual {
-    max-height: 16vh;
+    max-height: 18vh;
   }
   .auth-page.auth-page-login .auth-card {
-    padding: 16px;
-    border-radius: 16px;
-    gap: 8px;
-  }
-  .auth-form-brand {
-    font-size: 20px;
-  }
-  .auth-page.auth-page-login .auth-card .brand-symbol {
-    width: 32px;
-    height: 32px;
-    font-size: 18px;
+    padding: 14px;
+    border-radius: 14px;
+    gap: 6px;
   }
 }
